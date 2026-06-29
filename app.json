@@ -28,6 +28,19 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow PinPrice to choose product photos for tagging.",
+          "cameraPermission": "Allow PinPrice to take product photos for tagging."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "savePhotosPermission": "Allow PinPrice to save tagged product photos."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
