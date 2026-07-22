@@ -1,0 +1,126 @@
+{
+  "common": {
+    "appName": "PinPrice"
+  },
+  "home": {
+    "headline": "Add price tags to product photos fast",
+    "subtitle": "Add prices and sold labels to product photos in seconds.",
+    "takePhoto": "Take Photo",
+    "choosePhoto": "Choose Photo",
+    "menu": "Menu",
+    "settings": "Settings",
+    "photoPermissionRequired": "Photo access is needed to choose an image.",
+    "cameraPermissionRequired": "Camera access is needed to take a photo.",
+    "photoPickerError": "Could not open photos.",
+    "cameraError": "Could not open camera."
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "currency": "Currency",
+    "version": "App version",
+    "contact": "Contact / Feedback",
+    "help": "Help",
+    "lifetimePurchase": "Remove ads",
+    "comingSoon": "Coming soon"
+  },
+  "language": {
+    "thai": "TH",
+    "english": "EN"
+  },
+  "editor": {
+    "back": "Back",
+    "edit": "Edit",
+    "save": "Save",
+    "saving": "Saving...",
+    "sharing": "Sharing...",
+    "add": "Add",
+    "style": "Style",
+    "select": "Select",
+    "align": "Align",
+    "alignTooFar": "Select tags that are closer together to align",
+    "exitMultiSelect": "Exit multi-select",
+    "export": "Export",
+    "undo": "Undo",
+    "mode": "Mode",
+    "more": "More",
+    "modeSelectorTitle": "Choose mode",
+    "modeTagOnImage": "Tag on photo",
+    "modePriceList": "Price list",
+    "modePriceListComingSoon": "Coming soon",
+    "modeSwitchTitle": "Switch mode?",
+    "modeSwitchToPriceListBody": "Current photo tags will be cleared before switching to Price list mode.",
+    "modeSwitchToTagBody": "Current price list markers will be cleared before switching to Tag on photo mode.",
+    "modeSwitchConfirm": "Switch mode",
+    "moreMenuTitle": "More",
+    "moreMenuPlaceholder": "More features coming soon",
+    "preview": "Preview",
+    "editFilename": "Edit filename",
+    "cancelFilenameEdit": "Cancel filename edit",
+    "confirmFilenameEdit": "Confirm filename edit",
+    "previewBeforeSaving": "Preview before saving",
+    "closeTagEditor": "Close tag editor",
+    "addPriceTag": "Add price tag",
+    "noImageSelected": "No image selected",
+    "backHome": "Back Home",
+    "tapPhotoToAdd": "Tap the photo to add a price tag",
+    "tapPhotoToAddMarker": "Tap the photo to add a number",
+    "choosePhotoToStart": "Choose a photo to start tagging"
+  },
+  "pricePanel": {
+    "confirmDeleteBody": "This marker and its price row will be removed.",
+    "confirmDeleteTitle": "Delete this price item?",
+    "done": "Done",
+    "editPriceTitle": "Edit price",
+    "enterPrice": "Enter price",
+    "next": "Next"
+  },
+  "tag": {
+    "newTag": "New Tag",
+    "editTag": "Edit Tag",
+    "price": "Price",
+    "sold": "Sold",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "dragToDelete": "Release here to delete",
+    "confirmDeleteTitle": "Delete this tag?",
+    "confirmDeleteBody": "This tag will be removed from the photo."
+  },
+  "style": {
+    "closePicker": "Close style picker",
+    "size": "Size",
+    "presets": {
+      "price-white-black": "White price tag with black text",
+      "price-black-white": "Black price tag with white text",
+      "sold-red": "Red sold tag",
+      "sold-gray": "Gray sold tag"
+    },
+    "sizeOptions": {
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    }
+  },
+  "export": {
+    "saveImage": "Save Image",
+    "share": "Share",
+    "shareDialogTitle": "Share tagged photo",
+    "savedToGallery": "Saved to gallery."
+  },
+  "leave": {
+    "title": "Leave editor?",
+    "body": "Your current tags and edits will be lost.",
+    "cancel": "Cancel",
+    "confirm": "Leave"
+  },
+  "permissions": {
+    "photoSaveRequired": "Please allow photo access to save."
+  },
+  "errors": {
+    "exportViewNotReady": "Export view is not ready.",
+    "saveFailed": "Save failed. Please try again.",
+    "sharingUnavailable": "Sharing is not available here.",
+    "shareFailed": "Share failed. Please try again."
+  }
+}

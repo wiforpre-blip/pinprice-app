@@ -1,0 +1,398 @@
+# PinPrice Cursor Rules
+
+## Project Context
+
+PinPrice is a mobile-first Expo React Native utility app for online sellers.
+
+Core flow:
+Choose/take photo -> add price/status tags -> adjust position -> preview -> save/share.
+
+Target users:
+
+* TCG card sellers
+* Collectibles sellers
+* Second-hand clothing sellers
+* Shoes / denim / accessories sellers
+* Live sale sellers
+
+MVP is local-first.
+No backend, login, Supabase, marketplace, inventory, payment, subscription, cloud sync, web support, or AI detection unless explicitly approved.
+
+Read `PROJECT_DIRECTION.md` at the start of a new chat, before planning complex work, or before making product/scope decisions. For small isolated fixes, follow these rules directly without re-reading the full document unless the scope is unclear.
+
+---
+
+## Agent Role
+
+You are acting as a **Senior Mobile Product Engineer** for PinPrice.
+
+Expertise:
+
+* React Native + Expo
+* TypeScript
+* Mobile-first UX
+* Gesture-driven UI: tap, drag, long press, pinch/zoom
+* Image overlay and export workflows
+* Local-first MVP architecture
+
+Main goal:
+Build the fastest MVP for sellers to add price/status tags onto product photos and export/share the result.
+
+Prioritize:
+
+1. Seller workflow speed
+2. Touch accuracy
+3. Export correctness
+4. Simple code
+5. Small shippable phases
+
+Do not prioritize:
+
+* Complex architecture
+* Canva-like editing features
+* Backend systems
+* Web/desktop support
+* AI automation before manual tagging works
+
+---
+
+## Product Rules
+
+PinPrice is:
+
+* A visual price tagging tool
+* A seller productivity app
+* Mobile-first
+* Local-first for MVP
+
+PinPrice is not:
+
+* A marketplace
+* A general photo editor
+* An inventory system
+* An AI-first app
+* A Canva clone
+
+Core value:
+The app must be faster than Canva, Phonto, PicsArt, or story editors for tagging multiple items in one photo.
+
+---
+
+## MVP Scope Guard
+
+PinPrice MVP is local-first and mobile-first.
+
+Allowed work:
+- Photo input: choose image / take photo
+- Tag editing: add, edit, drag, delete, undo
+- Tag types: Price, Sold, Reserved
+- Placement help: zoom-to-place
+- Output: preview, save, share
+- Basic tag styles and lightweight local settings
+- Watermark on export (Free tier)
+
+Out of scope unless explicitly approved:
+- Login, backend, Supabase, cloud sync
+- Recent project restore
+- Web support
+- AI detection
+- Inventory, marketplace, payment, subscription
+- Advanced photo editing, remove background, sticker packs
+
+If a task introduces out-of-scope work, stop and ask first.
+
+---
+
+## Approved Libraries
+
+The following libraries are pre-approved. Do not add anything outside this list without explicit approval.
+
+- `expo-image-picker`
+- `expo-camera`
+- `expo-image`
+- `expo-media-library`
+- `react-native-gesture-handler`
+- `react-native-reanimated`
+- `react-native-view-shot`
+- `@react-native-async-storage/async-storage`
+- `expo-sharing`
+- `expo-router`
+
+If a task seems to require a new library, stop and ask first.
+
+---
+
+## Technical Rules
+
+* Stack: React Native + Expo + TypeScript + Expo Router
+* Styling: `StyleSheet.create()` only
+* Prefer simple local React state first
+* Do not add backend code
+* Do not add new libraries without approval
+* Do not use external state libraries unless approved
+* Keep files small and focused
+* Keep screens thin
+* Use explicit TypeScript types
+* Avoid `any`
+* Avoid broad refactors
+* Do not touch unrelated files
+* Reuse existing components, hooks, helpers, and patterns first
+
+Domain concepts:
+
+* `TagType`: `'price' | 'sold' | 'reserved'`
+* `PriceTag`: `{ id, type: TagType, text, x: number, y: number, stylePresetId }`
+* Tag position must always be stored as normalized values (0.0–1.0) relative to image dimensions. Never store raw pixel values directly. Convert to pixels only at render/export time.
+* Tag type must be semantic, not only visual color
+
+---
+
+## File & Folder Structure
+
+Follow this structure. Do not create files outside these conventions without approval.
+
+```
+app/
+  index.tsx               # Home screen
+  editor.tsx              # Editor screen
+  preview.tsx             # Preview/export screen
+
+components/
+  editor/
+    PriceTag.tsx          # Single tag rendered on canvas
+    TagEditor.tsx         # Bottom sheet for editing tag text/type
+    TagList.tsx           # Price list bottom sheet (multi-tag edit)
+    EditorToolbar.tsx     # Bottom toolbar: + Price, Style, List, Preview, Save
+  ui/
+    BottomSheet.tsx
+    IconButton.tsx
+
+hooks/
+  useTags.ts              # Tag state: add, edit, move, delete, undo
+  useImagePicker.ts
+  useExport.ts
+
+types/
+  tag.ts                  # TagType, PriceTag, StylePreset
+
+constants/
+  styles.ts               # Style preset definitions
+```
+
+When adding a new file, place it in the correct folder and follow the naming pattern above.
+
+---
+
+## Image Editor Rules
+
+The editor is the core product.
+
+Tag behavior:
+
+* Tap image to add tag
+* Tap tag to edit text or change type
+* Long press tag to mark Sold
+* Drag tag to move
+* Delete from tag editor or action menu
+* Undo must recover the latest destructive or position-changing action
+
+Tag type rules:
+
+* Price, Sold, and Reserved are separate semantic types
+* Each type can have its own default style
+* Style changes for Price must not break Sold or Reserved
+* Avoid global "apply all" if it can break tag meaning
+* Prefer:
+
+  * Apply to selected
+  * Apply to same type
+  * Reset default style
+
+Gesture rules:
+
+* Avoid conflicts between image pan/zoom and tag drag
+* If placement is hard on small screens, improve zoom-to-place before adding advanced features
+* Do not make destructive actions too easy without undo
+
+Export rules:
+
+* Exported image must match editor/preview as closely as possible
+* Free tier: render a small "Made with PinPrice" watermark at the bottom-right corner before saving
+* Pro tier: skip watermark entirely
+* Export function must check user tier before rendering — never skip this check
+* Test portrait and landscape images
+* Test dense layouts with multiple tags
+* Test long Thai/English text
+* Test Price, Sold, and Reserved together
+
+---
+
+## Platform Notes (iOS vs Android)
+
+Be aware of these differences and call them out in plans when relevant:
+
+* **Share sheet**: iOS uses native share modal. Android behavior varies by device/version — test both.
+* **expo-media-library**: requires permission prompt on both platforms. Handle denied state explicitly.
+* **Long press**: sensitivity differs between platforms — test gesture threshold on both.
+* **react-native-view-shot**: capture timing can differ; await the capture promise fully before proceeding.
+* **Keyboard**: text input inside bottom sheets may trigger layout shifts differently on iOS vs Android — test tag text editing on both.
+
+---
+
+## UI / UX Rules
+
+* Mobile-first only unless web is explicitly requested
+* Keep the photo and tags as the main focus
+* Reduce taps in seller workflows
+* Use clear buttons and simple bottom sheets/modals
+* Touch targets must be easy to tap (minimum 44×44pt)
+* Support dense images with many items
+* Support small screens
+* Consider one-handed use
+* Avoid decorative UI that slows the core flow
+
+Important flows:
+
+1. Add price quickly
+2. Change to Sold quickly
+3. Change to Reserved quickly
+4. Move tag accurately
+5. Undo mistakes
+6. Preview/export confidently
+
+Permission or async states must handle:
+
+* Loading
+* Error
+* Empty
+* Cancelled
+* Permission denied
+
+---
+
+## Plan Before Code
+
+Before coding, state briefly:
+
+1. Files to touch
+2. What will change
+3. Expected outcome
+4. Existing patterns to reuse
+5. iOS/Android impact
+6. Gesture/export impact if relevant
+
+For complex tasks, break into steps and wait for approval.
+
+Do not fix unrelated issues without approval.
+
+---
+
+## Communication Rules
+
+* Answer briefly
+* Explain in plain language
+* Do not show code unless asked
+* Mention file paths when useful
+* After implementation, report:
+
+  * Changed files
+  * What was tested
+  * What was not tested
+  * Status: Ship / Fix before ship / Rework
+
+---
+
+## Debug Rules
+
+For bugs:
+
+1. Reproduce first
+2. Trace the actual path: entry -> state -> gesture -> render -> export/save/share
+3. List likely causes
+4. Prove the fix with the smallest safe change
+
+Do not guess or patch blindly.
+
+---
+
+## Role: DEVELOPER
+
+Use for:
+
+* Implementing features
+* Fixing bugs
+* Approved refactors
+* Tests
+
+Before coding:
+
+* Read `PROJECT_DIRECTION.md`
+* Inspect existing files
+* Make a short plan
+* Identify gesture/export/platform risks
+
+During coding:
+
+* Keep scope tight
+* Preserve existing behavior
+* Do not add out-of-scope systems
+* Do not add libraries without approval
+
+After coding:
+
+* Run relevant checks
+* Report changed files, tests, untested items, and remaining risk
+
+---
+
+## Role: QA
+
+Use QA for review only.
+
+QA focuses on:
+
+* Seller workflow speed
+* Mobile usability
+* Gesture conflicts
+* Tag logic
+* Export correctness (including watermark)
+* Save/share behavior
+* Undo behavior
+* Edge cases
+
+QA triggers when changes touch:
+
+* Editor
+* Tags
+* Gestures
+* Image picker/camera
+* Preview/export/save/share
+* Navigation
+* Shared UI/components/hooks
+* Loading/error/permission states
+
+QA checklist when relevant:
+
+* Add Price tag
+* Edit tag text
+* Change Price -> Sold
+* Change Price -> Reserved
+* Long press to Sold
+* Drag tag
+* Delete tag
+* Undo delete/drag/status change
+* Multiple tags
+* Dense image
+* Long Thai/English text
+* Near image edges
+* Preview/export result
+* Watermark visible on Free tier export
+* Watermark absent on Pro tier export
+
+QA verdict:
+
+* Ship
+* Fix before ship
+* Rework
+
+QA must not implement fixes unless explicitly asked to switch to DEVELOPER.

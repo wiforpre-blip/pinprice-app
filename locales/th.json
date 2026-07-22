@@ -1,0 +1,126 @@
+{
+  "common": {
+    "appName": "PinPrice"
+  },
+  "home": {
+    "headline": "ติดป้ายราคาบนรูปสินค้าได้เร็ว",
+    "subtitle": "เพิ่มราคาและป้ายขายแล้วลงบนรูปสินค้าได้ในไม่กี่วินาที",
+    "takePhoto": "ถ่ายรูป",
+    "choosePhoto": "เลือกรูป",
+    "menu": "เมนู",
+    "settings": "ตั้งค่า",
+    "photoPermissionRequired": "ต้องอนุญาตเข้าถึงรูปภาพเพื่อเลือกรูป",
+    "cameraPermissionRequired": "ต้องอนุญาตใช้กล้องเพื่อถ่ายรูป",
+    "photoPickerError": "เปิดรูปภาพไม่ได้",
+    "cameraError": "เปิดกล้องไม่ได้"
+  },
+  "settings": {
+    "title": "ตั้งค่า",
+    "language": "ภาษา",
+    "currency": "สกุลเงิน",
+    "version": "เวอร์ชันแอป",
+    "contact": "ติดต่อ / แจ้งปัญหา",
+    "help": "ช่วยเหลือ",
+    "lifetimePurchase": "ลบโฆษณา",
+    "comingSoon": "เร็วๆ นี้"
+  },
+  "language": {
+    "thai": "TH",
+    "english": "EN"
+  },
+  "editor": {
+    "back": "กลับ",
+    "edit": "แก้ไข",
+    "save": "บันทึก",
+    "saving": "กำลังบันทึก...",
+    "sharing": "กำลังแชร์...",
+    "add": "เพิ่ม",
+    "style": "สไตล์",
+    "select": "เลือก",
+    "align": "จัดแนว",
+    "alignTooFar": "เลือกแท็กที่อยู่ใกล้กันกว่านี้เพื่อจัดแนว",
+    "exitMultiSelect": "ออกจากโหมดเลือกหลายแท็ก",
+    "export": "ส่งออก",
+    "undo": "ย้อนกลับ",
+    "mode": "โหมด",
+    "more": "เพิ่มเติม",
+    "modeSelectorTitle": "เลือกโหมด",
+    "modeTagOnImage": "ติดราคาบนรูป",
+    "modePriceList": "รายการราคา",
+    "modePriceListComingSoon": "เร็วๆ นี้",
+    "modeSwitchTitle": "เปลี่ยนโหมด?",
+    "modeSwitchToPriceListBody": "ป้ายราคาบนรูปปัจจุบันจะถูกล้างก่อนเปลี่ยนเป็นโหมดรายการราคา",
+    "modeSwitchToTagBody": "หมายเลขและรายการราคาปัจจุบันจะถูกล้างก่อนเปลี่ยนเป็นโหมดติดราคาบนรูป",
+    "modeSwitchConfirm": "เปลี่ยนโหมด",
+    "moreMenuTitle": "เพิ่มเติม",
+    "moreMenuPlaceholder": "ฟีเจอร์เพิ่มเติมจะมาเร็วๆ นี้",
+    "preview": "พรีวิว",
+    "editFilename": "แก้ชื่อไฟล์",
+    "cancelFilenameEdit": "ยกเลิกแก้ชื่อไฟล์",
+    "confirmFilenameEdit": "ยืนยันชื่อไฟล์",
+    "previewBeforeSaving": "พรีวิวก่อนบันทึก",
+    "closeTagEditor": "ปิดตัวแก้ป้าย",
+    "addPriceTag": "เพิ่มป้ายราคา",
+    "noImageSelected": "ยังไม่ได้เลือกรูป",
+    "backHome": "กลับหน้าแรก",
+    "tapPhotoToAdd": "แตะรูปเพื่อเพิ่มป้ายราคา",
+    "tapPhotoToAddMarker": "แตะรูปเพื่อเพิ่มหมายเลข",
+    "choosePhotoToStart": "เลือกรูปเพื่อเริ่มติดป้าย"
+  },
+  "pricePanel": {
+    "confirmDeleteBody": "หมายเลขและแถวราคานี้จะถูกลบออก",
+    "confirmDeleteTitle": "ลบรายการราคานี้?",
+    "done": "เสร็จ",
+    "editPriceTitle": "แก้ราคา",
+    "enterPrice": "ใส่ราคา",
+    "next": "ถัดไป"
+  },
+  "tag": {
+    "newTag": "ป้ายใหม่",
+    "editTag": "แก้ป้าย",
+    "price": "ราคา",
+    "sold": "ขายแล้ว",
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "delete": "ลบ",
+    "dragToDelete": "ปล่อยตรงนี้เพื่อลบ",
+    "confirmDeleteTitle": "ลบป้ายนี้?",
+    "confirmDeleteBody": "ป้ายนี้จะถูกลบออกจากรูป"
+  },
+  "style": {
+    "closePicker": "ปิดตัวเลือกสไตล์",
+    "size": "ขนาด",
+    "presets": {
+      "price-white-black": "ป้ายราคาพื้นขาวตัวอักษรดำ",
+      "price-black-white": "ป้ายราคาพื้นดำตัวอักษรขาว",
+      "sold-red": "ป้ายขายแล้วสีแดง",
+      "sold-gray": "ป้ายขายแล้วสีเทา"
+    },
+    "sizeOptions": {
+      "small": "เล็ก",
+      "medium": "กลาง",
+      "large": "ใหญ่"
+    }
+  },
+  "export": {
+    "saveImage": "บันทึกรูป",
+    "share": "แชร์",
+    "shareDialogTitle": "แชร์รูปที่ติดป้ายแล้ว",
+    "savedToGallery": "บันทึกลงแกลเลอรีแล้ว"
+  },
+  "leave": {
+    "title": "ออกจากหน้าแก้ไข?",
+    "body": "ป้ายและการแก้ไขตอนนี้จะหายไป",
+    "cancel": "ยกเลิก",
+    "confirm": "ออก"
+  },
+  "permissions": {
+    "photoSaveRequired": "โปรดอนุญาตเข้าถึงรูปภาพเพื่อบันทึก"
+  },
+  "errors": {
+    "exportViewNotReady": "ยังไม่พร้อมส่งออกรูป",
+    "saveFailed": "บันทึกไม่สำเร็จ ลองอีกครั้ง",
+    "sharingUnavailable": "อุปกรณ์นี้ยังไม่รองรับการแชร์",
+    "shareFailed": "แชร์ไม่สำเร็จ ลองอีกครั้ง"
+  }
+}
