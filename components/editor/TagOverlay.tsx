@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
 
+import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
 import { getResolvedTagPreset } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import type { ImageDisplayRect, PriceTag, TagType } from '@/types/tag';
@@ -60,6 +61,8 @@ export function TagOverlay({
   const displayType = typeOverride ?? tag.type;
   const tagStyle = getResolvedTagPreset(tag, displayType);
   const displayText = textOverride ?? tag.text;
+  const isPlainSoldIcon = displayType === 'sold' && tag.soldTextFormat === 'icon_plain';
+  const isBadgeSoldIcon = displayType === 'sold' && tag.soldTextFormat === 'icon';
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(ZERO_OFFSET);
   const [tagSize, setTagSize] = useState<TagSize>(FALLBACK_TAG_SIZE);
@@ -245,9 +248,11 @@ export function TagOverlay({
       style={[
         styles.tag,
         isDragging && styles.draggingTag,
+        isPlainSoldIcon && styles.plainSoldTag,
         {
           backgroundColor: tagStyle.backgroundColor,
           borderColor: tagStyle.borderColor,
+          borderWidth: isPlainSoldIcon ? 0 : 1,
           minHeight: tagStyle.minHeight,
           maxWidth: tagStyle.maxWidth,
           paddingHorizontal: tagStyle.paddingHorizontal,
@@ -257,10 +262,25 @@ export function TagOverlay({
           transform: [{ translateX: activeOffset.x }, { translateY: activeOffset.y }],
         },
       ]}>
-      {isSelected ? <View pointerEvents="none" style={[styles.selectedArea, { borderColor: tagStyle.borderColor, backgroundColor: tagStyle.borderColor }]} /> : null}
-      <Text numberOfLines={2} style={[styles.tagText, { color: tagStyle.color, fontSize: tagStyle.fontSize, lineHeight: tagStyle.lineHeight }]}>
-        {displayText}
-      </Text>
+      {isSelected ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.selectedArea,
+            {
+              borderColor: isPlainSoldIcon ? theme.colors.sold : tagStyle.borderColor,
+              backgroundColor: isPlainSoldIcon ? theme.colors.sold : tagStyle.borderColor,
+            },
+          ]}
+        />
+      ) : null}
+      {isPlainSoldIcon || isBadgeSoldIcon ? (
+        <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
+      ) : (
+        <Text numberOfLines={2} style={[styles.tagText, { color: tagStyle.color, fontSize: tagStyle.fontSize, lineHeight: tagStyle.lineHeight }]}>
+          {displayText}
+        </Text>
+      )}
     </View>
   );
 }
@@ -275,21 +295,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...theme.shadows.tag,
   },
+  plainSoldTag: {
+    shadowOpacity: 0,
+    elevation: 0,
+    shadowRadius: 0,
+  },
   draggingTag: {
     opacity: 0.92,
     zIndex: 3,
+    elevation: 12,
   },
   selectedArea: {
     position: 'absolute',
-    top: -theme.spacing.xs,
-    right: -theme.spacing.xs,
-    bottom: -theme.spacing.xs,
-    left: -theme.spacing.xs,
-    borderRadius: theme.radius.sm,
+    top: -theme.spacing.sm,
+    right: -theme.spacing.sm,
+    bottom: -theme.spacing.sm,
+    left: -theme.spacing.sm,
+    borderRadius: theme.radius.md,
     borderWidth: 2,
-    borderColor: theme.tags.price.borderColor,
-    backgroundColor: theme.tags.price.borderColor,
-    opacity: 0.12,
+    opacity: 0.18,
   },
   tagText: {
     ...theme.typography.tag,

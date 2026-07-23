@@ -19,10 +19,26 @@
     "language": "ภาษา",
     "currency": "สกุลเงิน",
     "version": "เวอร์ชันแอป",
-    "contact": "ติดต่อ / แจ้งปัญหา",
+    "contact": "ติดต่อผู้พัฒนา",
     "help": "ช่วยเหลือ",
-    "lifetimePurchase": "ลบโฆษณา",
-    "comingSoon": "เร็วๆ นี้"
+    "removeAds": "ปิดโฆษณาถาวร",
+    "comingSoon": "เร็วๆ นี้",
+    "feedbackSend": "ส่ง",
+    "feedbackSending": "กำลังส่ง...",
+    "feedbackSent": "Feedback sent",
+    "feedbackFailed": "ส่ง feedback ไม่สำเร็จ กรุณาลองใหม่",
+    "feedbackMessagePlaceholder": "พิมพ์รายละเอียดที่ต้องการแจ้งให้เราทราบ",
+    "feedbackType": {
+      "bug": "แจ้งปัญหา",
+      "suggestion": "แนะนำ",
+      "other": "อื่นๆ"
+    }
+  },
+  "currency": {
+    "thb": "Thai Baht",
+    "sgd": "Singapore Dollar",
+    "myr": "Malaysian Ringgit",
+    "jpy": "Japanese Yen"
   },
   "language": {
     "thai": "TH",
@@ -85,6 +101,18 @@
     "editTag": "แก้ป้าย",
     "price": "ราคา",
     "sold": "ขายแล้ว",
+    "text": "ข้อความ",
+    "condition": "สภาพ",
+    "quantity": "จำนวน",
+    "language": "ภาษา",
+    "typeTitles": {
+      "price": "ป้ายราคา",
+      "sold": "ป้ายขายแล้ว",
+      "text": "ป้ายข้อความ",
+      "condition": "ป้ายสภาพการ์ด",
+      "quantity": "ป้ายจำนวนสินค้า",
+      "language": "ป้ายภาษาการ์ด"
+    },
     "save": "บันทึก",
     "cancel": "ยกเลิก",
     "delete": "ลบ",
@@ -104,7 +132,8 @@
     "sizeOptions": {
       "small": "เล็ก",
       "medium": "กลาง",
-      "large": "ใหญ่"
+      "large": "ใหญ่",
+      "xl": "ใหญ่พิเศษ"
     }
   },
   "export": {

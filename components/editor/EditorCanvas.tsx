@@ -12,13 +12,13 @@ import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
 import type { EditorPricingMode, ScreenPoint, Size, TagSize } from '@/types/editor';
 import type { PanelMarker as PanelMarkerType } from '@/types/pricePanel';
-import type { ImageDisplayRect, PriceTag, TagType } from '@/types/tag';
+import type { ImageDisplayRect, PriceTag, TagEditorDraftPreview, TagEditorSaveUpdates, TagType } from '@/types/tag';
 import { clampGroupPixelOffset } from '@/utils/editorGeometry';
 
 type EditorCanvasProps = {
   canvasRef: RefObject<View | null>;
   canvasSize: Size;
-  defaultPriceText: string;
+  draftPreview: TagEditorDraftPreview | null;
   draftTagId: string | null;
   draftText: string;
   draftType: TagType;
@@ -38,12 +38,11 @@ type EditorCanvasProps = {
   onCanvasPress: (event: GestureResponderEvent) => void;
   onDeleteMarker: (markerId: string) => void;
   onDeleteTag: (tagId: string) => void;
-  onDraftTextChange: (text: string) => void;
-  onDraftTypeChange: (type: TagType) => void;
+  onDraftChange: (preview: TagEditorDraftPreview) => void;
   onEditMarkerPrice: (markerId: string) => void;
   onImageLoad: (event: ImageLoadEventData) => void;
   onLeaveEmpty: () => void;
-  onSaveTag: (tagId: string, text: string, type: TagType) => void;
+  onSaveTag: (tagId: string, updates: TagEditorSaveUpdates) => void;
   onSelectMarker: (markerId: string) => void;
   onTagDragCancel: () => void;
   onTagDragEnd: (tagId: string, canvasX: number, canvasY: number, tagSize: TagSize, releasePoint: ScreenPoint) => void;
@@ -65,7 +64,7 @@ type EditorCanvasProps = {
 export function EditorCanvas({
   canvasRef,
   canvasSize,
-  defaultPriceText,
+  draftPreview,
   draftTagId,
   draftText,
   draftType,
@@ -85,8 +84,7 @@ export function EditorCanvas({
   onCanvasPress,
   onDeleteMarker,
   onDeleteTag,
-  onDraftTextChange,
-  onDraftTypeChange,
+  onDraftChange,
   onEditMarkerPrice,
   onImageLoad,
   onLeaveEmpty,
@@ -214,8 +212,24 @@ export function EditorCanvas({
                 onDragStart={onTagDragStart}
                 onPress={onTagPress}
                 onSizeChange={onTagSizeChange}
-                tag={tag}
-                textOverride={tag.id === selectedTagId ? draftText.trim() || getDefaultTextForType(draftType) : undefined}
+                tag={
+                  tag.id === selectedTagId && draftPreview
+                    ? {
+                        ...tag,
+                        text: draftPreview.text || tag.text,
+                        stylePresetId: draftPreview.stylePresetId ?? tag.stylePresetId,
+                        sizePresetId: draftPreview.sizePresetId ?? tag.sizePresetId,
+                        priceTextFormat: draftPreview.priceTextFormat ?? tag.priceTextFormat,
+                        soldTextFormat: draftPreview.soldTextFormat ?? tag.soldTextFormat,
+                        languageCode: draftPreview.languageCode ?? tag.languageCode,
+                      }
+                    : tag
+                }
+                textOverride={
+                  tag.id === selectedTagId
+                    ? (draftPreview?.text ?? draftText).trim() || getDefaultTextForType(draftType)
+                    : undefined
+                }
                 typeOverride={tag.id === selectedTagId ? draftType : undefined}
               />
             );
@@ -225,13 +239,10 @@ export function EditorCanvas({
       {imageRect ? (
         <TagEditor
           canvasSize={canvasSize}
-          defaultText={defaultPriceText}
           imageRect={imageRect}
           isNewTag={Boolean(draftTagId)}
           onCancel={onCancelTagEdit}
-          onDelete={onDeleteTag}
-          onDraftTextChange={onDraftTextChange}
-          onDraftTypeChange={onDraftTypeChange}
+          onDraftChange={onDraftChange}
           onSave={onSaveTag}
           tag={selectedTag}
           visible={Boolean(selectedTag) && !isMultiSelectMode && draggingTagId !== selectedTagId && !isStylePickerVisible}
@@ -261,6 +272,8 @@ const styles = StyleSheet.create({
   },
   draggingCanvas: {
     overflow: 'visible',
+    // Keep the active drag surface above siblings inside content; parent content
+    // also elevates above the floating delete drop zone while dragging.
     zIndex: 2,
   },
   image: {

@@ -125,13 +125,12 @@ If a task seems to require a new library, stop and ask first.
 ## Technical Rules
 
 * Stack: React Native + Expo + TypeScript + Expo Router
-* Styling: `StyleSheet.create()` only
+* Styling: use `StyleSheet.create()` for React Native styles
 * Prefer simple local React state first
-* Do not add backend code
-* Do not add new libraries without approval
+* Follow MVP scope rules before adding backend, cloud, auth, payment, or AI systems
+* Follow Approved Libraries before adding dependencies
 * Do not use external state libraries unless approved
-* Keep files small and focused
-* Keep screens thin
+* Follow file placement and screen responsibility rules in "Code Organization Rules"
 * Use explicit TypeScript types
 * Avoid `any`
 * Avoid broad refactors
@@ -149,37 +148,83 @@ Domain concepts:
 
 ## File & Folder Structure
 
-Follow this structure. Do not create files outside these conventions without approval.
+Allowed top-level folders. Do not create new top-level folders without approval.
 
-```
-app/
-  index.tsx               # Home screen
-  editor.tsx              # Editor screen
-  preview.tsx             # Preview/export screen
+- `app/`
+- `components/`
+- `hooks/`
+- `utils/`
+- `services/`
+- `types/`
+- `constants/`
+- `contexts/`
+- `locales/`
+- `assets/`
+- `scripts/`
 
-components/
-  editor/
-    PriceTag.tsx          # Single tag rendered on canvas
-    TagEditor.tsx         # Bottom sheet for editing tag text/type
-    TagList.tsx           # Price list bottom sheet (multi-tag edit)
-    EditorToolbar.tsx     # Bottom toolbar: + Price, Style, List, Preview, Save
-  ui/
-    BottomSheet.tsx
-    IconButton.tsx
+---
 
-hooks/
-  useTags.ts              # Tag state: add, edit, move, delete, undo
-  useImagePicker.ts
-  useExport.ts
+## Code Organization Rules
 
-types/
-  tag.ts                  # TagType, PriceTag, StylePreset
+Screens in `app/` should be orchestration only.
 
-constants/
-  styles.ts               # Style preset definitions
-```
+A screen may:
+- read route params
+- compose hooks
+- compose components
+- pass props/callbacks
+- handle navigation-level decisions
 
-When adding a new file, place it in the correct folder and follow the naming pattern above.
+A screen should not contain:
+- pure calculation helpers
+- export/save/share implementation
+- permission or native API logic
+- complex gesture state
+- large local state machines
+- large StyleSheet blocks
+- reusable UI pieces
+- domain factories or data transformers
+
+Place code by responsibility:
+- `app/`: Expo Router screens and route-level orchestration
+- `components/`: visual UI and interaction surfaces
+- `components/editor/`: editor-specific UI components
+- `components/ui/`: reusable app UI components
+- `hooks/`: React state, handlers, and screen behavior
+- `utils/`: pure functions, geometry, domain factories, and data transformers with no React/native side effects
+- `services/`: native/API side effects such as MediaLibrary, Sharing, AsyncStorage, permissions
+- `types/`: shared TypeScript shapes
+- `constants/`: presets, defaults, theme values, and action lists
+- `*.styles.ts`: StyleSheet files colocated with the screen/component they style when styles are shared, repeated, or no longer small/local
+
+File length is allowed when the responsibility is correct.
+Do not split code only because it is long.
+Do split code when a file mixes responsibilities.
+Avoid moving a monolith into another monolith. Each extracted file must have one clear responsibility.
+
+Boundary rules:
+- Screens and components should not call native/API services directly unless the task is truly trivial.
+- Hooks may call services and coordinate UI state.
+- Services should not know about UI state, navigation, or rendered components.
+- Utils should be deterministic and side-effect free.
+- Hooks should stay focused on one domain. If one hook starts owning unrelated domains, split it.
+- Future-approved features in these rules, such as Reserved tags, watermark, or Pro tier, must not be implemented unless the task explicitly asks for them.
+
+Style rules:
+- Small, local component styles may stay in the component file.
+- Shared, repeated, or non-small styles should move to colocated `*.styles.ts`.
+- Avoid large inline style blocks in screens.
+
+Naming convention:
+- hooks: `use[Domain].ts`
+- services: `[domain].service.ts`
+- utils: `[domain].ts` or `[domain][Purpose].ts`, matching nearby files
+- styles: `[screenOrComponent].styles.ts`
+
+When a file mixes responsibilities:
+- Do not do a full split in one pass unless explicitly asked
+- Propose the split plan first (which piece -> which folder)
+- Wait for approval, then move incrementally
 
 ---
 

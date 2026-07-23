@@ -13,6 +13,10 @@ export const styles = StyleSheet.create({
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.sm,
   },
+  // Above floating delete drop zone (zIndex 20) so the dragged tag floats over it.
+  contentDragging: {
+    zIndex: 40,
+  },
   placeholder: {
     ...theme.typography.caption,
     color: theme.colors.textSecondary,

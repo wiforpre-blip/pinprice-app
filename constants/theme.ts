@@ -9,9 +9,16 @@ export const PinPriceTheme = {
     border: '#E5E5E5',
     sold: '#E5484D',
     success: '#1F9D55',
+    /** Brand accent for price style presets (e.g. yellow / black). */
+    accent: '#F5C518',
+    accentText: '#000000',
     priceTagBackground: '#FFFFFF',
     priceTagBorder: '#000000',
     priceTagText: '#000000',
+    /** Quantity tag palette — distinct from price/sold main tones. */
+    quantityBlue: '#2F6FED',
+    quantityTeal: '#0F8A7A',
+    quantitySlate: '#4A5B6A',
     photoMockBackground: '#ECEFF1',
     photoMockItem: '#D8DEE4',
     photoMockItemBorder: '#CBD3DA',
@@ -98,10 +105,60 @@ export const PinPriceTheme = {
       borderColor: '#000000',
       color: '#000000',
     },
+    priceAccent: {
+      backgroundColor: '#F5C518',
+      borderColor: '#F5C518',
+      color: '#000000',
+    },
     sold: {
       backgroundColor: '#E5484D',
       borderColor: '#E5484D',
       color: '#FFFFFF',
+    },
+    soldBlack: {
+      backgroundColor: '#000000',
+      borderColor: '#000000',
+      color: '#FFFFFF',
+    },
+    quantityBlue: {
+      backgroundColor: '#2F6FED',
+      borderColor: '#2F6FED',
+      color: '#FFFFFF',
+    },
+    quantityTeal: {
+      backgroundColor: '#0F8A7A',
+      borderColor: '#0F8A7A',
+      color: '#FFFFFF',
+    },
+    quantitySlate: {
+      backgroundColor: '#4A5B6A',
+      borderColor: '#4A5B6A',
+      color: '#FFFFFF',
+    },
+    condition: {
+      backgroundColor: '#FFFFFF',
+      borderColor: '#000000',
+      color: '#000000',
+    },
+    language: {
+      backgroundColor: '#FFFFFF',
+      borderColor: '#FFFFFF',
+      color: '#000000',
+    },
+    text: {
+      backgroundColor: '#FFFFFF',
+      borderColor: '#000000',
+      color: '#000000',
+    },
+    priceRed: {
+      backgroundColor: '#E5484D',
+      borderColor: '#E5484D',
+      color: '#FFFFFF',
+    },
+    soldIconPlain: {
+      backgroundColor: 'transparent',
+      borderColor: 'transparent',
+      color: '#E5484D',
     },
   },
 } as const;

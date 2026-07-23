@@ -1,38 +1,138 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { TAG_STYLE_PRESETS } from '@/constants/tagPresets';
+import { INFO_TAG_TYPES, MAIN_TAG_TYPES, SOLD_ICON_TEXT, TAG_SIZE_ORDER, type TagPickerSizePresetId } from '@/constants/tagDefaults';
+import { DEFAULT_TAG_STYLE_BY_TYPE, TAG_STYLE_PRESETS } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation } from '@/contexts/LanguageContext';
-import type { TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
+import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
+import type { PriceTextFormat, SoldTextFormat, TagLanguageCode, TagSizePresetId, TagType } from '@/types/tag';
+import { formatPriceDisplay } from '@/utils/priceText';
 
-const DEFAULT_SOLD_TEXT = 'SOLD';
-const STYLE_PICKER_STYLE_IDS: Record<TagType, TagStylePresetId[]> = {
-  price: ['price-white-black', 'price-black-white'],
-  sold: ['sold-red', 'sold-gray'],
+const SIZE_CHIP_LABELS: Record<TagPickerSizePresetId, string> = {
+  small: 'S',
+  medium: 'M',
+  large: 'L',
+  xl: 'XL',
 };
-const STYLE_PICKER_SIZE_IDS: TagSizePresetId[] = ['small', 'medium', 'large'];
 
 type StylePickerPanelProps = {
   stylePickerType: TagType;
-  activeStylePresetId: TagStylePresetId;
   activeSizePresetId: TagSizePresetId;
+  priceTextFormat: PriceTextFormat;
+  soldTextFormat: SoldTextFormat;
+  languageCode: TagLanguageCode;
   onClose: () => void;
   onSelectToolType: (type: TagType) => void;
-  onSelectStylePreset: (stylePresetId: TagStylePresetId) => void;
   onSelectSizePreset: (sizePresetId: TagSizePresetId) => void;
 };
 
+function getToolPreviewLabel({
+  type,
+  pricePreview,
+  soldLabel,
+  soldTextFormat,
+  languageCode,
+  textLabel,
+}: {
+  type: TagType;
+  pricePreview: string;
+  soldLabel: string;
+  soldTextFormat: SoldTextFormat;
+  languageCode: TagLanguageCode;
+  textLabel: string;
+}) {
+  switch (type) {
+    case 'price':
+      return pricePreview;
+    case 'sold':
+      return soldTextFormat === 'text' ? soldLabel : SOLD_ICON_TEXT;
+    case 'text':
+      return textLabel;
+    case 'condition':
+      return 'NM';
+    case 'quantity':
+      return 'x4';
+    case 'language':
+      return languageCode;
+  }
+}
+
+function ToolPreviewChip({
+  type,
+  label,
+  isActive,
+  soldTextFormat,
+  onPress,
+}: {
+  type: TagType;
+  label: string;
+  isActive: boolean;
+  soldTextFormat?: SoldTextFormat;
+  onPress: () => void;
+}) {
+  const isPlainSoldIcon = type === 'sold' && soldTextFormat === 'icon_plain';
+  const isBadgeSoldIcon = type === 'sold' && soldTextFormat === 'icon';
+  const preset = TAG_STYLE_PRESETS[isPlainSoldIcon ? 'sold-icon-plain' : DEFAULT_TAG_STYLE_BY_TYPE[type]];
+
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={isActive ? { selected: true } : undefined}
+      hitSlop={4}
+      onPress={onPress}
+      style={styles.toolChip}>
+      <View
+        style={[
+          styles.toolChipPreview,
+          isActive && styles.activeToolChipPreview,
+          isPlainSoldIcon && styles.plainSoldPreview,
+          {
+            backgroundColor: isPlainSoldIcon ? 'transparent' : preset.backgroundColor,
+            borderColor: isPlainSoldIcon
+              ? isActive
+                ? theme.colors.textPrimary
+                : 'transparent'
+              : isActive
+                ? theme.colors.textPrimary
+                : preset.borderColor,
+          },
+        ]}>
+        {isPlainSoldIcon || isBadgeSoldIcon ? (
+          <SoldCrossIcon
+            color={isPlainSoldIcon ? theme.colors.sold : preset.color}
+            size={isPlainSoldIcon ? 28 : 18}
+            thicknessScale={2}
+          />
+        ) : (
+          <Text style={[styles.toolChipPreviewText, { color: preset.color }]} numberOfLines={1}>
+            {label}
+          </Text>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
 export function StylePickerPanel({
   stylePickerType,
-  activeStylePresetId,
   activeSizePresetId,
+  priceTextFormat,
+  soldTextFormat,
+  languageCode,
   onClose,
   onSelectToolType,
-  onSelectStylePreset,
   onSelectSizePreset,
 }: StylePickerPanelProps) {
-  const { t } = useTranslation();
+  const { language, t } = useTranslation();
+  const { currency } = useCurrency();
+  const pricePreview = formatPriceDisplay('1000', priceTextFormat, currency, language) || '฿1,000';
+  const soldLabel = t('tag.sold');
+  const textLabel = language === 'th' ? 'ข้อความ' : 'Text';
+  const mainSectionTitle = language === 'th' ? 'ป้ายหลัก' : 'Main tags';
+  const infoSectionTitle = language === 'th' ? 'ป้ายข้อมูลสินค้า' : 'Item info';
 
   return (
     <View style={styles.stylePickerPanel}>
@@ -43,54 +143,62 @@ export function StylePickerPanel({
         </Pressable>
       </View>
 
-      <View style={styles.toolTypeControl}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={stylePickerType === 'price' ? { selected: true } : undefined}
-          onPress={() => onSelectToolType('price')}
-          style={[styles.toolTypeButton, stylePickerType === 'price' && styles.activeToolTypeButton]}>
-          <Text style={[styles.toolTypeButtonText, stylePickerType === 'price' && styles.activeToolTypeButtonText]}>{t('tag.price')}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={stylePickerType === 'sold' ? { selected: true } : undefined}
-          onPress={() => onSelectToolType('sold')}
-          style={[styles.toolTypeButton, stylePickerType === 'sold' && styles.activeToolTypeButton]}>
-          <Text style={[styles.toolTypeButtonText, stylePickerType === 'sold' && styles.activeToolTypeButtonText]}>{t('tag.sold')}</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.styleOptionGrid}>
-        {STYLE_PICKER_STYLE_IDS[stylePickerType].map((stylePresetId) => {
-          const preset = TAG_STYLE_PRESETS[stylePresetId];
-          const isActive = stylePresetId === activeStylePresetId;
+      <Text style={styles.sectionTitle}>{mainSectionTitle}</Text>
+      <View style={styles.toolRow}>
+        {MAIN_TAG_TYPES.map((type) => {
+          const label = getToolPreviewLabel({
+            type,
+            pricePreview,
+            soldLabel,
+            soldTextFormat,
+            languageCode,
+            textLabel,
+          });
 
           return (
-            <Pressable
-              accessibilityLabel={t(`style.presets.${stylePresetId}`)}
-              accessibilityRole="button"
-              accessibilityState={isActive ? { selected: true } : undefined}
-              key={stylePresetId}
-              onPress={() => onSelectStylePreset(stylePresetId)}
-              style={[styles.styleOption, isActive && styles.activeStyleOption]}>
-              <View
-                style={[
-                  styles.styleOptionPreview,
-                  {
-                    backgroundColor: preset.backgroundColor,
-                    borderColor: preset.borderColor,
-                  },
-                ]}>
-                <Text style={[styles.styleOptionPreviewText, { color: preset.color }]}>{stylePickerType === 'sold' ? DEFAULT_SOLD_TEXT : 'THB 10,000'}</Text>
-              </View>
-            </Pressable>
+            <ToolPreviewChip
+              key={type}
+              type={type}
+              label={label}
+              isActive={stylePickerType === type}
+              soldTextFormat={type === 'sold' ? soldTextFormat : undefined}
+              onPress={() => onSelectToolType(type)}
+            />
           );
         })}
       </View>
 
-      <Text style={styles.stylePickerTitle}>{t('style.size')}</Text>
+      <View style={styles.divider} />
+
+      <Text style={styles.sectionTitle}>{infoSectionTitle}</Text>
+      <View style={styles.toolRow}>
+        {INFO_TAG_TYPES.map((type) => {
+          const label = getToolPreviewLabel({
+            type,
+            pricePreview,
+            soldLabel,
+            soldTextFormat,
+            languageCode,
+            textLabel,
+          });
+
+          return (
+            <ToolPreviewChip
+              key={type}
+              type={type}
+              label={label}
+              isActive={stylePickerType === type}
+              onPress={() => onSelectToolType(type)}
+            />
+          );
+        })}
+      </View>
+
+      <View style={styles.divider} />
+
+      <Text style={styles.sectionTitle}>{t('style.size')}</Text>
       <View style={styles.sizeOptionGrid}>
-        {STYLE_PICKER_SIZE_IDS.map((sizePresetId) => {
+        {TAG_SIZE_ORDER.map((sizePresetId) => {
           const isActive = sizePresetId === activeSizePresetId;
 
           return (
@@ -99,8 +207,8 @@ export function StylePickerPanel({
               accessibilityState={isActive ? { selected: true } : undefined}
               key={sizePresetId}
               onPress={() => onSelectSizePreset(sizePresetId)}
-              style={[styles.sizeOption, isActive && styles.activeStyleOption]}>
-              <Text style={[styles.styleOptionText, isActive && styles.activeStyleOptionText]}>{t(`style.sizeOptions.${sizePresetId}`)}</Text>
+              style={[styles.sizeOption, isActive && styles.activeSizeOption]}>
+              <Text style={[styles.sizeOptionText, isActive && styles.activeSizeOptionText]}>{SIZE_CHIP_LABELS[sizePresetId]}</Text>
             </Pressable>
           );
         })}
@@ -136,69 +244,46 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: theme.radius.sm,
   },
-  toolTypeControl: {
-    minHeight: 44,
-    flexDirection: 'row',
-    overflow: 'hidden',
-    borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  toolTypeButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface,
-  },
-  activeToolTypeButton: {
-    backgroundColor: theme.buttons.primary.backgroundColor,
-  },
-  toolTypeButtonText: {
+  sectionTitle: {
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
   },
-  activeToolTypeButtonText: {
-    color: theme.buttons.primary.color,
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginVertical: theme.spacing.xs,
   },
-  styleOptionGrid: {
+  toolRow: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
   },
-  styleOption: {
-    minHeight: 60,
+  toolChip: {
+    minHeight: 44,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: theme.spacing.xs,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.sm,
   },
-  activeStyleOption: {
-    borderColor: theme.buttons.primary.borderColor,
-    backgroundColor: theme.colors.photoMockBackground,
-  },
-  styleOptionPreview: {
-    minHeight: 28,
-    minWidth: 72,
+  toolChipPreview: {
+    minHeight: 32,
+    minWidth: 56,
+    maxWidth: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.sm,
     borderWidth: 1,
     paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
   },
-  styleOptionPreviewText: {
+  plainSoldPreview: {
+    minWidth: 32,
+    borderWidth: 0,
+    paddingHorizontal: 0,
+  },
+  activeToolChipPreview: {
+    borderWidth: 2,
+  },
+  toolChipPreviewText: {
     ...theme.typography.caption,
-  },
-  styleOptionText: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-  },
-  activeStyleOptionText: {
-    color: theme.colors.textPrimary,
   },
   sizeOptionGrid: {
     flexDirection: 'row',
@@ -214,5 +299,17 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
     paddingHorizontal: theme.spacing.sm,
+  },
+  activeSizeOption: {
+    borderColor: theme.buttons.primary.borderColor,
+    backgroundColor: theme.colors.photoMockBackground,
+  },
+  sizeOptionText: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+  },
+  activeSizeOptionText: {
+    color: theme.colors.textPrimary,
   },
 });

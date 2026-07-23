@@ -12,9 +12,9 @@ import {
 } from '@/components/editor/EditorFloatingControls';
 import { EditorHeader } from '@/components/editor/EditorHeader';
 import { EditorPreviewScreen } from '@/components/editor/EditorPreviewScreen';
-import { EditorSettingsSheet } from '@/components/editor/EditorSettingsSheet';
 import { PriceRowEditor } from '@/components/editor/PriceRowEditor';
 import { StylePickerPanel } from '@/components/editor/StylePickerPanel';
+import { SettingsSheet } from '@/components/settings/SettingsSheet';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { ConfirmOverlay } from '@/components/ui/ConfirmOverlay';
 import { useTranslation } from '@/contexts/LanguageContext';
@@ -24,7 +24,6 @@ import { useEditorLayout } from '@/hooks/useEditorLayout';
 import { getImageUri, useEditorSession } from '@/hooks/useEditorSession';
 import { usePriceListEditorState } from '@/hooks/usePriceListEditorState';
 import {
-  DEFAULT_PRICE_TEXT,
   getDefaultTextForType,
   useTagEditorState,
 } from '@/hooks/useTagEditorState';
@@ -33,8 +32,6 @@ import type { EditorUndoSnapshot } from '@/types/editor';
 type EditorParams = {
   imageUri?: string | string[];
 };
-
-const APP_VERSION = '1.0.0';
 
 export default function EditorScreen() {
   const { t } = useTranslation();
@@ -88,7 +85,6 @@ export default function EditorScreen() {
   } = useEditorChrome();
   const {
     activeSizePresetId,
-    activeStylePresetId,
     addTagAtPoint,
     alignFeedbackMessage,
     bottomDropAreaRef,
@@ -97,10 +93,14 @@ export default function EditorScreen() {
     closeStylePicker,
     commitDraftTag,
     confirmDeleteTag,
+    currentLanguageCode,
+    currentPriceTextFormat,
+    currentSoldTextFormat,
     deselectTagForMarkerSelect,
     draftTagId,
     draftText,
     draftType,
+    draftPreview,
     draggingTagId,
     enterMultiSelectMode,
     exitMultiSelectMode,
@@ -110,9 +110,9 @@ export default function EditorScreen() {
     handleBottomDropAreaLayout,
     handleCancelTagEdit,
     handleDeleteTag,
+    handleDraftChange,
     handleSaveTag,
     handleSelectSizePreset,
-    handleSelectStylePreset,
     handleSelectToolType,
     handleTagDragCancel,
     handleTagDragEnd,
@@ -133,8 +133,6 @@ export default function EditorScreen() {
     selectedTag,
     selectedTagId,
     selectedTagIds,
-    setDraftText,
-    setDraftType,
     stylePickerType,
     stylePreviewTag,
     tagSizeById,
@@ -148,11 +146,12 @@ export default function EditorScreen() {
   });
   const canUndo = undoSnapshot !== null;
 
+  // Draft add sets undoSnapshot early; only latch history after draft is committed/cleared.
   useEffect(() => {
-    if (undoSnapshot !== null) {
+    if (undoSnapshot !== null && !draftTagId) {
       setHasEditHistory(true);
     }
-  }, [undoSnapshot]);
+  }, [draftTagId, undoSnapshot]);
   const {
     addMarkerAtPoint,
     cancelDeleteMarker,
@@ -178,6 +177,7 @@ export default function EditorScreen() {
     setUndoSnapshot,
   });
   const canReset = tags.length > 0 || panelMarkers.length > 0;
+  const canSelect = tags.length > 0;
   bindChrome({
     clearPricePanelState,
     clearTagEditorState,
@@ -287,6 +287,10 @@ export default function EditorScreen() {
         return;
       }
 
+      if (!canSelect) {
+        return;
+      }
+
       enterMultiSelectMode();
       return;
     }
@@ -379,11 +383,12 @@ export default function EditorScreen() {
   const stylePickerPanel = isStylePickerVisible ? (
     <StylePickerPanel
       activeSizePresetId={activeSizePresetId}
-      activeStylePresetId={activeStylePresetId}
+      languageCode={currentLanguageCode}
       onClose={closeStylePicker}
       onSelectSizePreset={handleSelectSizePreset}
-      onSelectStylePreset={handleSelectStylePreset}
       onSelectToolType={handleSelectToolType}
+      priceTextFormat={currentPriceTextFormat}
+      soldTextFormat={currentSoldTextFormat}
       stylePickerType={stylePickerType}
     />
   ) : null;
@@ -432,18 +437,18 @@ export default function EditorScreen() {
         ref={headerRef}
       />
 
-      <View style={styles.content}>
+      <View style={[styles.content, isDraggingTag && styles.contentDragging]}>
         <EditorCanvas
           canvasRef={canvasRef}
           canvasSize={canvasSize}
-          defaultPriceText={DEFAULT_PRICE_TEXT}
+          draftPreview={draftPreview}
           draftTagId={draftTagId}
           draftText={draftText}
           draftType={draftType}
           dragTopBoundaryY={dragTopBoundaryY}
           draggingTagId={draggingTagId}
           editorMode={editorMode}
-          getDefaultTextForType={getDefaultTextForType}
+          getDefaultTextForType={(type) => getDefaultTextForType(type, t('tag.sold'))}
           groupDragOffset={groupDragOffset}
           groupDragOriginalTagsRef={groupDragOriginalTagsRef}
           imageRect={imageRect}
@@ -456,8 +461,7 @@ export default function EditorScreen() {
           onCanvasPress={handleCanvasPress}
           onDeleteMarker={requestDeleteMarker}
           onDeleteTag={handleDeleteTag}
-          onDraftTextChange={setDraftText}
-          onDraftTypeChange={setDraftType}
+          onDraftChange={handleDraftChange}
           onEditMarkerPrice={handleEditMarkerPrice}
           onImageLoad={handleImageLoad}
           onLeaveEmpty={requestLeaveEditor}
@@ -505,12 +509,13 @@ export default function EditorScreen() {
         <Text style={styles.moreMenuPlaceholder}>{t('editor.moreMenuPlaceholder')}</Text>
       </BottomSheetOverlay>
 
-      <EditorSettingsSheet appVersion={APP_VERSION} onClose={closeSettings} visible={isSettingsOpen} />
+      <SettingsSheet onClose={closeSettings} visible={isSettingsOpen} />
 
       <EditorFloatingControls
         alignFeedbackMessage={alignFeedbackMessage}
         bottomDropAreaRef={bottomDropAreaRef}
         canReset={canReset}
+        canSelect={canSelect}
         canUndo={canUndo}
         editorMode={editorMode}
         hasEditHistory={hasEditHistory}

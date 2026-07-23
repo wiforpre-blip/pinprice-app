@@ -18,11 +18,27 @@
     "title": "Settings",
     "language": "Language",
     "currency": "Currency",
-    "version": "App version",
-    "contact": "Contact / Feedback",
+    "version": "App Version",
+    "contact": "Contact Developer",
     "help": "Help",
-    "lifetimePurchase": "Remove ads",
-    "comingSoon": "Coming soon"
+    "removeAds": "Remove Ads",
+    "comingSoon": "Coming soon",
+    "feedbackSend": "Send",
+    "feedbackSending": "Sending...",
+    "feedbackSent": "Feedback sent",
+    "feedbackFailed": "Could not send feedback. Please try again.",
+    "feedbackMessagePlaceholder": "Tell us what happened or what could be better",
+    "feedbackType": {
+      "bug": "Bug",
+      "suggestion": "Suggestion",
+      "other": "Other"
+    }
+  },
+  "currency": {
+    "thb": "Thai Baht",
+    "sgd": "Singapore Dollar",
+    "myr": "Malaysian Ringgit",
+    "jpy": "Japanese Yen"
   },
   "language": {
     "thai": "TH",
@@ -85,6 +101,18 @@
     "editTag": "Edit Tag",
     "price": "Price",
     "sold": "Sold",
+    "text": "Text",
+    "condition": "Condition",
+    "quantity": "Quantity",
+    "language": "Language",
+    "typeTitles": {
+      "price": "Price tag",
+      "sold": "Sold tag",
+      "text": "Text tag",
+      "condition": "Card condition tag",
+      "quantity": "Quantity tag",
+      "language": "Card language tag"
+    },
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
@@ -104,7 +132,8 @@
     "sizeOptions": {
       "small": "Small",
       "medium": "Medium",
-      "large": "Large"
+      "large": "Large",
+      "xl": "XL"
     }
   },
   "export": {

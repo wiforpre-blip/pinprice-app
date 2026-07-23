@@ -1,9 +1,19 @@
-import { createContext, useContext, useMemo, useState, type PropsWithChildren } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type PropsWithChildren,
+} from 'react';
 
 import en from '@/locales/en.json';
 import th from '@/locales/th.json';
+import { loadLanguagePreference, saveLanguagePreference } from '@/services/settings.service';
+import type { Language } from '@/types/settings';
 
-export type Language = 'th' | 'en';
+export type { Language };
 
 type TranslationValue = string | { [key: string]: TranslationValue };
 type TranslationTable = { [key: string]: TranslationValue };
@@ -34,7 +44,26 @@ function getTranslationValue(table: TranslationTable, key: string) {
 }
 
 export function LanguageProvider({ children }: PropsWithChildren) {
-  const [language, setLanguage] = useState<Language>(() => getDeviceLanguage());
+  const [language, setLanguageState] = useState<Language>(() => getDeviceLanguage());
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void loadLanguagePreference().then((storedLanguage) => {
+      if (isMounted && storedLanguage) {
+        setLanguageState(storedLanguage);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const setLanguage = useCallback((nextLanguage: Language) => {
+    setLanguageState(nextLanguage);
+    void saveLanguagePreference(nextLanguage);
+  }, []);
 
   const value = useMemo<LanguageContextValue>(() => {
     const t = (key: string) => {
@@ -49,7 +78,7 @@ export function LanguageProvider({ children }: PropsWithChildren) {
     };
 
     return { language, setLanguage, t };
-  }, [language]);
+  }, [language, setLanguage]);
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }

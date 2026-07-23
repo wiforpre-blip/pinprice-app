@@ -5,15 +5,13 @@ import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
+import { SettingsSheet } from '@/components/settings/SettingsSheet';
 import { PinPriceTheme as theme } from '@/constants/theme';
-import { useTranslation, type Language } from '@/contexts/LanguageContext';
-
-const LANGUAGE_OPTIONS: Language[] = ['th', 'en'];
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { language, setLanguage, t } = useTranslation();
+  const { t } = useTranslation();
   const [isOpeningPicker, setIsOpeningPicker] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -120,29 +118,7 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <BottomSheetOverlay onClose={() => setIsSettingsOpen(false)} title={t('settings.title')} visible={isSettingsOpen}>
-        <View style={styles.languageRow}>
-          <Text style={styles.languageLabel}>{t('settings.language')}</Text>
-          <View style={styles.languageToggle}>
-            {LANGUAGE_OPTIONS.map((languageOption) => {
-              const isActive = languageOption === language;
-
-              return (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={isActive ? { selected: true } : undefined}
-                  key={languageOption}
-                  onPress={() => setLanguage(languageOption)}
-                  style={[styles.languageToggleButton, isActive && styles.activeLanguageToggleButton]}>
-                  <Text style={[styles.languageToggleText, isActive && styles.activeLanguageToggleText]}>
-                    {languageOption === 'th' ? t('language.thai') : t('language.english')}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      </BottomSheetOverlay>
+      <SettingsSheet onClose={() => setIsSettingsOpen(false)} visible={isSettingsOpen} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
@@ -226,43 +202,6 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.textPrimary,
     textAlign: 'center',
-  },
-  languageRow: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: theme.spacing.md,
-  },
-  languageLabel: {
-    ...theme.typography.body,
-    color: theme.colors.textPrimary,
-  },
-  languageToggle: {
-    minHeight: 40,
-    minWidth: 124,
-    flexDirection: 'row',
-    overflow: 'hidden',
-    borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  languageToggleButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.sm,
-  },
-  activeLanguageToggleButton: {
-    backgroundColor: theme.buttons.primary.backgroundColor,
-  },
-  languageToggleText: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-  },
-  activeLanguageToggleText: {
-    color: theme.buttons.primary.color,
   },
   scrollContent: {
     flexGrow: 1,

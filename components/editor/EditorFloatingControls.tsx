@@ -24,6 +24,7 @@ export type FloatingHistoryActionId = (typeof FLOATING_HISTORY_ACTIONS)[number][
 
 type EditorFloatingControlsProps = {
   alignFeedbackMessage: string | null;
+  canSelect: boolean;
   canUndo: boolean;
   canReset: boolean;
   hasEditHistory: boolean;
@@ -43,6 +44,7 @@ type EditorFloatingControlsProps = {
 
 export function EditorFloatingControls({
   alignFeedbackMessage,
+  canSelect,
   canUndo,
   canReset,
   hasEditHistory,
@@ -69,7 +71,11 @@ export function EditorFloatingControls({
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.floatingControlsLayer, { paddingBottom: floatingBottomPadding }]}>
+      style={[
+        styles.floatingControlsLayer,
+        isDraggingTag && styles.floatingControlsLayerDragging,
+        { paddingBottom: floatingBottomPadding },
+      ]}>
       {isDraggingTag ? (
         isMultiSelectGroupDrag ? null : (
           <View
@@ -131,7 +137,7 @@ export function EditorFloatingControls({
               const isAlignInactive = isAlignAction && selectedTagIds.length < 2;
               const isDisabled =
                 (isStyleAction && (isMultiSelectMode || editorMode === 'priceList' || !selectedImageUri)) ||
-                (isSelectAction && !selectedImageUri) ||
+                (isSelectAction && (!selectedImageUri || !canSelect)) ||
                 isAlignInactive ||
                 (item.id === 'export' && !selectedImageUri);
               const actionIcon = isAlignAction ? 'vertical-align-center' : item.icon;
@@ -181,6 +187,10 @@ const styles = StyleSheet.create({
     // Base bottom padding is applied at render time with safe-area inset so the
     // absolute chrome clears the system nav / home indicator. Keep history row
     // absolute so canvas/imageRect never resize when it appears.
+  },
+  floatingControlsLayerDragging: {
+    // Stay below elevated content (zIndex 40) so the dragged tag paints over the delete zone.
+    zIndex: 10,
   },
   floatingBarsColumn: {
     alignItems: 'center',
@@ -263,7 +273,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   deleteDropZone: {
-    zIndex: 30,
     alignSelf: 'stretch',
     // Tall enough to cover the two-row floating footprint while dragging.
     minHeight: 120,
