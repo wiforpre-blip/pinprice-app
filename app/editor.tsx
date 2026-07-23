@@ -1,11 +1,15 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { GestureResponderEvent, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { styles } from './editor.styles';
 import { EditorCanvas } from '@/components/editor/EditorCanvas';
-import { EditorFloatingControls, type FloatingMainActionId } from '@/components/editor/EditorFloatingControls';
+import {
+  EditorFloatingControls,
+  type FloatingHistoryActionId,
+  type FloatingMainActionId,
+} from '@/components/editor/EditorFloatingControls';
 import { EditorHeader } from '@/components/editor/EditorHeader';
 import { EditorPreviewScreen } from '@/components/editor/EditorPreviewScreen';
 import { EditorSettingsSheet } from '@/components/editor/EditorSettingsSheet';
@@ -61,9 +65,10 @@ export default function EditorScreen() {
     imageSize,
   } = useEditorLayout();
   const [undoSnapshot, setUndoSnapshot] = useState<EditorUndoSnapshot | null>(null);
+  const [hasEditHistory, setHasEditHistory] = useState(false);
+  const [isResetModalVisible, setIsResetModalVisible] = useState(false);
   const {
     bindChrome,
-    canUndo,
     cancelModeSwitch,
     closeMoreMenu,
     closeOverlayMenus,
@@ -123,6 +128,7 @@ export default function EditorScreen() {
     isMultiSelectMode,
     isStylePickerVisible,
     openStylePicker,
+    resetTagsAndChrome,
     restoreTags,
     selectedTag,
     selectedTagId,
@@ -140,6 +146,13 @@ export default function EditorScreen() {
     selectedImageUri,
     setUndoSnapshot,
   });
+  const canUndo = undoSnapshot !== null;
+
+  useEffect(() => {
+    if (undoSnapshot !== null) {
+      setHasEditHistory(true);
+    }
+  }, [undoSnapshot]);
   const {
     addMarkerAtPoint,
     cancelDeleteMarker,
@@ -155,6 +168,7 @@ export default function EditorScreen() {
     isMarkerDeleteModalVisible,
     panelMarkers,
     requestDeleteMarker,
+    resetMarkersAndChrome,
     restoreMarkers,
     selectedMarkerId,
   } = usePriceListEditorState({
@@ -163,6 +177,7 @@ export default function EditorScreen() {
     imageRect,
     setUndoSnapshot,
   });
+  const canReset = tags.length > 0 || panelMarkers.length > 0;
   bindChrome({
     clearPricePanelState,
     clearTagEditorState,
@@ -281,6 +296,35 @@ export default function EditorScreen() {
     }
   };
 
+  const handleFloatingHistoryAction = (actionId: FloatingHistoryActionId) => {
+    if (actionId === 'undo') {
+      handleUndo();
+      return;
+    }
+
+    if (actionId === 'reset') {
+      setIsResetModalVisible(true);
+    }
+  };
+
+  const cancelResetTags = () => {
+    setIsResetModalVisible(false);
+  };
+
+  const confirmResetTags = () => {
+    if (editorMode === 'priceList') {
+      resetMarkersAndChrome();
+      // Wipe leftover tags without overwriting the markers undo snapshot.
+      restoreTags([]);
+      clearTagEditorState();
+    } else {
+      resetTagsAndChrome();
+      clearPricePanelState();
+    }
+
+    setIsResetModalVisible(false);
+  };
+
   const leaveConfirmModal = (
     <ConfirmOverlay
       body={t('leave.body')}
@@ -303,6 +347,19 @@ export default function EditorScreen() {
       onConfirm={confirmDeleteTag}
       title={t('tag.confirmDeleteTitle')}
       visible={isDeleteModalVisible}
+    />
+  );
+
+  const resetConfirmModal = (
+    <ConfirmOverlay
+      body={t('editor.resetConfirmBody')}
+      cancelLabel={t('tag.cancel')}
+      confirmLabel={t('editor.reset')}
+      confirmVariant="destructive"
+      onCancel={cancelResetTags}
+      onConfirm={confirmResetTags}
+      title={t('editor.resetConfirmTitle')}
+      visible={isResetModalVisible}
     />
   );
 
@@ -359,6 +416,7 @@ export default function EditorScreen() {
     <SafeAreaView style={styles.screen}>
       {leaveConfirmModal}
       {deleteConfirmModal}
+      {resetConfirmModal}
       {markerDeleteConfirmModal}
       <EditorHeader
         draftFilename={draftFilename}
@@ -425,9 +483,11 @@ export default function EditorScreen() {
 
       <Text style={[styles.placeholder, selectedImageUri && !isStylePickerVisible ? styles.placeholderWithFloatingBar : null]}>
         {selectedImageUri
-          ? editorMode === 'priceList'
-            ? t('editor.tapPhotoToAddMarker')
-            : t('editor.tapPhotoToAdd')
+          ? isMultiSelectMode
+            ? t('editor.tapEmptyToExit')
+            : editorMode === 'priceList'
+              ? t('editor.tapPhotoToAddMarker')
+              : t('editor.tapPhotoToAdd')
           : t('editor.choosePhotoToStart')}
       </Text>
 
@@ -450,13 +510,17 @@ export default function EditorScreen() {
       <EditorFloatingControls
         alignFeedbackMessage={alignFeedbackMessage}
         bottomDropAreaRef={bottomDropAreaRef}
+        canReset={canReset}
+        canUndo={canUndo}
         editorMode={editorMode}
+        hasEditHistory={hasEditHistory}
         isDragOverDelete={isDragOverDelete}
         isDraggingTag={isDraggingTag}
         isMultiSelectGroupDrag={isMultiSelectGroupDrag}
         isMultiSelectMode={isMultiSelectMode}
         isStylePickerVisible={isStylePickerVisible}
         onBottomDropAreaLayout={handleBottomDropAreaLayout}
+        onFloatingHistoryAction={handleFloatingHistoryAction}
         onFloatingMainAction={handleFloatingMainAction}
         selectedImageUri={selectedImageUri}
         selectedTagIds={selectedTagIds}

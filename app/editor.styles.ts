@@ -20,6 +20,8 @@ export const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
   },
+  // Constant padding for the main floating bar only. Do not grow this when the
+  // history row appears - absolute history chrome must not resize canvas/imageRect.
   placeholderWithFloatingBar: {
     paddingBottom: 76,
   },

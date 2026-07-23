@@ -49,6 +49,17 @@ export function usePriceListEditorState({
     setIsMarkerDeleteModalVisible(false);
   };
 
+  const resetMarkersAndChrome = () => {
+    setPanelMarkers((currentMarkers) => {
+      setUndoSnapshot({ markers: clonePanelMarkers(currentMarkers), mode: 'priceList' });
+      return [];
+    });
+    setSelectedMarkerId(null);
+    setEditingMarkerId(null);
+    setDeleteCandidateMarkerId(null);
+    setIsMarkerDeleteModalVisible(false);
+  };
+
   const restoreMarkers = (nextMarkers: PanelMarkerType[]) => {
     setPanelMarkers(clonePanelMarkers(nextMarkers));
     setSelectedMarkerId(null);
@@ -163,6 +174,7 @@ export function usePriceListEditorState({
     isMarkerDeleteModalVisible,
     panelMarkers,
     requestDeleteMarker,
+    resetMarkersAndChrome,
     restoreMarkers,
     selectedMarkerId,
   };

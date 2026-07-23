@@ -550,6 +550,29 @@ export function useTagEditorState({
     setTags(cloneTags(nextTags));
   };
 
+  const resetTagsAndChrome = () => {
+    setTags((currentTags) => {
+      setUndoSnapshot({ mode: 'tag', tags: cloneTags(currentTags) });
+      return [];
+    });
+    setSelectedTagId(null);
+    setDraftTagId(null);
+    setDraftText(DEFAULT_PRICE_TEXT);
+    setDraftType('price');
+    setDraggingTagId(null);
+    setDragOriginalTag(null);
+    setDragPoint(null);
+    setIsStylePickerVisible(false);
+    setIsDeleteModalVisible(false);
+    setDeleteCandidateTagId(null);
+    setTagSizeById({});
+    setIsMultiSelectMode(false);
+    setSelectedTagIds([]);
+    setGroupDragOffset({ x: 0, y: 0 });
+    groupDragOriginalTagsRef.current = null;
+    clearAlignFeedback();
+  };
+
   const stylePickerType = currentToolType;
   const activeStylePresetId =
     selectedTag && selectedTag.type === stylePickerType
@@ -609,6 +632,7 @@ export function useTagEditorState({
     isMultiSelectMode,
     isStylePickerVisible,
     openStylePicker,
+    resetTagsAndChrome,
     restoreTags,
     selectedTag,
     selectedTagId,
