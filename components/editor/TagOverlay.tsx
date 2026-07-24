@@ -5,6 +5,7 @@ import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
 import { getResolvedTagPreset } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import type { ImageDisplayRect, PriceTag, TagType } from '@/types/tag';
+import { EDITOR_ZOOM_DEFAULT, FALLBACK_TAG_SIZE, screenDeltaToCanvasDelta } from '@/utils/editorGeometry';
 
 type TagOverlayProps = {
   dragEnabled?: boolean;
@@ -15,6 +16,8 @@ type TagOverlayProps = {
   textOverride?: string;
   typeOverride?: TagType;
   imageRect: ImageDisplayRect;
+  /** Current editor viewport scale (1–3). Drag deltas are converted to canvas-local space. */
+  viewportScale?: number;
   clampDragOffset?: (dx: number, dy: number) => DragPoint;
   onDragCancel: () => void;
   onDragEnd: (tagId: string, canvasX: number, canvasY: number, tagSize: TagSize, releasePoint: DragPoint) => void;
@@ -38,7 +41,6 @@ type TagSize = {
 const DRAG_THRESHOLD = 6;
 const LONG_PRESS_DELAY_MS = 260;
 const ZERO_OFFSET = { x: 0, y: 0 };
-const FALLBACK_TAG_SIZE: TagSize = { width: 80, height: 32 };
 
 export function TagOverlay({
   dragEnabled = true,
@@ -49,6 +51,7 @@ export function TagOverlay({
   textOverride,
   typeOverride,
   imageRect,
+  viewportScale = EDITOR_ZOOM_DEFAULT,
   clampDragOffset,
   onDragCancel,
   onDragEnd,
@@ -74,6 +77,7 @@ export function TagOverlay({
   const minDragYRef = useRef(minDragY);
   const tagSizeRef = useRef(tagSize);
   const dragEnabledRef = useRef(dragEnabled);
+  const viewportScaleRef = useRef(viewportScale);
   const clampDragOffsetRef = useRef(clampDragOffset);
   const callbacksRef = useRef({
     onDragCancel,
@@ -90,6 +94,7 @@ export function TagOverlay({
   minDragYRef.current = minDragY;
   tagSizeRef.current = tagSize;
   dragEnabledRef.current = dragEnabled;
+  viewportScaleRef.current = viewportScale;
   clampDragOffsetRef.current = clampDragOffset;
   callbacksRef.current = {
     onDragCancel,
@@ -111,22 +116,23 @@ export function TagOverlay({
   };
 
   const getBoundedDragOffset = (dx: number, dy: number) => {
+    const localDelta = screenDeltaToCanvasDelta(dx, dy, viewportScaleRef.current);
     const customClamp = clampDragOffsetRef.current;
 
     if (customClamp) {
-      return customClamp(dx, dy);
+      return customClamp(localDelta.x, localDelta.y);
     }
 
     const minY = minDragYRef.current;
 
     if (typeof minY !== 'number' || !Number.isFinite(minY)) {
-      return { x: dx, y: dy };
+      return localDelta;
     }
 
-    const nextY = Math.max(startPointRef.current.y + dy, minY);
+    const nextY = Math.max(startPointRef.current.y + localDelta.y, minY);
 
     return {
-      x: dx,
+      x: localDelta.x,
       y: nextY - startPointRef.current.y,
     };
   };
@@ -247,6 +253,7 @@ export function TagOverlay({
       onLayout={handleLayout}
       style={[
         styles.tag,
+        isSelected && styles.selectedTag,
         isDragging && styles.draggingTag,
         isPlainSoldIcon && styles.plainSoldTag,
         {
@@ -263,16 +270,10 @@ export function TagOverlay({
         },
       ]}>
       {isSelected ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.selectedArea,
-            {
-              borderColor: isPlainSoldIcon ? theme.colors.sold : tagStyle.borderColor,
-              backgroundColor: isPlainSoldIcon ? theme.colors.sold : tagStyle.borderColor,
-            },
-          ]}
-        />
+        <>
+          <View pointerEvents="none" style={styles.selectedRingOuter} />
+          <View pointerEvents="none" style={styles.selectedRingInner} />
+        </>
       ) : null}
       {isPlainSoldIcon || isBadgeSoldIcon ? (
         <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
@@ -300,20 +301,34 @@ const styles = StyleSheet.create({
     elevation: 0,
     shadowRadius: 0,
   },
+  selectedTag: {
+    zIndex: 4,
+    elevation: 8,
+  },
   draggingTag: {
     opacity: 0.92,
-    zIndex: 3,
+    zIndex: 5,
     elevation: 12,
   },
-  selectedArea: {
+  selectedRingOuter: {
+    position: 'absolute',
+    top: -(theme.spacing.sm + 1),
+    right: -(theme.spacing.sm + 1),
+    bottom: -(theme.spacing.sm + 1),
+    left: -(theme.spacing.sm + 1),
+    borderRadius: theme.radius.md,
+    borderWidth: 3,
+    borderColor: theme.colors.selectionRingOuter,
+  },
+  selectedRingInner: {
     position: 'absolute',
     top: -theme.spacing.sm,
     right: -theme.spacing.sm,
     bottom: -theme.spacing.sm,
     left: -theme.spacing.sm,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.md - 1,
     borderWidth: 2,
-    opacity: 0.18,
+    borderColor: theme.colors.selectionRingInner,
   },
   tagText: {
     ...theme.typography.tag,

@@ -1,18 +1,23 @@
 {
   "common": {
-    "appName": "PinPrice"
+    "appName": "PinPrice",
+    "ok": "ตกลง"
   },
   "home": {
-    "headline": "ติดป้ายราคาบนรูปสินค้าได้เร็ว",
-    "subtitle": "เพิ่มราคาและป้ายขายแล้วลงบนรูปสินค้าได้ในไม่กี่วินาที",
+    "headline": "ทำรูปขายสินค้าให้เสร็จในไม่กี่วินาที",
+    "subtitle": "เพิ่มราคา ป้าย Sold และส่งออกรูปพร้อมใช้งาน",
     "takePhoto": "ถ่ายรูป",
     "choosePhoto": "เลือกรูป",
+    "recent": "โปรเจกต์ล่าสุด",
+    "viewAll": "ดูทั้งหมด",
     "menu": "เมนู",
     "settings": "ตั้งค่า",
     "photoPermissionRequired": "ต้องอนุญาตเข้าถึงรูปภาพเพื่อเลือกรูป",
     "cameraPermissionRequired": "ต้องอนุญาตใช้กล้องเพื่อถ่ายรูป",
     "photoPickerError": "เปิดรูปภาพไม่ได้",
-    "cameraError": "เปิดกล้องไม่ได้"
+    "cameraError": "เปิดกล้องไม่ได้",
+    "draftUnavailableTitle": "เปิดรูปนี้ไม่ได้",
+    "draftUnavailableBody": "ไม่พบไฟล์รูปต้นฉบับบนเครื่อง จึงเปิดงานเดิมต่อไม่ได้"
   },
   "settings": {
     "title": "ตั้งค่า",
@@ -53,6 +58,7 @@
     "add": "เพิ่ม",
     "style": "สไตล์",
     "select": "เลือก",
+    "zoom": "ซูม",
     "align": "จัดแนว",
     "alignTooFar": "เลือกแท็กที่อยู่ใกล้กันกว่านี้เพื่อจัดแนว",
     "exitMultiSelect": "ออกจากโหมดเลือกหลายแท็ก",
@@ -86,6 +92,7 @@
     "backHome": "กลับหน้าแรก",
     "tapPhotoToAdd": "แตะรูปเพื่อเพิ่มป้ายราคา",
     "tapPhotoToAddMarker": "แตะรูปเพื่อเพิ่มหมายเลข",
+    "zoomHint": "บีบเพื่อซูม · ลากเพื่อเลื่อน",
     "choosePhotoToStart": "เลือกรูปเพื่อเริ่มติดป้าย"
   },
   "pricePanel": {

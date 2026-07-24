@@ -22,9 +22,6 @@ export const DEFAULT_TAG_STYLE_BY_TYPE: Record<TagType, TagStylePresetId> = {
   language: 'language-default',
 };
 
-/** Tag types that expose a color style picker in the tag popup. */
-export const TAG_TYPES_WITH_COLOR_PRESETS: readonly TagType[] = ['price', 'sold', 'quantity'];
-
 export const DEFAULT_TAG_SIZE_PRESET_ID: TagSizePresetId = 'medium';
 
 export const TAG_STYLE_PRESETS: Record<

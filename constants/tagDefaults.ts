@@ -1,4 +1,4 @@
-import type { TagLanguageCode, PriceTextFormat, SoldTextFormat, TagSizePresetId, TagType } from '@/types/tag';
+import type { TagLanguageCode, SoldTextFormat, TagSizePresetId, TagType } from '@/types/tag';
 
 export const DEFAULT_PRICE_TEXT = '';
 export const DEFAULT_SOLD_TEXT = 'SOLD';
@@ -8,7 +8,6 @@ export const DEFAULT_QUANTITY = 1;
 export const DEFAULT_LANGUAGE_CODE: TagLanguageCode = 'TH';
 export const SOLD_ICON_TEXT = '✕';
 
-export const PRICE_TEXT_FORMAT_CYCLE: PriceTextFormat[] = ['symbol', 'currency_word', 'number'];
 export const SOLD_TEXT_FORMAT_CYCLE: SoldTextFormat[] = ['text', 'icon', 'icon_plain'];
 export const TAG_LANGUAGE_CODE_CYCLE: TagLanguageCode[] = ['TH', 'EN', 'JP', 'CN'];
 
@@ -45,8 +44,4 @@ export function toPickerSizePreset(sizePresetId: TagSizePresetId): TagPickerSize
 
 export function isInfoTagType(type: TagType) {
   return INFO_TAG_TYPES.includes(type);
-}
-
-export function isSoldIconFormat(format?: SoldTextFormat) {
-  return format === 'icon' || format === 'icon_plain';
 }

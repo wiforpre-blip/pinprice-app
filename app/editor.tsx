@@ -1,9 +1,10 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Text, View } from 'react-native';
+import type { GestureResponderEvent } from 'react-native';
+
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { GestureResponderEvent, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { styles } from './editor.styles';
 import { EditorCanvas } from '@/components/editor/EditorCanvas';
 import {
   EditorFloatingControls,
@@ -14,29 +15,41 @@ import { EditorHeader } from '@/components/editor/EditorHeader';
 import { EditorPreviewScreen } from '@/components/editor/EditorPreviewScreen';
 import { PriceRowEditor } from '@/components/editor/PriceRowEditor';
 import { StylePickerPanel } from '@/components/editor/StylePickerPanel';
+import { styles } from '@/components/editor/editor.styles';
 import { SettingsSheet } from '@/components/settings/SettingsSheet';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { ConfirmOverlay } from '@/components/ui/ConfirmOverlay';
+
 import { useTranslation } from '@/contexts/LanguageContext';
+
 import { useEditorChrome } from '@/hooks/useEditorChrome';
+import { useEditorDraftHydration } from '@/hooks/useEditorDraftHydration';
 import { useEditorExport } from '@/hooks/useEditorExport';
 import { useEditorLayout } from '@/hooks/useEditorLayout';
-import { getImageUri, useEditorSession } from '@/hooks/useEditorSession';
+import { getDraftId, getImageUri, useEditorSession } from '@/hooks/useEditorSession';
+import { useEditorZoom } from '@/hooks/useEditorZoom';
 import { usePriceListEditorState } from '@/hooks/usePriceListEditorState';
 import {
   getDefaultTextForType,
   useTagEditorState,
 } from '@/hooks/useTagEditorState';
-import type { EditorUndoSnapshot } from '@/types/editor';
+
+import type { EditorDraftSnapshot } from '@/types/draft';
+import { createCurrentHistorySnapshot } from '@/utils/editorHistory';
+import { formatZoomPercent } from '@/utils/editorGeometry';
 
 type EditorParams = {
+  draftId?: string | string[];
   imageUri?: string | string[];
 };
 
 export default function EditorScreen() {
   const { t } = useTranslation();
-  const { imageUri } = useLocalSearchParams<EditorParams>();
+  const { draftId, imageUri } = useLocalSearchParams<EditorParams>();
   const selectedImageUri = getImageUri(imageUri);
+  const selectedDraftId = getDraftId(draftId);
+  const draftSnapshotRef = useRef<EditorDraftSnapshot | null>(null);
+  const getDraftSnapshot = useCallback(() => draftSnapshotRef.current, []);
   const {
     closePreview,
     exportAction,
@@ -49,7 +62,11 @@ export default function EditorScreen() {
     isPreviewing,
     openPreview: openExportPreview,
     previewSize,
-  } = useEditorExport({ imageUri: selectedImageUri });
+  } = useEditorExport({
+    getDraftSnapshot,
+    imageUri: selectedImageUri,
+    initialDraftId: selectedDraftId,
+  });
   const {
     canvasRef,
     canvasSize,
@@ -61,27 +78,25 @@ export default function EditorScreen() {
     imageRect,
     imageSize,
   } = useEditorLayout();
-  const [undoSnapshot, setUndoSnapshot] = useState<EditorUndoSnapshot | null>(null);
   const [hasEditHistory, setHasEditHistory] = useState(false);
   const [isResetModalVisible, setIsResetModalVisible] = useState(false);
   const {
     bindChrome,
-    cancelModeSwitch,
+    canRedo,
+    canUndo,
     closeMoreMenu,
     closeOverlayMenus,
     closeSettings,
-    confirmModeSwitch,
+    confirmPendingDraftHistory,
+    discardPendingDraftHistory,
     editorMode,
-    handleSelectEditorMode,
+    handleRedo,
     handleUndo,
-    isModeSelectorVisible,
-    isModeSwitchModalVisible,
+    hydrateEditorMode,
     isMoreMenuVisible,
     isSettingsOpen,
-    openModeSelector,
-    openMoreMenu,
     openSettings,
-    pendingEditorMode,
+    pushHistory,
   } = useEditorChrome();
   const {
     activeSizePresetId,
@@ -139,19 +154,20 @@ export default function EditorScreen() {
     tags,
   } = useTagEditorState({
     closeOverlayMenus,
+    confirmPendingDraftHistory,
+    discardPendingDraftHistory,
     editorMode,
     imageRect,
+    pushHistory,
     selectedImageUri,
-    setUndoSnapshot,
   });
-  const canUndo = undoSnapshot !== null;
 
-  // Draft add sets undoSnapshot early; only latch history after draft is committed/cleared.
+  // Draft add pushes early; only latch history chrome after draft is committed/cleared.
   useEffect(() => {
-    if (undoSnapshot !== null && !draftTagId) {
+    if ((canUndo || canRedo) && !draftTagId) {
       setHasEditHistory(true);
     }
-  }, [draftTagId, undoSnapshot]);
+  }, [canRedo, canUndo, draftTagId]);
   const {
     addMarkerAtPoint,
     cancelDeleteMarker,
@@ -174,7 +190,7 @@ export default function EditorScreen() {
     closeStylePicker,
     deselectTagForMarkerSelect,
     imageRect,
-    setUndoSnapshot,
+    pushHistory,
   });
   const canReset = tags.length > 0 || panelMarkers.length > 0;
   const canSelect = tags.length > 0;
@@ -182,12 +198,11 @@ export default function EditorScreen() {
     clearPricePanelState,
     clearTagEditorState,
     closeStylePicker,
+    getCurrentSnapshot: () => createCurrentHistorySnapshot(editorMode, tags, panelMarkers),
     panelMarkersLength: panelMarkers.length,
     restoreMarkers,
     restoreTags,
-    setUndoSnapshot,
     tagsLength: tags.length,
-    undoSnapshot,
   });
   const hasContentDirty =
     tags.length > 0 ||
@@ -195,6 +210,7 @@ export default function EditorScreen() {
     Boolean(selectedTagId) ||
     Boolean(draftTagId);
   const {
+    applyRestoredFilename,
     cancelFilenameEdit,
     cancelLeaveEditor,
     confirmFilenameEdit,
@@ -215,6 +231,23 @@ export default function EditorScreen() {
     selectedImageUri,
   });
 
+  useEditorDraftHydration({
+    draftId: selectedDraftId,
+    onHydrate: (draft) => {
+      applyRestoredFilename(draft.filename);
+      hydrateEditorMode(draft.editorMode);
+      restoreTags(draft.tags);
+      restoreMarkers(draft.panelMarkers);
+    },
+  });
+
+  draftSnapshotRef.current = {
+    editorMode,
+    filename,
+    panelMarkers,
+    tags,
+  };
+
   const openPreview = () => {
     if (!selectedImageUri) {
       return;
@@ -226,6 +259,36 @@ export default function EditorScreen() {
     openExportPreview();
   };
 
+  const handleZoomBackgroundTap = useCallback(() => {
+    if (isMultiSelectMode) {
+      exitMultiSelectMode();
+      return;
+    }
+
+    if (editorMode === 'tag' && selectedTag) {
+      handleCancelTagEdit();
+      return;
+    }
+
+    if (editorMode === 'priceList' && editingMarkerId) {
+      handleCancelMarkerPriceEdit();
+    }
+  }, [
+    editorMode,
+    editingMarkerId,
+    exitMultiSelectMode,
+    handleCancelMarkerPriceEdit,
+    handleCancelTagEdit,
+    isMultiSelectMode,
+    selectedTag,
+  ]);
+
+  const { isZoomMode, resetZoom, toggleZoomMode, zoomAnimatedStyle, zoomGesture, zoomScale } = useEditorZoom({
+    canvasSize,
+    imageUri: selectedImageUri,
+    onBackgroundTap: handleZoomBackgroundTap,
+  });
+
   const handleCanvasPress = (event: GestureResponderEvent) => {
     if (!imageRect) {
       return;
@@ -233,6 +296,20 @@ export default function EditorScreen() {
 
     if (isMultiSelectMode) {
       exitMultiSelectMode();
+      return;
+    }
+
+    if (editorMode === 'tag' && selectedTag) {
+      handleCancelTagEdit();
+      return;
+    }
+
+    // Zoom mode: never add tags/markers from empty-canvas taps.
+    if (isZoomMode) {
+      if (editorMode === 'priceList' && editingMarkerId) {
+        handleCancelMarkerPriceEdit();
+      }
+
       return;
     }
 
@@ -253,11 +330,6 @@ export default function EditorScreen() {
     };
 
     if (editorMode !== 'tag' && editorMode !== 'priceList') {
-      return;
-    }
-
-    if (editorMode === 'tag' && selectedTag) {
-      handleCancelTagEdit();
       return;
     }
 
@@ -295,6 +367,21 @@ export default function EditorScreen() {
       return;
     }
 
+    if (actionId === 'zoom') {
+      if (!selectedImageUri) {
+        return;
+      }
+
+      // Close edit popup when entering/leaving Zoom so tap-to-edit does not fire by accident.
+      // Multi-select selection state is left alone.
+      if (!isMultiSelectMode) {
+        handleCancelTagEdit();
+      }
+
+      toggleZoomMode();
+      return;
+    }
+
     if (actionId === 'export') {
       openPreview();
     }
@@ -303,6 +390,11 @@ export default function EditorScreen() {
   const handleFloatingHistoryAction = (actionId: FloatingHistoryActionId) => {
     if (actionId === 'undo') {
       handleUndo();
+      return;
+    }
+
+    if (actionId === 'redo') {
+      handleRedo();
       return;
     }
 
@@ -326,6 +418,7 @@ export default function EditorScreen() {
       clearPricePanelState();
     }
 
+    resetZoom();
     setIsResetModalVisible(false);
   };
 
@@ -408,8 +501,12 @@ export default function EditorScreen() {
         onClosePreview={closePreview}
         onImageLoad={handleImageLoad}
         onPreviewLayout={handlePreviewLayout}
-        onSaveImage={handleSaveImage}
-        onShareImage={handleShareImage}
+        onSaveImage={() => {
+          void handleSaveImage(filename);
+        }}
+        onShareImage={() => {
+          void handleShareImage(filename);
+        }}
         panelMarkers={panelMarkers}
         previewSize={previewSize}
         tags={tags}
@@ -456,6 +553,7 @@ export default function EditorScreen() {
           isDraggingTag={isDraggingTag}
           isMultiSelectMode={isMultiSelectMode}
           isStylePickerVisible={isStylePickerVisible}
+          isZoomMode={isZoomMode}
           onCancelTagEdit={handleCancelTagEdit}
           onCanvasLayout={handleCanvasLayout}
           onCanvasPress={handleCanvasPress}
@@ -482,16 +580,21 @@ export default function EditorScreen() {
           stylePreviewTag={stylePreviewTag}
           tagSizeById={tagSizeById}
           tags={tags}
+          viewportScale={zoomScale}
+          zoomAnimatedStyle={zoomAnimatedStyle}
+          zoomGesture={zoomGesture}
         />
       </View>
 
       <Text style={[styles.placeholder, selectedImageUri && !isStylePickerVisible ? styles.placeholderWithFloatingBar : null]}>
         {selectedImageUri
-          ? isMultiSelectMode
-            ? t('editor.tapEmptyToExit')
-            : editorMode === 'priceList'
-              ? t('editor.tapPhotoToAddMarker')
-              : t('editor.tapPhotoToAdd')
+          ? isZoomMode
+            ? t('editor.zoomHint')
+            : isMultiSelectMode
+              ? t('editor.tapEmptyToExit')
+              : editorMode === 'priceList'
+                ? t('editor.tapPhotoToAddMarker')
+                : t('editor.tapPhotoToAdd')
           : t('editor.choosePhotoToStart')}
       </Text>
 
@@ -514,6 +617,7 @@ export default function EditorScreen() {
       <EditorFloatingControls
         alignFeedbackMessage={alignFeedbackMessage}
         bottomDropAreaRef={bottomDropAreaRef}
+        canRedo={canRedo}
         canReset={canReset}
         canSelect={canSelect}
         canUndo={canUndo}
@@ -524,11 +628,13 @@ export default function EditorScreen() {
         isMultiSelectGroupDrag={isMultiSelectGroupDrag}
         isMultiSelectMode={isMultiSelectMode}
         isStylePickerVisible={isStylePickerVisible}
+        isZoomMode={isZoomMode}
         onBottomDropAreaLayout={handleBottomDropAreaLayout}
         onFloatingHistoryAction={handleFloatingHistoryAction}
         onFloatingMainAction={handleFloatingMainAction}
         selectedImageUri={selectedImageUri}
         selectedTagIds={selectedTagIds}
+        zoomScaleLabel={isZoomMode || zoomScale !== 1 ? formatZoomPercent(zoomScale) : null}
       />
     </SafeAreaView>
   );

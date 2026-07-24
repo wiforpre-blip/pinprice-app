@@ -3,6 +3,9 @@ import type { ImageDisplayRect, PriceTag } from '@/types/tag';
 
 export const FALLBACK_TAG_SIZE: TagSize = { width: 80, height: 32 };
 export const DRAG_POSITION_TOLERANCE = 0.0001;
+export const EDITOR_ZOOM_MIN = 1;
+export const EDITOR_ZOOM_MAX = 3;
+export const EDITOR_ZOOM_DEFAULT = 1;
 
 export function clampNormalized(value: number) {
   if (!Number.isFinite(value)) {
@@ -133,4 +136,49 @@ export function isPointInsideRect(point: ScreenPoint, rect: ScreenRect | null) {
   }
 
   return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
+}
+
+export function clampZoomScale(scale: number) {
+  if (!Number.isFinite(scale)) {
+    return EDITOR_ZOOM_DEFAULT;
+  }
+
+  return clamp(scale, EDITOR_ZOOM_MIN, EDITOR_ZOOM_MAX);
+}
+
+/** Max pan offset so a center-origin scaled canvas stays within the clip bounds. */
+export function getMaxPanOffset(scale: number, canvasSize: Size) {
+  const safeScale = clampZoomScale(scale);
+
+  if (safeScale <= EDITOR_ZOOM_MIN || canvasSize.width <= 0 || canvasSize.height <= 0) {
+    return { x: 0, y: 0 };
+  }
+
+  return {
+    x: (canvasSize.width * (safeScale - 1)) / 2,
+    y: (canvasSize.height * (safeScale - 1)) / 2,
+  };
+}
+
+export function clampPanOffset(translateX: number, translateY: number, scale: number, canvasSize: Size): ScreenPoint {
+  const maxOffset = getMaxPanOffset(scale, canvasSize);
+
+  return {
+    x: clamp(translateX, -maxOffset.x, maxOffset.x),
+    y: clamp(translateY, -maxOffset.y, maxOffset.y),
+  };
+}
+
+/** Convert a screen-space drag delta into canvas-local delta under the current viewport scale. */
+export function screenDeltaToCanvasDelta(dx: number, dy: number, viewportScale: number): ScreenPoint {
+  const safeScale = viewportScale > 0 && Number.isFinite(viewportScale) ? viewportScale : EDITOR_ZOOM_DEFAULT;
+
+  return {
+    x: dx / safeScale,
+    y: dy / safeScale,
+  };
+}
+
+export function formatZoomPercent(scale: number) {
+  return `${Math.round(clampZoomScale(scale) * 100)}%`;
 }

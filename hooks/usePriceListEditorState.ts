@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useState } from 'react';
+import { useState } from 'react';
 
 import type { EditorUndoSnapshot } from '@/types/editor';
 import type { PanelMarker as PanelMarkerType } from '@/types/pricePanel';
@@ -22,14 +22,14 @@ type UsePriceListEditorStateOptions = {
   closeStylePicker: () => void;
   deselectTagForMarkerSelect: () => void;
   imageRect: ImageDisplayRect | null;
-  setUndoSnapshot: Dispatch<SetStateAction<EditorUndoSnapshot | null>>;
+  pushHistory: (snapshot: EditorUndoSnapshot) => void;
 };
 
 export function usePriceListEditorState({
   closeStylePicker,
   deselectTagForMarkerSelect,
   imageRect,
-  setUndoSnapshot,
+  pushHistory,
 }: UsePriceListEditorStateOptions) {
   const [panelMarkers, setPanelMarkers] = useState<PanelMarkerType[]>([]);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export function usePriceListEditorState({
 
   const resetMarkersAndChrome = () => {
     setPanelMarkers((currentMarkers) => {
-      setUndoSnapshot({ markers: clonePanelMarkers(currentMarkers), mode: 'priceList' });
+      pushHistory({ markers: clonePanelMarkers(currentMarkers), mode: 'priceList' });
       return [];
     });
     setSelectedMarkerId(null);
@@ -81,7 +81,7 @@ export function usePriceListEditorState({
     const newMarker = createPanelMarker(x, y);
 
     setPanelMarkers((currentMarkers) => {
-      setUndoSnapshot({ markers: clonePanelMarkers(currentMarkers), mode: 'priceList' });
+      pushHistory({ markers: clonePanelMarkers(currentMarkers), mode: 'priceList' });
       return [...currentMarkers, newMarker];
     });
     setSelectedMarkerId(newMarker.id);
@@ -113,7 +113,7 @@ export function usePriceListEditorState({
         return currentMarkers;
       }
 
-      setUndoSnapshot({ markers: clonePanelMarkers(currentMarkers), mode: 'priceList' });
+      pushHistory({ markers: clonePanelMarkers(currentMarkers), mode: 'priceList' });
       return currentMarkers.map((marker) => (marker.id === markerId ? { ...marker, priceText } : marker));
     });
 
@@ -149,7 +149,7 @@ export function usePriceListEditorState({
         return currentMarkers;
       }
 
-      setUndoSnapshot({ markers: clonePanelMarkers(currentMarkers), mode: 'priceList' });
+      pushHistory({ markers: clonePanelMarkers(currentMarkers), mode: 'priceList' });
       return currentMarkers.filter((marker) => marker.id !== deleteCandidateMarkerId);
     });
 

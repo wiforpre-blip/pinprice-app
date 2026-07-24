@@ -18,6 +18,13 @@ export function getImageUri(imageUri: string | string[] | undefined) {
   }
 }
 
+export function getDraftId(draftId: string | string[] | undefined) {
+  const rawId = Array.isArray(draftId) ? draftId[0] : draftId;
+  const trimmed = rawId?.trim();
+
+  return trimmed ? trimmed : null;
+}
+
 function getFilenameFromUri(uri: string | null) {
   if (!uri) {
     return FALLBACK_FILENAME;
@@ -48,18 +55,29 @@ export function useEditorSession({
   const initialFilename = useMemo(() => getFilenameFromUri(selectedImageUri), [selectedImageUri]);
   const [filename, setFilename] = useState(initialFilename);
   const [draftFilename, setDraftFilename] = useState(initialFilename);
+  const [baselineFilename, setBaselineFilename] = useState(initialFilename);
   const [isEditingFilename, setIsEditingFilename] = useState(false);
   const [isLeaveModalVisible, setIsLeaveModalVisible] = useState(false);
 
   const hasUnsavedWork =
     Boolean(selectedImageUri) &&
-    (hasContentDirty || isEditingFilename || filename !== initialFilename || draftFilename !== filename);
+    (hasContentDirty || isEditingFilename || filename !== baselineFilename || draftFilename !== filename);
 
   useEffect(() => {
     setFilename(initialFilename);
     setDraftFilename(initialFilename);
+    setBaselineFilename(initialFilename);
     setIsEditingFilename(false);
   }, [initialFilename]);
+
+  const applyRestoredFilename = useCallback((name: string) => {
+    const nextFilename = name.trim() || FALLBACK_FILENAME;
+
+    setFilename(nextFilename);
+    setDraftFilename(nextFilename);
+    setBaselineFilename(nextFilename);
+    setIsEditingFilename(false);
+  }, []);
 
   const goHome = useCallback(() => {
     if (router.canGoBack()) {
@@ -127,6 +145,7 @@ export function useEditorSession({
   };
 
   return {
+    applyRestoredFilename,
     cancelFilenameEdit,
     cancelLeaveEditor,
     confirmFilenameEdit,

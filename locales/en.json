@@ -1,18 +1,23 @@
 {
   "common": {
-    "appName": "PinPrice"
+    "appName": "PinPrice",
+    "ok": "OK"
   },
   "home": {
-    "headline": "Add price tags to product photos fast",
-    "subtitle": "Add prices and sold labels to product photos in seconds.",
+    "headline": "Get product photos sale-ready in seconds",
+    "subtitle": "Add prices, Sold tags, and export images ready to use",
     "takePhoto": "Take Photo",
     "choosePhoto": "Choose Photo",
+    "recent": "Recent Projects",
+    "viewAll": "View all",
     "menu": "Menu",
     "settings": "Settings",
     "photoPermissionRequired": "Photo access is needed to choose an image.",
     "cameraPermissionRequired": "Camera access is needed to take a photo.",
     "photoPickerError": "Could not open photos.",
-    "cameraError": "Could not open camera."
+    "cameraError": "Could not open camera.",
+    "draftUnavailableTitle": "Can't open this photo",
+    "draftUnavailableBody": "The original image is missing from this device, so this draft can't be opened."
   },
   "settings": {
     "title": "Settings",
@@ -53,6 +58,7 @@
     "add": "Add",
     "style": "Style",
     "select": "Select",
+    "zoom": "Zoom",
     "align": "Align",
     "alignTooFar": "Select tags that are closer together to align",
     "exitMultiSelect": "Exit multi-select",
@@ -86,6 +92,7 @@
     "backHome": "Back Home",
     "tapPhotoToAdd": "Tap the photo to add a price tag",
     "tapPhotoToAddMarker": "Tap the photo to add a number",
+    "zoomHint": "Pinch to zoom · Drag to pan",
     "choosePhotoToStart": "Choose a photo to start tagging"
   },
   "pricePanel": {

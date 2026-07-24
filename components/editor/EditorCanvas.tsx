@@ -1,7 +1,11 @@
 import { Image, type ImageLoadEventData } from 'expo-image';
 import type { RefObject } from 'react';
 import { GestureResponderEvent, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { ComposedGesture, GestureType } from 'react-native-gesture-handler';
+import type { AnimatedStyle } from 'react-native-reanimated';
+import type { ViewStyle } from 'react-native';
 
+import { EditorZoomViewport } from '@/components/editor/EditorZoomViewport';
 import { PanelMarker } from '@/components/editor/PanelMarker';
 import { PriceListComposition } from '@/components/editor/PriceListComposition';
 import { PricePanel } from '@/components/editor/PricePanel';
@@ -33,6 +37,7 @@ type EditorCanvasProps = {
   isDraggingTag: boolean;
   isMultiSelectMode: boolean;
   isStylePickerVisible: boolean;
+  isZoomMode: boolean;
   onCancelTagEdit: () => void;
   onCanvasLayout: (event: LayoutChangeEvent) => void;
   onCanvasPress: (event: GestureResponderEvent) => void;
@@ -59,6 +64,9 @@ type EditorCanvasProps = {
   stylePreviewTag: PriceTag;
   tagSizeById: Record<string, TagSize>;
   tags: PriceTag[];
+  viewportScale: number;
+  zoomAnimatedStyle: AnimatedStyle<ViewStyle>;
+  zoomGesture: ComposedGesture | GestureType;
 };
 
 export function EditorCanvas({
@@ -79,6 +87,7 @@ export function EditorCanvas({
   isDraggingTag,
   isMultiSelectMode,
   isStylePickerVisible,
+  isZoomMode,
   onCancelTagEdit,
   onCanvasLayout,
   onCanvasPress,
@@ -105,6 +114,9 @@ export function EditorCanvas({
   stylePreviewTag,
   tagSizeById,
   tags,
+  viewportScale,
+  zoomAnimatedStyle,
+  zoomGesture,
 }: EditorCanvasProps) {
   const { t } = useTranslation();
 
@@ -134,25 +146,32 @@ export function EditorCanvas({
           }
           showChart={panelMarkers.length > 0}>
           <View ref={canvasRef} style={styles.imageCanvas} onLayout={onCanvasLayout}>
-            <Image source={{ uri: imageUri }} style={styles.image} contentFit="contain" onLoad={onImageLoad} />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('editor.addPriceTag')}
-              onPress={onCanvasPress}
-              style={styles.tapLayer}
-            />
-            {imageRect
-              ? panelMarkers.map((marker, index) => (
-                  <PanelMarker
-                    imageRect={imageRect}
-                    isSelected={marker.id === selectedMarkerId}
-                    key={marker.id}
-                    marker={marker}
-                    number={index + 1}
-                    onPress={onSelectMarker}
-                  />
-                ))
-              : null}
+            <EditorZoomViewport
+              isZoomMode={isZoomMode}
+              zoomAnimatedStyle={zoomAnimatedStyle}
+              zoomGesture={zoomGesture}>
+              <Image source={{ uri: imageUri }} style={styles.image} contentFit="contain" onLoad={onImageLoad} />
+              {isZoomMode ? null : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('editor.addPriceTag')}
+                  onPress={onCanvasPress}
+                  style={styles.tapLayer}
+                />
+              )}
+              {imageRect
+                ? panelMarkers.map((marker, index) => (
+                    <PanelMarker
+                      imageRect={imageRect}
+                      isSelected={marker.id === selectedMarkerId}
+                      key={marker.id}
+                      marker={marker}
+                      number={index + 1}
+                      onPress={onSelectMarker}
+                    />
+                  ))
+                : null}
+            </EditorZoomViewport>
           </View>
         </PriceListComposition>
       </View>
@@ -161,81 +180,90 @@ export function EditorCanvas({
 
   return (
     <View ref={canvasRef} style={[styles.canvas, isDraggingTag && styles.draggingCanvas]} onLayout={onCanvasLayout}>
-      <Image source={{ uri: imageUri }} style={styles.image} contentFit="contain" onLoad={onImageLoad} />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={
-          isMultiSelectMode
-            ? t('editor.exitMultiSelect')
-            : selectedTag
-              ? t('editor.closeTagEditor')
-              : t('editor.addPriceTag')
-        }
-        onPress={onCanvasPress}
-        style={styles.tapLayer}
-      />
-      {imageRect
-        ? tags.map((tag) => {
-            const isTagSelected = isMultiSelectMode ? selectedTagIds.includes(tag.id) : tag.id === selectedTagId;
-            const canDragTag = !isMultiSelectMode || isTagSelected;
-            const isSiblingInGroupDrag =
-              isMultiSelectMode &&
-              draggingTagId !== null &&
-              draggingTagId !== tag.id &&
-              selectedTagIds.includes(tag.id) &&
-              selectedTagIds.includes(draggingTagId);
+      <EditorZoomViewport
+        allowOverflow={isDraggingTag}
+        isZoomMode={isZoomMode}
+        zoomAnimatedStyle={zoomAnimatedStyle}
+        zoomGesture={zoomGesture}>
+        <Image source={{ uri: imageUri }} style={styles.image} contentFit="contain" onLoad={onImageLoad} />
+        {isZoomMode ? null : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              isMultiSelectMode
+                ? t('editor.exitMultiSelect')
+                : selectedTag
+                  ? t('editor.closeTagEditor')
+                  : t('editor.addPriceTag')
+            }
+            onPress={onCanvasPress}
+            style={styles.tapLayer}
+          />
+        )}
+        {imageRect
+          ? tags.map((tag) => {
+              const isTagSelected = isMultiSelectMode ? selectedTagIds.includes(tag.id) : tag.id === selectedTagId;
+              const canDragTag = !isMultiSelectMode || isTagSelected;
+              const isSiblingInGroupDrag =
+                isMultiSelectMode &&
+                draggingTagId !== null &&
+                draggingTagId !== tag.id &&
+                selectedTagIds.includes(tag.id) &&
+                selectedTagIds.includes(draggingTagId);
 
-            return (
-              <TagOverlay
-                clampDragOffset={
-                  isMultiSelectMode && isTagSelected
-                    ? (dx, dy) =>
-                        clampGroupPixelOffset(
-                          dx,
-                          dy,
-                          groupDragOriginalTagsRef.current ?? tags.filter((currentTag) => selectedTagIds.includes(currentTag.id)),
-                          imageRect,
-                          tagSizeById,
-                        )
-                    : undefined
-                }
-                dragEnabled={canDragTag}
-                externalDragOffset={isSiblingInGroupDrag ? groupDragOffset : null}
-                imageRect={imageRect}
-                isSelected={isTagSelected}
-                key={tag.id}
-                minDragY={dragTopBoundaryY ?? undefined}
-                onDragCancel={onTagDragCancel}
-                onDragEnd={onTagDragEnd}
-                onDragMove={onTagDragMove}
-                onDragOffsetChange={isMultiSelectMode && isTagSelected ? onTagDragOffsetChange : undefined}
-                onDragStart={onTagDragStart}
-                onPress={onTagPress}
-                onSizeChange={onTagSizeChange}
-                tag={
-                  tag.id === selectedTagId && draftPreview
-                    ? {
-                        ...tag,
-                        text: draftPreview.text || tag.text,
-                        stylePresetId: draftPreview.stylePresetId ?? tag.stylePresetId,
-                        sizePresetId: draftPreview.sizePresetId ?? tag.sizePresetId,
-                        priceTextFormat: draftPreview.priceTextFormat ?? tag.priceTextFormat,
-                        soldTextFormat: draftPreview.soldTextFormat ?? tag.soldTextFormat,
-                        languageCode: draftPreview.languageCode ?? tag.languageCode,
-                      }
-                    : tag
-                }
-                textOverride={
-                  tag.id === selectedTagId
-                    ? (draftPreview?.text ?? draftText).trim() || getDefaultTextForType(draftType)
-                    : undefined
-                }
-                typeOverride={tag.id === selectedTagId ? draftType : undefined}
-              />
-            );
-          })
-        : null}
-      {imageRect && isStylePickerVisible ? <StaticTag imageRect={imageRect} tag={stylePreviewTag} /> : null}
+              return (
+                <TagOverlay
+                  clampDragOffset={
+                    isMultiSelectMode && isTagSelected
+                      ? (dx, dy) =>
+                          clampGroupPixelOffset(
+                            dx,
+                            dy,
+                            groupDragOriginalTagsRef.current ?? tags.filter((currentTag) => selectedTagIds.includes(currentTag.id)),
+                            imageRect,
+                            tagSizeById,
+                          )
+                      : undefined
+                  }
+                  dragEnabled={canDragTag}
+                  externalDragOffset={isSiblingInGroupDrag ? groupDragOffset : null}
+                  imageRect={imageRect}
+                  isSelected={isTagSelected}
+                  key={tag.id}
+                  minDragY={dragTopBoundaryY ?? undefined}
+                  onDragCancel={onTagDragCancel}
+                  onDragEnd={onTagDragEnd}
+                  onDragMove={onTagDragMove}
+                  onDragOffsetChange={isMultiSelectMode && isTagSelected ? onTagDragOffsetChange : undefined}
+                  onDragStart={onTagDragStart}
+                  onPress={onTagPress}
+                  onSizeChange={onTagSizeChange}
+                  tag={
+                    tag.id === selectedTagId && draftPreview
+                      ? {
+                          ...tag,
+                          text: draftPreview.text || tag.text,
+                          stylePresetId: draftPreview.stylePresetId ?? tag.stylePresetId,
+                          sizePresetId: draftPreview.sizePresetId ?? tag.sizePresetId,
+                          priceTextFormat: draftPreview.priceTextFormat ?? tag.priceTextFormat,
+                          soldTextFormat: draftPreview.soldTextFormat ?? tag.soldTextFormat,
+                          languageCode: draftPreview.languageCode ?? tag.languageCode,
+                        }
+                      : tag
+                  }
+                  textOverride={
+                    tag.id === selectedTagId
+                      ? (draftPreview?.text ?? draftText).trim() || getDefaultTextForType(draftType)
+                      : undefined
+                  }
+                  typeOverride={tag.id === selectedTagId ? draftType : undefined}
+                  viewportScale={viewportScale}
+                />
+              );
+            })
+          : null}
+        {imageRect && isStylePickerVisible ? <StaticTag imageRect={imageRect} tag={stylePreviewTag} /> : null}
+      </EditorZoomViewport>
       {imageRect ? (
         <TagEditor
           canvasSize={canvasSize}
@@ -245,7 +273,13 @@ export function EditorCanvas({
           onDraftChange={onDraftChange}
           onSave={onSaveTag}
           tag={selectedTag}
-          visible={Boolean(selectedTag) && !isMultiSelectMode && draggingTagId !== selectedTagId && !isStylePickerVisible}
+          visible={
+            Boolean(selectedTag) &&
+            !isZoomMode &&
+            !isMultiSelectMode &&
+            draggingTagId !== selectedTagId &&
+            !isStylePickerVisible
+          }
         />
       ) : null}
     </View>

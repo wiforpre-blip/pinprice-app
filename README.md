@@ -1,50 +1,54 @@
-# Welcome to your Expo app 👋
+# PinPrice
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+PinPrice is a mobile-first utility app for online sellers who need to add price and status tags onto product photos quickly.
 
-## Get started
+Built with React Native and Expo. MVP is local-first (no backend).
 
-1. Install dependencies
+## Purpose
 
-   ```bash
-   npm install
-   ```
+Help sellers tag multiple items in one photo faster than Canva, Phonto, or story editors.
 
-2. Start the app
+Core flow:
 
-   ```bash
-   npx expo start
-   ```
+Take or choose photo → tap item → add price/status tag → adjust position → preview → save/share
 
-In the output, you'll find options to open the app in a
+Target users include TCG card sellers, collectibles sellers, second-hand clothing sellers, shoes/denim/accessories sellers, and live sale sellers.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Tech Stack
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- React Native
+- Expo
+- Expo Router
+- TypeScript
 
-## Get a fresh project
+## MVP Scope (high level)
 
-When you're ready, run:
+- Choose image / take photo
+- Add, edit, drag, delete tags
+- Tag types: Price, Sold, Reserved
+- Undo
+- Preview, save, share
+
+Out of scope for MVP: login, backend, cloud sync, marketplace, inventory, payments, web support, AI detection.
+
+See `PROJECT_DIRECTION.md` and `.cursorrules` for full product rules.
+
+## Run The App
+
+Install dependencies:
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Start the development build:
 
-## Learn more
+```bash
+npm run start:dev
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## Notes
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- This project is in active development.
+- Do not commit local environment secrets.
+- Product copy and seller flows should consider both Thai and English.

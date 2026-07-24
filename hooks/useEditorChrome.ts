@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 
+import { useEditorHistory } from '@/hooks/useEditorHistory';
 import type { EditorPricingMode, EditorUndoSnapshot } from '@/types/editor';
 import type { PanelMarker } from '@/types/pricePanel';
 import type { PriceTag } from '@/types/tag';
@@ -8,28 +9,49 @@ type EditorChromeBindings = {
   clearPricePanelState: () => void;
   clearTagEditorState: () => void;
   closeStylePicker: () => void;
+  getCurrentSnapshot: () => EditorUndoSnapshot;
   panelMarkersLength: number;
   restoreMarkers: (markers: PanelMarker[]) => void;
   restoreTags: (tags: PriceTag[]) => void;
-  setUndoSnapshot: (snapshot: EditorUndoSnapshot | null) => void;
   tagsLength: number;
-  undoSnapshot: EditorUndoSnapshot | null;
 };
 
 const EMPTY_BINDINGS: EditorChromeBindings = {
   clearPricePanelState: () => undefined,
   clearTagEditorState: () => undefined,
   closeStylePicker: () => undefined,
+  getCurrentSnapshot: () => ({ mode: 'tag', tags: [] }),
   panelMarkersLength: 0,
   restoreMarkers: () => undefined,
   restoreTags: () => undefined,
-  setUndoSnapshot: () => undefined,
   tagsLength: 0,
-  undoSnapshot: null,
 };
+
+function restoreSnapshot(
+  snapshot: EditorUndoSnapshot,
+  restoreTags: (tags: PriceTag[]) => void,
+  restoreMarkers: (markers: PanelMarker[]) => void,
+) {
+  if (snapshot.mode === 'tag') {
+    restoreTags(snapshot.tags);
+    return;
+  }
+
+  restoreMarkers(snapshot.markers);
+}
 
 export function useEditorChrome() {
   const bindingsRef = useRef<EditorChromeBindings>(EMPTY_BINDINGS);
+  const {
+    canRedo,
+    canUndo,
+    clearHistory,
+    confirmPendingDraftHistory,
+    discardPendingDraftHistory,
+    pushHistory,
+    redo,
+    undo,
+  } = useEditorHistory();
   const [editorMode, setEditorMode] = useState<EditorPricingMode>('tag');
   const [pendingEditorMode, setPendingEditorMode] = useState<EditorPricingMode | null>(null);
   const [isModeSwitchModalVisible, setIsModeSwitchModalVisible] = useState(false);
@@ -77,11 +99,15 @@ export function useEditorChrome() {
     setIsSettingsOpen(false);
   };
 
+  const hydrateEditorMode = useCallback((mode: EditorPricingMode) => {
+    setEditorMode(mode);
+  }, []);
+
   const switchEditorMode = (mode: EditorPricingMode) => {
-    const { clearPricePanelState, clearTagEditorState, setUndoSnapshot } = bindingsRef.current;
+    const { clearPricePanelState, clearTagEditorState } = bindingsRef.current;
 
     setEditorMode(mode);
-    setUndoSnapshot(null);
+    clearHistory();
     clearTagEditorState();
     clearPricePanelState();
     closeModeSelector();
@@ -123,36 +149,46 @@ export function useEditorChrome() {
   };
 
   const handleUndo = () => {
-    const { clearTagEditorState, restoreMarkers, restoreTags, setUndoSnapshot, undoSnapshot } =
-      bindingsRef.current;
+    const { clearTagEditorState, getCurrentSnapshot, restoreMarkers, restoreTags } = bindingsRef.current;
+    const previous = undo(getCurrentSnapshot());
 
-    if (!undoSnapshot) {
+    if (!previous) {
       return;
     }
 
-    if (undoSnapshot.mode === 'tag') {
-      restoreTags(undoSnapshot.tags);
-    } else {
-      restoreMarkers(undoSnapshot.markers);
-    }
-
-    setUndoSnapshot(null);
+    restoreSnapshot(previous, restoreTags, restoreMarkers);
     clearTagEditorState();
   };
 
-  const canUndo = bindingsRef.current.undoSnapshot !== null;
+  const handleRedo = () => {
+    const { clearTagEditorState, getCurrentSnapshot, restoreMarkers, restoreTags } = bindingsRef.current;
+    const next = redo(getCurrentSnapshot());
+
+    if (!next) {
+      return;
+    }
+
+    restoreSnapshot(next, restoreTags, restoreMarkers);
+    clearTagEditorState();
+  };
 
   return {
     bindChrome,
+    canRedo,
     canUndo,
     cancelModeSwitch,
+    clearHistory,
     closeMoreMenu,
     closeOverlayMenus,
     closeSettings,
     confirmModeSwitch,
+    confirmPendingDraftHistory,
+    discardPendingDraftHistory,
     editorMode,
+    handleRedo,
     handleSelectEditorMode,
     handleUndo,
+    hydrateEditorMode,
     isModeSelectorVisible,
     isModeSwitchModalVisible,
     isMoreMenuVisible,
@@ -161,5 +197,6 @@ export function useEditorChrome() {
     openMoreMenu,
     openSettings,
     pendingEditorMode,
+    pushHistory,
   };
 }

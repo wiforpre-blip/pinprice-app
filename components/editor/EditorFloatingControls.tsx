@@ -10,6 +10,7 @@ import type { EditorPricingMode } from '@/types/editor';
 const FLOATING_MAIN_ACTIONS = [
   { id: 'style', labelKey: 'editor.style', icon: 'palette' },
   { id: 'select', labelKey: 'editor.select', icon: 'select-all' },
+  { id: 'zoom', labelKey: 'editor.zoom', icon: 'zoom-in' },
   { id: 'export', labelKey: 'editor.export', icon: 'file-upload' },
 ] as const;
 
@@ -26,16 +27,19 @@ type EditorFloatingControlsProps = {
   alignFeedbackMessage: string | null;
   canSelect: boolean;
   canUndo: boolean;
+  canRedo: boolean;
   canReset: boolean;
   hasEditHistory: boolean;
   isDraggingTag: boolean;
   isMultiSelectGroupDrag: boolean;
   isStylePickerVisible: boolean;
   isMultiSelectMode: boolean;
+  isZoomMode: boolean;
   editorMode: EditorPricingMode;
   selectedImageUri: string | null;
   selectedTagIds: string[];
   isDragOverDelete: boolean;
+  zoomScaleLabel: string | null;
   bottomDropAreaRef: RefObject<View | null>;
   onBottomDropAreaLayout: () => void;
   onFloatingHistoryAction: (actionId: FloatingHistoryActionId) => void;
@@ -46,16 +50,19 @@ export function EditorFloatingControls({
   alignFeedbackMessage,
   canSelect,
   canUndo,
+  canRedo,
   canReset,
   hasEditHistory,
   isDraggingTag,
   isMultiSelectGroupDrag,
   isStylePickerVisible,
   isMultiSelectMode,
+  isZoomMode,
   editorMode,
   selectedImageUri,
   selectedTagIds,
   isDragOverDelete,
+  zoomScaleLabel,
   bottomDropAreaRef,
   onBottomDropAreaLayout,
   onFloatingHistoryAction,
@@ -65,7 +72,6 @@ export function EditorFloatingControls({
   const insets = useSafeAreaInsets();
   const bottomInset = insets.bottom;
   const floatingBottomPadding = theme.spacing.lg + bottomInset;
-  const canRedo = false;
   const showFloatingBars = Boolean(selectedImageUri) && !isStylePickerVisible && !isDraggingTag;
 
   return (
@@ -133,21 +139,27 @@ export function EditorFloatingControls({
             {FLOATING_MAIN_ACTIONS.map((item) => {
               const isSelectAction = item.id === 'select';
               const isStyleAction = item.id === 'style';
+              const isZoomAction = item.id === 'zoom';
               const isAlignAction = isSelectAction && isMultiSelectMode;
               const isAlignInactive = isAlignAction && selectedTagIds.length < 2;
               const isDisabled =
                 (isStyleAction && (isMultiSelectMode || editorMode === 'priceList' || !selectedImageUri)) ||
                 (isSelectAction && (!selectedImageUri || !canSelect)) ||
+                (isZoomAction && !selectedImageUri) ||
                 isAlignInactive ||
                 (item.id === 'export' && !selectedImageUri);
               const actionIcon = isAlignAction ? 'vertical-align-center' : item.icon;
               const actionLabel = isAlignAction ? t('editor.align') : t(item.labelKey);
+              const showZoomLevel = isZoomAction && Boolean(zoomScaleLabel);
 
               return (
                 <Pressable
-                  accessibilityLabel={actionLabel}
+                  accessibilityLabel={showZoomLevel ? `${actionLabel} ${zoomScaleLabel}` : actionLabel}
                   accessibilityRole="button"
-                  accessibilityState={isDisabled ? { disabled: true } : undefined}
+                  accessibilityState={{
+                    disabled: isDisabled,
+                    selected: isZoomAction ? isZoomMode : undefined,
+                  }}
                   disabled={isDisabled}
                   key={item.id}
                   onPress={() => onFloatingMainAction(item.id)}
@@ -155,15 +167,36 @@ export function EditorFloatingControls({
                     styles.floatingMainAction,
                     isDisabled && styles.floatingActionDisabled,
                     isAlignInactive && styles.floatingAlignInactive,
+                    isZoomAction && isZoomMode && styles.floatingMainActionActive,
                   ]}>
                   <MaterialIcons
-                    color={isDisabled ? theme.colors.textMuted : theme.buttons.secondary.color}
+                    color={
+                      isDisabled
+                        ? theme.colors.textMuted
+                        : isZoomAction && isZoomMode
+                          ? theme.buttons.primary.color
+                          : theme.buttons.secondary.color
+                    }
                     name={actionIcon}
                     size={22}
                   />
-                  <Text style={[styles.floatingMainActionText, isDisabled && styles.floatingActionTextDisabled]}>
+                  <Text
+                    style={[
+                      styles.floatingMainActionText,
+                      isDisabled && styles.floatingActionTextDisabled,
+                      isZoomAction && isZoomMode && styles.floatingMainActionTextActive,
+                    ]}>
                     {actionLabel}
                   </Text>
+                  {showZoomLevel ? (
+                    <Text
+                      style={[
+                        styles.floatingZoomLevelText,
+                        isZoomAction && isZoomMode && styles.floatingMainActionTextActive,
+                      ]}>
+                      {zoomScaleLabel}
+                    </Text>
+                  ) : null}
                 </Pressable>
               );
             })}
@@ -236,13 +269,16 @@ const styles = StyleSheet.create({
   },
   floatingMainAction: {
     minHeight: 52,
-    minWidth: 72,
+    minWidth: 60,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: theme.spacing.xs,
+    gap: 2,
     borderRadius: theme.radius.sm,
-    paddingHorizontal: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.xs,
     paddingVertical: theme.spacing.xs,
+  },
+  floatingMainActionActive: {
+    backgroundColor: theme.buttons.primary.backgroundColor,
   },
   floatingActionDisabled: {
     opacity: 0.45,
@@ -252,6 +288,15 @@ const styles = StyleSheet.create({
   },
   floatingMainActionText: {
     ...theme.typography.caption,
+    color: theme.buttons.secondary.color,
+  },
+  floatingMainActionTextActive: {
+    color: theme.buttons.primary.color,
+  },
+  floatingZoomLevelText: {
+    ...theme.typography.caption,
+    fontSize: 10,
+    lineHeight: 12,
     color: theme.buttons.secondary.color,
   },
   floatingActionTextDisabled: {

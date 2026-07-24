@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import {
@@ -183,18 +183,22 @@ function cloneTags(tags: PriceTag[]) {
 
 type UseTagEditorStateOptions = {
   closeOverlayMenus: () => void;
+  confirmPendingDraftHistory: () => void;
+  discardPendingDraftHistory: () => void;
   editorMode: EditorPricingMode;
   imageRect: ImageDisplayRect | null;
+  pushHistory: (snapshot: EditorUndoSnapshot, options?: { asPendingDraft?: boolean }) => void;
   selectedImageUri: string | null;
-  setUndoSnapshot: Dispatch<SetStateAction<EditorUndoSnapshot | null>>;
 };
 
 export function useTagEditorState({
   closeOverlayMenus,
+  confirmPendingDraftHistory,
+  discardPendingDraftHistory,
   editorMode,
   imageRect,
+  pushHistory,
   selectedImageUri,
-  setUndoSnapshot,
 }: UseTagEditorStateOptions) {
   const { language, t } = useTranslation();
   const { currency } = useCurrency();
@@ -247,6 +251,13 @@ export function useTagEditorState({
   useEffect(() => {
     setCurrentPriceTextFormat((current) => clampPriceTextFormat(currency, current));
   }, [currency]);
+
+  // Draft add pushes early with asPendingDraft; confirm once the draft is kept.
+  useEffect(() => {
+    if (!draftTagId) {
+      confirmPendingDraftHistory();
+    }
+  }, [confirmPendingDraftHistory, draftTagId]);
 
   const clearTagEditorState = () => {
     setSelectedTagId(null);
@@ -339,7 +350,7 @@ export function useTagEditorState({
     );
 
     setTags((currentTags) => {
-      setUndoSnapshot({ mode: 'tag', tags: cloneTags(currentTags) });
+      pushHistory({ mode: 'tag', tags: cloneTags(currentTags) }, { asPendingDraft: true });
       return [...currentTags, newTag];
     });
     setSelectedTagId(newTag.id);
@@ -394,7 +405,7 @@ export function useTagEditorState({
 
     if (draftTagId && draftTagId !== tag.id) {
       setTags((currentTags) => currentTags.filter((currentTag) => currentTag.id !== draftTagId));
-      setUndoSnapshot(null);
+      discardPendingDraftHistory();
       setDraftTagId(null);
     }
   };
@@ -468,7 +479,7 @@ export function useTagEditorState({
           return currentTags;
         }
 
-        setUndoSnapshot({ mode: 'tag', tags: cloneTags(currentTags) });
+        pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
         return nextTags;
       });
 
@@ -489,7 +500,7 @@ export function useTagEditorState({
         return currentTags;
       }
 
-      setUndoSnapshot({ mode: 'tag', tags: cloneTags(currentTags) });
+      pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
       return currentTags.map((tag) => (tag.id === tagId ? { ...tag, x, y } : tag));
     });
     setDraggingTagId(null);
@@ -557,7 +568,7 @@ export function useTagEditorState({
       }
 
       if (draftTagId !== tagId) {
-        setUndoSnapshot({ mode: 'tag', tags: cloneTags(currentTags) });
+        pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
       }
 
       setCurrentStylePresetByType((currentPresets) => ({
@@ -634,7 +645,7 @@ export function useTagEditorState({
         return currentTags;
       }
 
-      setUndoSnapshot({ mode: 'tag', tags: cloneTags(currentTags) });
+      pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
       return currentTags.map((tag) => (tag.id === selectedTag.id ? { ...tag, sizePresetId: resolvedSizeForTool } : tag));
     });
   };
@@ -645,7 +656,7 @@ export function useTagEditorState({
         return currentTags;
       }
 
-      setUndoSnapshot({ mode: 'tag', tags: cloneTags(currentTags) });
+      pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
       return currentTags.filter((tag) => tag.id !== tagId);
     });
     clearTagEditorState();
@@ -674,7 +685,8 @@ export function useTagEditorState({
   const handleBottomDropAreaLayout = () => {
     requestAnimationFrame(() => {
       bottomDropAreaRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
-        setDeleteDropZoneRect({ x: pageX, y: pageY, width, height });
+        const nextRect = { x: pageX, y: pageY, width, height };
+        setDeleteDropZoneRect(nextRect);
       });
     });
   };
@@ -682,7 +694,7 @@ export function useTagEditorState({
   const handleCancelTagEdit = () => {
     if (draftTagId) {
       setTags((currentTags) => currentTags.filter((tag) => tag.id !== draftTagId));
-      setUndoSnapshot(null);
+      discardPendingDraftHistory();
     }
 
     clearTagEditorState();
@@ -758,7 +770,7 @@ export function useTagEditorState({
         return currentTags;
       }
 
-      setUndoSnapshot({ mode: 'tag', tags: cloneTags(currentTags) });
+      pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
       return currentTags.map((tag) => (selectedIdSet.has(tag.id) ? { ...tag, y: averageY } : tag));
     });
   };
@@ -775,7 +787,7 @@ export function useTagEditorState({
 
   const resetTagsAndChrome = () => {
     setTags((currentTags) => {
-      setUndoSnapshot({ mode: 'tag', tags: cloneTags(currentTags) });
+      pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
       return [];
     });
     setSelectedTagId(null);
