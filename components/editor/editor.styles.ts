@@ -10,8 +10,8 @@ export const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
+    paddingTop: theme.spacing.xs,
+    // paddingBottom is set at render time to clear the floating main bar + safe area.
   },
   // Above floating delete drop zone (zIndex 20) so the dragged tag floats over it.
   contentDragging: {
@@ -22,12 +22,8 @@ export const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.xs,
     paddingBottom: theme.spacing.sm,
-  },
-  // Constant padding for the main floating bar only. Do not grow this when the
-  // history row appears - absolute history chrome must not resize canvas/imageRect.
-  placeholderWithFloatingBar: {
-    paddingBottom: 76,
   },
   modeOption: {
     minHeight: 52,

@@ -7,7 +7,7 @@ import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
-import type { PriceTextFormat, SoldTextFormat, TagLanguageCode, TagSizePresetId, TagType } from '@/types/tag';
+import type { PriceTextFormat, SoldTextFormat, TagLanguageCode, TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
 import { formatPriceDisplay } from '@/utils/priceText';
 
 const SIZE_CHIP_LABELS: Record<TagPickerSizePresetId, string> = {
@@ -23,6 +23,7 @@ type StylePickerPanelProps = {
   priceTextFormat: PriceTextFormat;
   soldTextFormat: SoldTextFormat;
   languageCode: TagLanguageCode;
+  textStylePresetId: TagStylePresetId;
   onClose: () => void;
   onSelectToolType: (type: TagType) => void;
   onSelectSizePreset: (sizePresetId: TagSizePresetId) => void;
@@ -64,17 +65,56 @@ function ToolPreviewChip({
   label,
   isActive,
   soldTextFormat,
+  stylePresetId,
   onPress,
 }: {
   type: TagType;
   label: string;
   isActive: boolean;
   soldTextFormat?: SoldTextFormat;
+  stylePresetId?: TagStylePresetId;
   onPress: () => void;
 }) {
   const isPlainSoldIcon = type === 'sold' && soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = type === 'sold' && soldTextFormat === 'icon';
-  const preset = TAG_STYLE_PRESETS[isPlainSoldIcon ? 'sold-icon-plain' : DEFAULT_TAG_STYLE_BY_TYPE[type]];
+  const isPlainText = type === 'text' && stylePresetId === 'text-plain';
+  const resolvedStylePresetId =
+    stylePresetId && TAG_STYLE_PRESETS[stylePresetId]?.type === type
+      ? stylePresetId
+      : DEFAULT_TAG_STYLE_BY_TYPE[type];
+  const preset = TAG_STYLE_PRESETS[isPlainSoldIcon ? 'sold-icon-plain' : resolvedStylePresetId];
+  const preview = (
+    <View
+      style={[
+        styles.toolChipPreview,
+        isActive && styles.activeToolChipPreview,
+        isPlainSoldIcon && styles.plainSoldPreview,
+        isPlainText && styles.plainTextPreview,
+        {
+          backgroundColor: isPlainSoldIcon || isPlainText ? 'transparent' : preset.backgroundColor,
+          borderColor:
+            isPlainSoldIcon || isPlainText
+              ? isActive
+                ? theme.colors.textPrimary
+                : 'transparent'
+              : isActive
+                ? theme.colors.textPrimary
+                : preset.borderColor,
+        },
+      ]}>
+      {isPlainSoldIcon || isBadgeSoldIcon ? (
+        <SoldCrossIcon
+          color={isPlainSoldIcon ? theme.colors.sold : preset.color}
+          size={isPlainSoldIcon ? 28 : 18}
+          thicknessScale={2}
+        />
+      ) : (
+        <Text style={[styles.toolChipPreviewText, { color: preset.color }]} numberOfLines={1}>
+          {label}
+        </Text>
+      )}
+    </View>
+  );
 
   return (
     <Pressable
@@ -84,34 +124,7 @@ function ToolPreviewChip({
       hitSlop={4}
       onPress={onPress}
       style={styles.toolChip}>
-      <View
-        style={[
-          styles.toolChipPreview,
-          isActive && styles.activeToolChipPreview,
-          isPlainSoldIcon && styles.plainSoldPreview,
-          {
-            backgroundColor: isPlainSoldIcon ? 'transparent' : preset.backgroundColor,
-            borderColor: isPlainSoldIcon
-              ? isActive
-                ? theme.colors.textPrimary
-                : 'transparent'
-              : isActive
-                ? theme.colors.textPrimary
-                : preset.borderColor,
-          },
-        ]}>
-        {isPlainSoldIcon || isBadgeSoldIcon ? (
-          <SoldCrossIcon
-            color={isPlainSoldIcon ? theme.colors.sold : preset.color}
-            size={isPlainSoldIcon ? 28 : 18}
-            thicknessScale={2}
-          />
-        ) : (
-          <Text style={[styles.toolChipPreviewText, { color: preset.color }]} numberOfLines={1}>
-            {label}
-          </Text>
-        )}
-      </View>
+      {type === 'text' ? <View style={styles.textToolStage}>{preview}</View> : preview}
     </Pressable>
   );
 }
@@ -122,6 +135,7 @@ export function StylePickerPanel({
   priceTextFormat,
   soldTextFormat,
   languageCode,
+  textStylePresetId,
   onClose,
   onSelectToolType,
   onSelectSizePreset,
@@ -162,6 +176,7 @@ export function StylePickerPanel({
               label={label}
               isActive={stylePickerType === type}
               soldTextFormat={type === 'sold' ? soldTextFormat : undefined}
+              stylePresetId={type === 'text' ? textStylePresetId : undefined}
               onPress={() => onSelectToolType(type)}
             />
           );
@@ -278,6 +293,20 @@ const styles = StyleSheet.create({
     minWidth: 32,
     borderWidth: 0,
     paddingHorizontal: 0,
+  },
+  plainTextPreview: {
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+  },
+  textToolStage: {
+    minHeight: 36,
+    maxWidth: '100%',
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.photoMockBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 4,
   },
   activeToolChipPreview: {
     borderWidth: 2,

@@ -26,7 +26,8 @@
     "version": "App Version",
     "contact": "Contact Developer",
     "help": "Help",
-    "removeAds": "Remove Ads",
+    "removeWatermark": "Remove watermark forever",
+    "unlocked": "Unlocked",
     "comingSoon": "Coming soon",
     "feedbackSend": "Send",
     "feedbackSending": "Sending...",
@@ -38,6 +39,22 @@
       "suggestion": "Suggestion",
       "other": "Other"
     }
+  },
+  "unlock": {
+    "title": "Remove watermark from exports",
+    "benefit": "Exported images will not include the PinPrice watermark.",
+    "cta": "Unlock forever",
+    "restore": "Restore purchase",
+    "unlockedBody": "Watermark is already removed from your exports.",
+    "purchasing": "Unlocking...",
+    "restoring": "Restoring...",
+    "success": "Watermark removed. New exports will not include PinPrice.",
+    "alreadyUnlocked": "Watermark is already unlocked.",
+    "notImplemented": "Purchases are not available yet.",
+    "restoreNotImplemented": "Restore is not available yet.",
+    "unavailable": "Purchase is unavailable right now.",
+    "error": "Something went wrong. Please try again.",
+    "devMock": "Dev: Unlock now"
   },
   "currency": {
     "thb": "Thai Baht",
@@ -93,8 +110,19 @@
     "tapPhotoToAdd": "Tap the photo to add a price tag",
     "tapPhotoToAddMarker": "Tap the photo to add a number",
     "zoomHint": "Pinch to zoom · Drag to pan",
-    "choosePhotoToStart": "Choose a photo to start tagging"
+    "choosePhotoToStart": "Choose a photo to start tagging",
+    "tips": {
+      "gotIt": "Got it",
+      "addTag": "Tap the photo to add a price tag",
+      "dragTag": "Drag the tag to place it on the item",
+      "style": "Use Style to choose the tag type and look before adding",
+      "tagPopup": "Edit the price, type, or style for this tag here",
+      "select": "Tap Select, choose several tags, then tap Align",
+      "zoom": "Pinch out with two fingers to zoom in, pinch in to zoom out, then drag tags into place",
+      "export": "When finished, export to save or share the image"
+    }
   },
+
   "pricePanel": {
     "confirmDeleteBody": "This marker and its price row will be removed.",
     "confirmDeleteTitle": "Delete this price item?",
@@ -147,7 +175,8 @@
     "saveImage": "Save Image",
     "share": "Share",
     "shareDialogTitle": "Share tagged photo",
-    "savedToGallery": "Saved to gallery."
+    "savedToGallery": "Saved to gallery.",
+    "watermark": "Tagged with PinPrice"
   },
   "leave": {
     "title": "Leave editor?",

@@ -7,8 +7,10 @@ import { captureRef } from 'react-native-view-shot';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { upsertEditorDraft } from '@/services/draft.service';
 import { prepareNamedExportUri } from '@/services/export.service';
+import { loadIsUnlocked } from '@/services/tier.service';
 import type { EditorDraftSnapshot } from '@/types/draft';
 import type { ExportAction, Size } from '@/types/editor';
+import { shouldRenderWatermark } from '@/utils/watermark';
 
 type UseEditorExportOptions = {
   imageUri: string | null;
@@ -16,9 +18,16 @@ type UseEditorExportOptions = {
   initialDraftId?: string | null;
   /** Latest editor session fields for local draft persistence after save/share. */
   getDraftSnapshot?: () => EditorDraftSnapshot | null;
+  /** Called after a successful save or share (not on permission/share errors). */
+  onExportSuccess?: () => void;
 };
 
-export function useEditorExport({ imageUri, getDraftSnapshot, initialDraftId = null }: UseEditorExportOptions) {
+export function useEditorExport({
+  imageUri,
+  getDraftSnapshot,
+  initialDraftId = null,
+  onExportSuccess,
+}: UseEditorExportOptions) {
   const { t } = useTranslation();
   const exportRef = useRef<View>(null);
   const activeDraftIdRef = useRef<string | null>(initialDraftId);
@@ -26,13 +35,30 @@ export function useEditorExport({ imageUri, getDraftSnapshot, initialDraftId = n
   const [previewSize, setPreviewSize] = useState<Size>({ width: 0, height: 0 });
   const [exportAction, setExportAction] = useState<ExportAction | null>(null);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  /** Local Pro unlock flag — free by default until a future monetization path sets it. */
+  const [isUnlocked, setIsUnlocked] = useState(false);
   const isExporting = exportAction !== null;
+  const showWatermark = shouldRenderWatermark(isUnlocked);
 
   useEffect(() => {
     if (initialDraftId) {
       activeDraftIdRef.current = initialDraftId;
     }
   }, [initialDraftId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void loadIsUnlocked().then((unlocked) => {
+      if (isMounted) {
+        setIsUnlocked(unlocked);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const persistDraftAfterExport = useCallback(
     async (exportFilename: string) => {
@@ -69,6 +95,9 @@ export function useEditorExport({ imageUri, getDraftSnapshot, initialDraftId = n
 
     setExportMessage(null);
     setIsPreviewing(true);
+
+    // Re-check unlock so export watermark gating stays current when opening preview.
+    void loadIsUnlocked().then(setIsUnlocked);
   }, [imageUri]);
 
   const closePreview = useCallback(() => {
@@ -127,13 +156,14 @@ export function useEditorExport({ imageUri, getDraftSnapshot, initialDraftId = n
         await MediaLibrary.saveToLibraryAsync(namedExportUri);
         setExportMessage(t('export.savedToGallery'));
         await persistDraftAfterExport(exportFilename);
+        onExportSuccess?.();
       } catch {
         setExportMessage(t('errors.saveFailed'));
       } finally {
         setExportAction(null);
       }
     },
-    [captureNamedExport, exportAction, persistDraftAfterExport, t],
+    [captureNamedExport, exportAction, onExportSuccess, persistDraftAfterExport, t],
   );
 
   const handleShareImage = useCallback(
@@ -159,13 +189,14 @@ export function useEditorExport({ imageUri, getDraftSnapshot, initialDraftId = n
           mimeType: 'image/png',
         });
         await persistDraftAfterExport(exportFilename);
+        onExportSuccess?.();
       } catch {
         setExportMessage(t('errors.shareFailed'));
       } finally {
         setExportAction(null);
       }
     },
-    [captureNamedExport, exportAction, persistDraftAfterExport, t],
+    [captureNamedExport, exportAction, onExportSuccess, persistDraftAfterExport, t],
   );
   return {
     captureExportView,
@@ -180,5 +211,6 @@ export function useEditorExport({ imageUri, getDraftSnapshot, initialDraftId = n
     isPreviewing,
     openPreview,
     previewSize,
+    showWatermark,
   };
 }

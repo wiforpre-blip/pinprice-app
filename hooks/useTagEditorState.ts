@@ -16,6 +16,7 @@ import {
   SOLD_ICON_TEXT,
   SOLD_TEXT_FORMAT_CYCLE,
   TAG_LANGUAGE_CODE_CYCLE,
+  TEXT_STYLE_PRESET_CYCLE,
   getNextCycleValue,
   getSmallerSizePreset,
   isInfoTagType,
@@ -613,6 +614,17 @@ export function useTagEditorState({
         return;
       }
 
+      if (type === 'text') {
+        setCurrentStylePresetByType((currentPresets) => {
+          const currentId = getStylePresetForType('text', currentPresets.text);
+          return {
+            ...currentPresets,
+            text: getNextCycleValue(TEXT_STYLE_PRESET_CYCLE, currentId),
+          };
+        });
+        return;
+      }
+
       if (type === 'language') {
         setCurrentLanguageCode((current) => getNextCycleValue(TAG_LANGUAGE_CODE_CYCLE, current));
         return;
@@ -773,6 +785,9 @@ export function useTagEditorState({
       pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
       return currentTags.map((tag) => (selectedIdSet.has(tag.id) ? { ...tag, y: averageY } : tag));
     });
+
+    // Align done: leave multi-select so the next drag is single-tag (no group clamp).
+    exitMultiSelectMode();
   };
 
   const deselectTagForMarkerSelect = () => {
@@ -848,7 +863,9 @@ export function useTagEditorState({
     stylePresetId:
       stylePickerType === 'sold' && currentSoldTextFormat === 'icon_plain'
         ? 'sold-icon-plain'
-        : activeStylePresetId,
+        : stylePickerType === 'text'
+          ? getStylePresetForType('text', currentStylePresetByType.text)
+          : activeStylePresetId,
     sizePresetId: stylePreviewSizeId,
     priceTextFormat: stylePickerType === 'price' ? currentPriceTextFormat : undefined,
     soldTextFormat: stylePickerType === 'sold' ? currentSoldTextFormat : undefined,
@@ -911,5 +928,6 @@ export function useTagEditorState({
     stylePreviewTag,
     tagSizeById,
     tags,
+    textStylePresetId: getStylePresetForType('text', currentStylePresetByType.text),
   };
 }

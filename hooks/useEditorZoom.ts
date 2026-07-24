@@ -72,8 +72,14 @@ export function useEditorZoom({ canvasSize, imageUri, onBackgroundTap }: UseEdit
   }, [imageUri, resetZoom]);
 
   const toggleZoomMode = useCallback(() => {
-    setIsZoomMode((current) => !current);
-  }, []);
+    if (isZoomMode) {
+      // Leaving zoom mode: always restore 100% so tap-to-tag is not on a leftover zoom.
+      resetZoom();
+      return;
+    }
+
+    setIsZoomMode(true);
+  }, [isZoomMode, resetZoom]);
 
   const zoomGesture = useMemo(() => {
     const pinch = Gesture.Pinch()

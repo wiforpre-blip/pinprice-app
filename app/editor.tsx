@@ -3,16 +3,18 @@ import { Text, View } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
 
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EditorCanvas } from '@/components/editor/EditorCanvas';
 import {
+  EDITOR_FLOATING_MAIN_BAR_HEIGHT,
   EditorFloatingControls,
   type FloatingHistoryActionId,
   type FloatingMainActionId,
 } from '@/components/editor/EditorFloatingControls';
 import { EditorHeader } from '@/components/editor/EditorHeader';
 import { EditorPreviewScreen } from '@/components/editor/EditorPreviewScreen';
+import { EditorTip, getTipPlacement } from '@/components/editor/EditorTip';
 import { PriceRowEditor } from '@/components/editor/PriceRowEditor';
 import { StylePickerPanel } from '@/components/editor/StylePickerPanel';
 import { styles } from '@/components/editor/editor.styles';
@@ -20,6 +22,7 @@ import { SettingsSheet } from '@/components/settings/SettingsSheet';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { ConfirmOverlay } from '@/components/ui/ConfirmOverlay';
 
+import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
 
 import { useEditorChrome } from '@/hooks/useEditorChrome';
@@ -27,6 +30,7 @@ import { useEditorDraftHydration } from '@/hooks/useEditorDraftHydration';
 import { useEditorExport } from '@/hooks/useEditorExport';
 import { useEditorLayout } from '@/hooks/useEditorLayout';
 import { getDraftId, getImageUri, useEditorSession } from '@/hooks/useEditorSession';
+import { useEditorTips } from '@/hooks/useEditorTips';
 import { useEditorZoom } from '@/hooks/useEditorZoom';
 import { usePriceListEditorState } from '@/hooks/usePriceListEditorState';
 import {
@@ -45,10 +49,16 @@ type EditorParams = {
 
 export default function EditorScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const { draftId, imageUri } = useLocalSearchParams<EditorParams>();
   const selectedImageUri = getImageUri(imageUri);
   const selectedDraftId = getDraftId(draftId);
+  // Reserve space for the main floating bar only — history row stays absolute and must not resize imageRect.
+  const contentBottomPadding = selectedImageUri
+    ? EDITOR_FLOATING_MAIN_BAR_HEIGHT + theme.spacing.lg + insets.bottom
+    : theme.spacing.sm;
   const draftSnapshotRef = useRef<EditorDraftSnapshot | null>(null);
+  const notifyExportSuccessRef = useRef<() => void>(() => {});
   const getDraftSnapshot = useCallback(() => draftSnapshotRef.current, []);
   const {
     closePreview,
@@ -62,10 +72,14 @@ export default function EditorScreen() {
     isPreviewing,
     openPreview: openExportPreview,
     previewSize,
+    showWatermark,
   } = useEditorExport({
     getDraftSnapshot,
     imageUri: selectedImageUri,
     initialDraftId: selectedDraftId,
+    onExportSuccess: () => {
+      notifyExportSuccessRef.current();
+    },
   });
   const {
     canvasRef,
@@ -152,6 +166,7 @@ export default function EditorScreen() {
     stylePreviewTag,
     tagSizeById,
     tags,
+    textStylePresetId,
   } = useTagEditorState({
     closeOverlayMenus,
     confirmPendingDraftHistory,
@@ -288,6 +303,45 @@ export default function EditorScreen() {
     imageUri: selectedImageUri,
     onBackgroundTap: handleZoomBackgroundTap,
   });
+
+  const isTagEditorOpen =
+    Boolean(selectedTag) &&
+    !isZoomMode &&
+    !isMultiSelectMode &&
+    draggingTagId !== selectedTagId &&
+    !isStylePickerVisible;
+
+  const hasConfirmModal =
+    isLeaveModalVisible || isDeleteModalVisible || isResetModalVisible || isMarkerDeleteModalVisible;
+
+  const { activeTipId, dismissActiveTip, notifyExportSuccess, notifyTagDragCompleted } = useEditorTips({
+    editorMode,
+    hasConfirmModal,
+    hasImage: Boolean(selectedImageUri),
+    isDraggingTag,
+    isExporting,
+    isPreviewing,
+    isStylePickerVisible,
+    isTagEditorOpen,
+    isZoomMode,
+    tagCount: tags.length,
+  });
+
+  notifyExportSuccessRef.current = notifyExportSuccess;
+
+  const handleTagDragEndWithTip = useCallback(
+    (
+      tagId: string,
+      canvasX: number,
+      canvasY: number,
+      tagSize: Parameters<typeof handleTagDragEnd>[3],
+      releasePoint: Parameters<typeof handleTagDragEnd>[4],
+    ) => {
+      handleTagDragEnd(tagId, canvasX, canvasY, tagSize, releasePoint);
+      notifyTagDragCompleted();
+    },
+    [handleTagDragEnd, notifyTagDragCompleted],
+  );
 
   const handleCanvasPress = (event: GestureResponderEvent) => {
     if (!imageRect) {
@@ -483,6 +537,7 @@ export default function EditorScreen() {
       priceTextFormat={currentPriceTextFormat}
       soldTextFormat={currentSoldTextFormat}
       stylePickerType={stylePickerType}
+      textStylePresetId={textStylePresetId}
     />
   ) : null;
 
@@ -509,6 +564,7 @@ export default function EditorScreen() {
         }}
         panelMarkers={panelMarkers}
         previewSize={previewSize}
+        showWatermark={showWatermark}
         tags={tags}
       />
     );
@@ -534,7 +590,24 @@ export default function EditorScreen() {
         ref={headerRef}
       />
 
-      <View style={[styles.content, isDraggingTag && styles.contentDragging]}>
+      <Text style={styles.placeholder}>
+        {selectedImageUri
+          ? isZoomMode
+            ? t('editor.zoomHint')
+            : isMultiSelectMode
+              ? t('editor.tapEmptyToExit')
+              : editorMode === 'priceList'
+                ? t('editor.tapPhotoToAddMarker')
+                : t('editor.tapPhotoToAdd')
+          : t('editor.choosePhotoToStart')}
+      </Text>
+
+      <View
+        style={[
+          styles.content,
+          { paddingBottom: contentBottomPadding },
+          isDraggingTag && styles.contentDragging,
+        ]}>
         <EditorCanvas
           canvasRef={canvasRef}
           canvasSize={canvasSize}
@@ -566,7 +639,7 @@ export default function EditorScreen() {
           onSaveTag={handleSaveTag}
           onSelectMarker={handleSelectMarker}
           onTagDragCancel={handleTagDragCancel}
-          onTagDragEnd={handleTagDragEnd}
+          onTagDragEnd={handleTagDragEndWithTip}
           onTagDragMove={handleTagDragMove}
           onTagDragOffsetChange={handleTagDragOffsetChange}
           onTagDragStart={handleTagDragStart}
@@ -586,18 +659,6 @@ export default function EditorScreen() {
         />
       </View>
 
-      <Text style={[styles.placeholder, selectedImageUri && !isStylePickerVisible ? styles.placeholderWithFloatingBar : null]}>
-        {selectedImageUri
-          ? isZoomMode
-            ? t('editor.zoomHint')
-            : isMultiSelectMode
-              ? t('editor.tapEmptyToExit')
-              : editorMode === 'priceList'
-                ? t('editor.tapPhotoToAddMarker')
-                : t('editor.tapPhotoToAdd')
-          : t('editor.choosePhotoToStart')}
-      </Text>
-
       <PriceRowEditor
         confirmLabel={hasNextMarkerToEdit ? t('pricePanel.next') : t('pricePanel.done')}
         marker={editingMarker}
@@ -613,6 +674,14 @@ export default function EditorScreen() {
       </BottomSheetOverlay>
 
       <SettingsSheet onClose={closeSettings} visible={isSettingsOpen} />
+
+      {activeTipId ? (
+        <EditorTip
+          onDismiss={dismissActiveTip}
+          placement={getTipPlacement(activeTipId)}
+          tipId={activeTipId}
+        />
+      ) : null}
 
       <EditorFloatingControls
         alignFeedbackMessage={alignFeedbackMessage}

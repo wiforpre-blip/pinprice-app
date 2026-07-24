@@ -2,6 +2,7 @@ import { Image, type ImageLoadEventData } from 'expo-image';
 import { forwardRef, useMemo } from 'react';
 import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 
+import { ExportWatermark } from '@/components/editor/ExportWatermark';
 import { PanelMarker } from '@/components/editor/PanelMarker';
 import { PriceListComposition } from '@/components/editor/PriceListComposition';
 import { PricePanel } from '@/components/editor/PricePanel';
@@ -22,13 +23,25 @@ type ExportPreviewProps = {
   onLayout: (event: LayoutChangeEvent) => void;
   panelMarkers: PanelMarkerType[];
   previewSize: Size;
+  /** Must come from shouldRenderWatermark(tier) — never hardcode true. */
+  showWatermark: boolean;
   tags: PriceTag[];
 };
 
 const noopMarkerAction = (_markerId: string) => {};
 
 export const ExportPreview = forwardRef<View, ExportPreviewProps>(function ExportPreview(
-  { editorMode, imageSize, imageUri, onImageLoad, onLayout, panelMarkers, previewSize, tags },
+  {
+    editorMode,
+    imageSize,
+    imageUri,
+    onImageLoad,
+    onLayout,
+    panelMarkers,
+    previewSize,
+    showWatermark,
+    tags,
+  },
   ref,
 ) {
   const { t } = useTranslation();
@@ -69,6 +82,7 @@ export const ExportPreview = forwardRef<View, ExportPreviewProps>(function Expor
                   />
                 ))
               : null}
+            {showWatermark && priceListImageRect ? <ExportWatermark imageRect={priceListImageRect} /> : null}
           </View>
         </PriceListComposition>
       </View>
@@ -79,6 +93,7 @@ export const ExportPreview = forwardRef<View, ExportPreviewProps>(function Expor
     <View ref={ref} collapsable={false} onLayout={onLayout} style={styles.exportCanvas}>
       <Image source={{ uri: imageUri }} style={styles.image} contentFit="contain" onLoad={onImageLoad} />
       {previewImageRect ? tags.map((tag) => <StaticTag imageRect={previewImageRect} key={tag.id} tag={tag} />) : null}
+      {showWatermark && previewImageRect ? <ExportWatermark imageRect={previewImageRect} /> : null}
     </View>
   );
 });
@@ -86,6 +101,7 @@ export const ExportPreview = forwardRef<View, ExportPreviewProps>(function Expor
 const styles = StyleSheet.create({
   exportCompositionHost: {
     flex: 1,
+    overflow: 'hidden',
   },
   exportCanvas: {
     flex: 1,

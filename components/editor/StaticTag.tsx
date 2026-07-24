@@ -17,6 +17,8 @@ export function StaticTag({ imageRect, tag }: StaticTagProps) {
   const tagStyle = getResolvedTagPreset(tag);
   const isPlainSoldIcon = tag.type === 'sold' && tag.soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = tag.type === 'sold' && tag.soldTextFormat === 'icon';
+  const isPlainText = tag.type === 'text' && tag.stylePresetId === 'text-plain';
+  const isFlatTag = isPlainSoldIcon || isPlainText;
   const [tagSize, setTagSize] = useState<TagSize>(FALLBACK_TAG_SIZE);
   const rawLeft = imageRect.x + tag.x * imageRect.width;
   const rawTop = imageRect.y + tag.y * imageRect.height;
@@ -38,11 +40,11 @@ export function StaticTag({ imageRect, tag }: StaticTagProps) {
       onLayout={handleLayout}
       style={[
         styles.staticTag,
-        isPlainSoldIcon && styles.plainSoldTag,
+        isFlatTag && styles.flatTag,
         {
           backgroundColor: tagStyle.backgroundColor,
           borderColor: tagStyle.borderColor,
-          borderWidth: isPlainSoldIcon ? 0 : 1,
+          borderWidth: isFlatTag ? 0 : 1,
           minHeight: tagStyle.minHeight,
           maxWidth: tagStyle.maxWidth,
           paddingHorizontal: tagStyle.paddingHorizontal,
@@ -72,7 +74,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...theme.shadows.tag,
   },
-  plainSoldTag: {
+  flatTag: {
     shadowOpacity: 0,
     elevation: 0,
     shadowRadius: 0,

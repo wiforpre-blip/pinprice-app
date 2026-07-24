@@ -91,6 +91,20 @@ export const TAG_STYLE_PRESETS: Record<
     borderColor: theme.tags.text.borderColor,
     color: theme.tags.text.color,
   },
+  'text-white-border': {
+    label: 'White border',
+    type: 'text',
+    backgroundColor: theme.tags.textWhiteBorder.backgroundColor,
+    borderColor: theme.tags.textWhiteBorder.borderColor,
+    color: theme.tags.textWhiteBorder.color,
+  },
+  'text-plain': {
+    label: 'Plain text',
+    type: 'text',
+    backgroundColor: theme.tags.textPlain.backgroundColor,
+    borderColor: theme.tags.textPlain.borderColor,
+    color: theme.tags.textPlain.color,
+  },
   'quantity-blue': {
     label: 'Blue',
     type: 'quantity',

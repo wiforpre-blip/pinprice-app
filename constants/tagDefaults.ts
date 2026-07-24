@@ -1,4 +1,4 @@
-import type { TagLanguageCode, SoldTextFormat, TagSizePresetId, TagType } from '@/types/tag';
+import type { TagLanguageCode, SoldTextFormat, TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
 
 export const DEFAULT_PRICE_TEXT = '';
 export const DEFAULT_SOLD_TEXT = 'SOLD';
@@ -10,6 +10,8 @@ export const SOLD_ICON_TEXT = '✕';
 
 export const SOLD_TEXT_FORMAT_CYCLE: SoldTextFormat[] = ['text', 'icon', 'icon_plain'];
 export const TAG_LANGUAGE_CODE_CYCLE: TagLanguageCode[] = ['TH', 'EN', 'JP', 'CN'];
+/** Visual styles cycled when re-tapping the text tool chip in the style picker. */
+export const TEXT_STYLE_PRESET_CYCLE: TagStylePresetId[] = ['text-default', 'text-white-border', 'text-plain'];
 
 export const MAIN_TAG_TYPES: TagType[] = ['price', 'sold', 'text'];
 export const INFO_TAG_TYPES: TagType[] = ['condition', 'quantity', 'language'];

@@ -30,6 +30,10 @@ export const settingsStyles = StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.textMuted,
   },
+  rowValueUnlocked: {
+    ...theme.typography.caption,
+    color: theme.colors.success,
+  },
   rowTrailing: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -155,5 +159,79 @@ export const settingsStyles = StyleSheet.create({
   },
   feedbackFooter: {
     gap: theme.spacing.sm,
+  },
+  unlockBody: {
+    gap: theme.spacing.md,
+  },
+  unlockBenefit: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+  },
+  unlockBadge: {
+    alignSelf: 'flex-start',
+    minHeight: 32,
+    justifyContent: 'center',
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  unlockBadgeText: {
+    ...theme.typography.caption,
+    color: theme.colors.success,
+  },
+  unlockFooter: {
+    gap: theme.spacing.sm,
+  },
+  unlockPrimaryButton: {
+    minHeight: theme.buttons.height,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.buttons.primary.borderColor,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  unlockPrimaryButtonText: {
+    ...theme.typography.button,
+    color: theme.buttons.primary.color,
+  },
+  unlockSecondaryButton: {
+    minHeight: theme.buttons.height,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  unlockSecondaryButtonText: {
+    ...theme.typography.button,
+    color: theme.colors.textPrimary,
+  },
+  unlockDevButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.md,
+  },
+  unlockDevButtonText: {
+    ...theme.typography.caption,
+    color: theme.colors.textMuted,
+  },
+  unlockButtonDisabled: {
+    opacity: 0.6,
+  },
+  unlockStatus: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+  },
+  unlockStatusError: {
+    color: theme.colors.sold,
   },
 });

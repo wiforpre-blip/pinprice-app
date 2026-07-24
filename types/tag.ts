@@ -10,6 +10,8 @@ export type TagStylePresetId =
   | 'sold-gray'
   | 'sold-icon-plain'
   | 'text-default'
+  | 'text-white-border'
+  | 'text-plain'
   | 'quantity-blue'
   | 'quantity-teal'
   | 'quantity-slate'

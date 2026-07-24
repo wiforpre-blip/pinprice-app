@@ -1,15 +1,17 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { CurrencySelectorSheet } from '@/components/settings/CurrencySelectorSheet';
 import { FeedbackSheet } from '@/components/settings/FeedbackSheet';
+import { UnlockPaywallSheet } from '@/components/settings/UnlockPaywallSheet';
 import { settingsStyles as styles } from '@/components/settings/settings.styles';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { APP_VERSION } from '@/constants/app';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation, type Language } from '@/contexts/LanguageContext';
+import { getUnlockStatus } from '@/services/purchase.service';
 
 type SettingsSheetProps = {
   visible: boolean;
@@ -23,10 +25,31 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { language, setLanguage, t } = useTranslation();
   const [isCurrencySelectorOpen, setIsCurrencySelectorOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isUnlockPaywallOpen, setIsUnlockPaywallOpen] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    let isMounted = true;
+
+    void getUnlockStatus().then((status) => {
+      if (isMounted) {
+        setIsUnlocked(status.isUnlocked);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [visible]);
 
   const handleClose = () => {
     setIsCurrencySelectorOpen(false);
     setIsFeedbackOpen(false);
+    setIsUnlockPaywallOpen(false);
     onClose();
   };
 
@@ -83,11 +106,16 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
 
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ disabled: true }}
-            disabled
+            onPress={() => setIsUnlockPaywallOpen(true)}
             style={styles.row}>
-            <Text style={[styles.rowLabel, styles.rowLabelDisabled]}>{t('settings.removeAds')}</Text>
-            <Text style={styles.rowValueMuted}>{t('settings.comingSoon')}</Text>
+            <Text style={styles.rowLabel}>{t('settings.removeWatermark')}</Text>
+            <View style={styles.rowTrailing}>
+              {isUnlocked ? (
+                <Text style={styles.rowValueUnlocked}>{t('settings.unlocked')}</Text>
+              ) : (
+                <MaterialIcons color={theme.colors.textMuted} name="chevron-right" size={22} />
+              )}
+            </View>
           </Pressable>
 
           <View style={styles.divider} />
@@ -105,6 +133,12 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
       />
 
       <FeedbackSheet onClose={() => setIsFeedbackOpen(false)} visible={visible && isFeedbackOpen} />
+
+      <UnlockPaywallSheet
+        onClose={() => setIsUnlockPaywallOpen(false)}
+        onUnlockChange={setIsUnlocked}
+        visible={visible && isUnlockPaywallOpen}
+      />
     </>
   );
 }

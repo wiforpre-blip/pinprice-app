@@ -66,6 +66,8 @@ export function TagOverlay({
   const displayText = textOverride ?? tag.text;
   const isPlainSoldIcon = displayType === 'sold' && tag.soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = displayType === 'sold' && tag.soldTextFormat === 'icon';
+  const isPlainText = displayType === 'text' && tag.stylePresetId === 'text-plain';
+  const isFlatTag = isPlainSoldIcon || isPlainText;
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(ZERO_OFFSET);
   const [tagSize, setTagSize] = useState<TagSize>(FALLBACK_TAG_SIZE);
@@ -255,11 +257,11 @@ export function TagOverlay({
         styles.tag,
         isSelected && styles.selectedTag,
         isDragging && styles.draggingTag,
-        isPlainSoldIcon && styles.plainSoldTag,
+        isFlatTag && styles.flatTag,
         {
           backgroundColor: tagStyle.backgroundColor,
           borderColor: tagStyle.borderColor,
-          borderWidth: isPlainSoldIcon ? 0 : 1,
+          borderWidth: isFlatTag ? 0 : 1,
           minHeight: tagStyle.minHeight,
           maxWidth: tagStyle.maxWidth,
           paddingHorizontal: tagStyle.paddingHorizontal,
@@ -296,7 +298,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...theme.shadows.tag,
   },
-  plainSoldTag: {
+  flatTag: {
     shadowOpacity: 0,
     elevation: 0,
     shadowRadius: 0,

@@ -28,6 +28,7 @@ type EditorPreviewScreenProps = {
   onShareImage: () => void;
   panelMarkers: PanelMarker[];
   previewSize: Size;
+  showWatermark: boolean;
   tags: PriceTag[];
 };
 
@@ -48,6 +49,7 @@ export function EditorPreviewScreen({
   onShareImage,
   panelMarkers,
   previewSize,
+  showWatermark,
   tags,
 }: EditorPreviewScreenProps) {
   const { t } = useTranslation();
@@ -79,6 +81,7 @@ export function EditorPreviewScreen({
           onLayout={onPreviewLayout}
           panelMarkers={panelMarkers}
           previewSize={previewSize}
+          showWatermark={showWatermark}
           tags={tags}
         />
       </View>

@@ -7,6 +7,9 @@ import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
 import type { EditorPricingMode } from '@/types/editor';
 
+/** Main bar footprint only (not history row) — keep canvas padding stable. */
+export const EDITOR_FLOATING_MAIN_BAR_HEIGHT = 62;
+
 const FLOATING_MAIN_ACTIONS = [
   { id: 'style', labelKey: 'editor.style', icon: 'palette' },
   { id: 'select', labelKey: 'editor.select', icon: 'select-all' },
@@ -236,7 +239,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     borderWidth: 1,
     borderColor: theme.buttons.secondary.borderColor,
-    backgroundColor: theme.buttons.secondary.backgroundColor,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
     ...theme.shadows.card,

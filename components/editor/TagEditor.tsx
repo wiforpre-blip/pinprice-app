@@ -212,6 +212,52 @@ function ColorPresetRow({
   );
 }
 
+function TextStylePresetRow({
+  activeStylePresetId,
+  sampleLabel,
+  onSelect,
+}: {
+  activeStylePresetId: TagStylePresetId;
+  sampleLabel: string;
+  onSelect: (stylePresetId: TagStylePresetId) => void;
+}) {
+  return (
+    <View style={styles.colorRow}>
+      {getStylePresetIdsForType('text').map((stylePresetId) => {
+        const preset = TAG_STYLE_PRESETS[stylePresetId];
+        const isActive = stylePresetId === activeStylePresetId;
+        const isPlain = stylePresetId === 'text-plain';
+
+        return (
+          <Pressable
+            accessibilityLabel={preset.label}
+            accessibilityRole="button"
+            accessibilityState={isActive ? { selected: true } : undefined}
+            key={stylePresetId}
+            onPress={() => onSelect(stylePresetId)}
+            style={[styles.textStyleChipOuter, isActive && styles.colorSwatchOuterActive]}>
+            <View style={styles.textStyleStage}>
+              <View
+                style={[
+                  styles.textStylePreview,
+                  isPlain && styles.textStylePreviewPlain,
+                  {
+                    backgroundColor: isPlain ? 'transparent' : preset.backgroundColor,
+                    borderColor: isPlain ? 'transparent' : preset.borderColor,
+                  },
+                ]}>
+                <Text style={[styles.textStylePreviewText, { color: preset.color }]} numberOfLines={1}>
+                  {sampleLabel}
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 function SizePresetRow({
   activeSizePresetId,
   onSelect,
@@ -398,9 +444,11 @@ export function TagEditor({
   const showColorPresets =
     (tag.type === 'price' || tag.type === 'sold' || tag.type === 'quantity') &&
     !(tag.type === 'sold' && soldTextFormat === 'icon_plain');
+  const showTextStylePresets = tag.type === 'text';
   const showSizePicker = TYPES_WITH_SIZE_PICKER.includes(tag.type);
   const titleKey = `tag.typeTitles.${tag.type}` as const;
   const title = t(titleKey);
+  const textStyleSample = language === 'th' ? 'ก' : 'Aa';
 
   return (
     <View style={[styles.popover, popoverPosition, { width: popoverWidth }]}>
@@ -480,6 +528,10 @@ export function TagEditor({
             <OptionChip key={code} label={code} isActive={languageCode === code} onPress={() => setLanguageCode(code)} />
           ))}
         </View>
+      ) : null}
+
+      {showTextStylePresets ? (
+        <TextStylePresetRow activeStylePresetId={stylePresetId} sampleLabel={textStyleSample} onSelect={setStylePresetId} />
       ) : null}
 
       {showColorPresets ? <ColorPresetRow type={tag.type} activeStylePresetId={stylePresetId} onSelect={setStylePresetId} /> : null}
@@ -597,6 +649,45 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: theme.radius.sm - 2,
     borderWidth: 1,
+  },
+  textStyleChipOuter: {
+    minWidth: 56,
+    minHeight: 48,
+    borderRadius: theme.radius.sm,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+  },
+  textStyleStage: {
+    minWidth: 48,
+    minHeight: 36,
+    borderRadius: theme.radius.sm - 2,
+    backgroundColor: theme.colors.photoMockBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 4,
+  },
+  textStylePreview: {
+    minHeight: 24,
+    minWidth: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.radius.sm - 4,
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  textStylePreviewPlain: {
+    borderWidth: 0,
+    paddingHorizontal: 2,
+    backgroundColor: 'transparent',
+  },
+  textStylePreviewText: {
+    ...theme.typography.caption,
+    fontWeight: '700',
   },
   placeholderNote: {
     ...theme.typography.body,
