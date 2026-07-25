@@ -1,33 +1,36 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { forwardRef } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
+import type { FloatingHistoryActionId } from '@/components/editor/EditorFloatingControls';
+
+const HEADER_HISTORY_ACTIONS = [
+  { id: 'undo', labelKey: 'editor.undo', icon: 'undo' },
+  { id: 'reset', labelKey: 'editor.reset', icon: 'restart-alt' },
+  { id: 'redo', labelKey: 'editor.redo', icon: 'redo' },
+] as const;
 
 type EditorHeaderProps = {
-  filename: string;
-  draftFilename: string;
-  isEditingFilename: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  canReset: boolean;
+  showHistoryControls: boolean;
   onBack: () => void;
-  onStartFilenameEdit: () => void;
-  onChangeDraftFilename: (text: string) => void;
-  onConfirmFilenameEdit: () => void;
-  onCancelFilenameEdit: () => void;
+  onHistoryAction: (actionId: FloatingHistoryActionId) => void;
   onOpenSettings: () => void;
   onLayout?: () => void;
 };
 
 export const EditorHeader = forwardRef<View, EditorHeaderProps>(function EditorHeader(
   {
-    filename,
-    draftFilename,
-    isEditingFilename,
+    canUndo,
+    canRedo,
+    canReset,
+    showHistoryControls,
     onBack,
-    onStartFilenameEdit,
-    onChangeDraftFilename,
-    onConfirmFilenameEdit,
-    onCancelFilenameEdit,
+    onHistoryAction,
     onOpenSettings,
     onLayout,
   },
@@ -41,34 +44,34 @@ export const EditorHeader = forwardRef<View, EditorHeaderProps>(function EditorH
         <Text style={styles.backButtonText}>{t('editor.back')}</Text>
       </Pressable>
 
-      <View style={styles.filenameArea}>
-        {isEditingFilename ? (
-          <View style={styles.filenameEditor}>
-            <TextInput
-              accessibilityLabel={t('editor.editFilename')}
-              autoCapitalize="none"
-              autoCorrect={false}
-              onChangeText={onChangeDraftFilename}
-              returnKeyType="done"
-              onSubmitEditing={onConfirmFilenameEdit}
-              selectTextOnFocus
-              style={styles.filenameInput}
-              value={draftFilename}
-            />
-            <Pressable accessibilityLabel={t('editor.cancelFilenameEdit')} accessibilityRole="button" onPress={onCancelFilenameEdit} style={styles.iconButton}>
-              <MaterialIcons color={theme.colors.sold} name="close" size={20} />
-            </Pressable>
-            <Pressable accessibilityLabel={t('editor.confirmFilenameEdit')} accessibilityRole="button" onPress={onConfirmFilenameEdit} style={styles.iconButton}>
-              <MaterialIcons color={theme.colors.success} name="check" size={20} />
-            </Pressable>
+      <View style={styles.historyArea}>
+        {showHistoryControls ? (
+          <View style={styles.historyRow}>
+            {HEADER_HISTORY_ACTIONS.map((item) => {
+              const isDisabled =
+                (item.id === 'undo' && !canUndo) ||
+                (item.id === 'reset' && !canReset) ||
+                (item.id === 'redo' && !canRedo);
+
+              return (
+                <Pressable
+                  accessibilityLabel={t(item.labelKey)}
+                  accessibilityRole="button"
+                  accessibilityState={isDisabled ? { disabled: true } : undefined}
+                  disabled={isDisabled}
+                  key={item.id}
+                  onPress={() => onHistoryAction(item.id)}
+                  style={[styles.historyAction, isDisabled && styles.historyActionDisabled]}>
+                  <MaterialIcons
+                    color={isDisabled ? theme.colors.textMuted : theme.colors.textPrimary}
+                    name={item.icon}
+                    size={22}
+                  />
+                </Pressable>
+              );
+            })}
           </View>
-        ) : (
-          <Pressable accessibilityRole="button" accessibilityLabel={t('editor.editFilename')} onPress={onStartFilenameEdit} style={styles.filenameButton}>
-            <Text numberOfLines={1} style={styles.filenameText}>
-              {filename}
-            </Text>
-          </Pressable>
-        )}
+        ) : null}
       </View>
 
       <Pressable
@@ -104,50 +107,26 @@ const styles = StyleSheet.create({
     ...theme.typography.button,
     color: theme.colors.textPrimary,
   },
-  filenameArea: {
+  historyArea: {
     flex: 1,
     minWidth: 0,
     alignItems: 'center',
-  },
-  filenameButton: {
-    minHeight: 44,
-    maxWidth: '100%',
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.sm,
   },
-  filenameText: {
-    ...theme.typography.caption,
-    color: theme.colors.textPrimary,
-    textAlign: 'center',
-  },
-  filenameEditor: {
-    minHeight: 44,
-    width: '100%',
+  historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
   },
-  filenameInput: {
-    minHeight: 40,
-    flex: 1,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    color: theme.colors.textPrimary,
-    paddingHorizontal: theme.spacing.sm,
-    ...theme.typography.caption,
-  },
-  iconButton: {
-    width: 36,
-    height: 40,
+  historyAction: {
+    minHeight: 44,
+    minWidth: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+  },
+  historyActionDisabled: {
+    opacity: 0.45,
   },
   headerSettingsButton: {
     minHeight: 44,

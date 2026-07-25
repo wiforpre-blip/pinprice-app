@@ -17,24 +17,15 @@ const FLOATING_MAIN_ACTIONS = [
   { id: 'export', labelKey: 'editor.export', icon: 'file-upload' },
 ] as const;
 
-const FLOATING_HISTORY_ACTIONS = [
-  { id: 'undo', labelKey: 'editor.undo', icon: 'undo' },
-  { id: 'reset', labelKey: 'editor.reset', icon: 'restart-alt' },
-  { id: 'redo', labelKey: 'editor.redo', icon: 'redo' },
-] as const;
-
 export type FloatingMainActionId = (typeof FLOATING_MAIN_ACTIONS)[number]['id'];
-export type FloatingHistoryActionId = (typeof FLOATING_HISTORY_ACTIONS)[number]['id'];
+export type FloatingHistoryActionId = 'undo' | 'reset' | 'redo';
 
 type EditorFloatingControlsProps = {
   alignFeedbackMessage: string | null;
   canSelect: boolean;
-  canUndo: boolean;
-  canRedo: boolean;
-  canReset: boolean;
-  hasEditHistory: boolean;
   isDraggingTag: boolean;
   isMultiSelectGroupDrag: boolean;
+  isPendingPlacement: boolean;
   isStylePickerVisible: boolean;
   isMultiSelectMode: boolean;
   isZoomMode: boolean;
@@ -44,20 +35,18 @@ type EditorFloatingControlsProps = {
   isDragOverDelete: boolean;
   zoomScaleLabel: string | null;
   bottomDropAreaRef: RefObject<View | null>;
+  styleButtonRef?: RefObject<View | null>;
   onBottomDropAreaLayout: () => void;
-  onFloatingHistoryAction: (actionId: FloatingHistoryActionId) => void;
+  onStyleButtonLayout?: () => void;
   onFloatingMainAction: (actionId: FloatingMainActionId) => void;
 };
 
 export function EditorFloatingControls({
   alignFeedbackMessage,
   canSelect,
-  canUndo,
-  canRedo,
-  canReset,
-  hasEditHistory,
   isDraggingTag,
   isMultiSelectGroupDrag,
+  isPendingPlacement,
   isStylePickerVisible,
   isMultiSelectMode,
   isZoomMode,
@@ -67,8 +56,9 @@ export function EditorFloatingControls({
   isDragOverDelete,
   zoomScaleLabel,
   bottomDropAreaRef,
+  styleButtonRef,
   onBottomDropAreaLayout,
-  onFloatingHistoryAction,
+  onStyleButtonLayout,
   onFloatingMainAction,
 }: EditorFloatingControlsProps) {
   const { t } = useTranslation();
@@ -109,35 +99,6 @@ export function EditorFloatingControls({
               <Text style={styles.alignFeedbackText}>{alignFeedbackMessage}</Text>
             </View>
           ) : null}
-          {hasEditHistory ? (
-            <View style={styles.floatingHistoryBar}>
-              {FLOATING_HISTORY_ACTIONS.map((item) => {
-                const isDisabled =
-                  (item.id === 'undo' && !canUndo) ||
-                  (item.id === 'reset' && !canReset) ||
-                  (item.id === 'redo' && !canRedo);
-
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={isDisabled ? { disabled: true } : undefined}
-                    disabled={isDisabled}
-                    key={item.id}
-                    onPress={() => onFloatingHistoryAction(item.id)}
-                    style={[styles.floatingHistoryAction, isDisabled && styles.floatingActionDisabled]}>
-                    <MaterialIcons
-                      color={isDisabled ? theme.colors.textMuted : theme.buttons.secondary.color}
-                      name={item.icon}
-                      size={20}
-                    />
-                    <Text style={[styles.floatingHistoryActionText, isDisabled && styles.floatingActionTextDisabled]}>
-                      {t(item.labelKey)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
           <View style={styles.floatingMainBar}>
             {FLOATING_MAIN_ACTIONS.map((item) => {
               const isSelectAction = item.id === 'select';
@@ -147,60 +108,66 @@ export function EditorFloatingControls({
               const isAlignInactive = isAlignAction && selectedTagIds.length < 2;
               const isDisabled =
                 (isStyleAction && (isMultiSelectMode || editorMode === 'priceList' || !selectedImageUri)) ||
-                (isSelectAction && (!selectedImageUri || !canSelect)) ||
-                (isZoomAction && !selectedImageUri) ||
+                (isSelectAction && (!selectedImageUri || !canSelect || isPendingPlacement)) ||
+                (isZoomAction && (!selectedImageUri || isPendingPlacement)) ||
                 isAlignInactive ||
-                (item.id === 'export' && !selectedImageUri);
+                (item.id === 'export' && (!selectedImageUri || isPendingPlacement));
               const actionIcon = isAlignAction ? 'vertical-align-center' : item.icon;
               const actionLabel = isAlignAction ? t('editor.align') : t(item.labelKey);
               const showZoomLevel = isZoomAction && Boolean(zoomScaleLabel);
 
               return (
-                <Pressable
-                  accessibilityLabel={showZoomLevel ? `${actionLabel} ${zoomScaleLabel}` : actionLabel}
-                  accessibilityRole="button"
-                  accessibilityState={{
-                    disabled: isDisabled,
-                    selected: isZoomAction ? isZoomMode : undefined,
-                  }}
-                  disabled={isDisabled}
+                <View
+                  collapsable={false}
                   key={item.id}
-                  onPress={() => onFloatingMainAction(item.id)}
-                  style={[
-                    styles.floatingMainAction,
-                    isDisabled && styles.floatingActionDisabled,
-                    isAlignInactive && styles.floatingAlignInactive,
-                    isZoomAction && isZoomMode && styles.floatingMainActionActive,
-                  ]}>
-                  <MaterialIcons
-                    color={
-                      isDisabled
-                        ? theme.colors.textMuted
-                        : isZoomAction && isZoomMode
-                          ? theme.buttons.primary.color
-                          : theme.buttons.secondary.color
-                    }
-                    name={actionIcon}
-                    size={22}
-                  />
-                  <Text
+                  onLayout={isStyleAction ? onStyleButtonLayout : undefined}
+                  ref={isStyleAction ? styleButtonRef : undefined}
+                  style={isStyleAction ? styles.styleButtonAnchor : undefined}>
+                  <Pressable
+                    accessibilityLabel={showZoomLevel ? `${actionLabel} ${zoomScaleLabel}` : actionLabel}
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      disabled: isDisabled,
+                      selected: isZoomAction ? isZoomMode : undefined,
+                    }}
+                    disabled={isDisabled}
+                    onPress={() => onFloatingMainAction(item.id)}
                     style={[
-                      styles.floatingMainActionText,
-                      isDisabled && styles.floatingActionTextDisabled,
-                      isZoomAction && isZoomMode && styles.floatingMainActionTextActive,
+                      styles.floatingMainAction,
+                      isDisabled && styles.floatingActionDisabled,
+                      isAlignInactive && styles.floatingAlignInactive,
+                      isZoomAction && isZoomMode && styles.floatingMainActionActive,
                     ]}>
-                    {actionLabel}
-                  </Text>
-                  {showZoomLevel ? (
+                    <MaterialIcons
+                      color={
+                        isDisabled
+                          ? theme.colors.textMuted
+                          : isZoomAction && isZoomMode
+                            ? theme.buttons.primary.color
+                            : theme.buttons.secondary.color
+                      }
+                      name={actionIcon}
+                      size={22}
+                    />
                     <Text
                       style={[
-                        styles.floatingZoomLevelText,
+                        styles.floatingMainActionText,
+                        isDisabled && styles.floatingActionTextDisabled,
                         isZoomAction && isZoomMode && styles.floatingMainActionTextActive,
                       ]}>
-                      {zoomScaleLabel}
+                      {actionLabel}
                     </Text>
-                  ) : null}
-                </Pressable>
+                    {showZoomLevel ? (
+                      <Text
+                        style={[
+                          styles.floatingZoomLevelText,
+                          isZoomAction && isZoomMode && styles.floatingMainActionTextActive,
+                        ]}>
+                        {zoomScaleLabel}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                </View>
               );
             })}
           </View>
@@ -232,32 +199,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
   },
-  floatingHistoryBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.buttons.secondary.borderColor,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    ...theme.shadows.card,
-  },
-  floatingHistoryAction: {
-    minHeight: 44,
-    minWidth: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.xs,
-    borderRadius: theme.radius.sm,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-  },
-  floatingHistoryActionText: {
-    ...theme.typography.caption,
-    color: theme.buttons.secondary.color,
-  },
   floatingMainBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -279,6 +220,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.sm,
     paddingHorizontal: theme.spacing.xs,
     paddingVertical: theme.spacing.xs,
+  },
+  styleButtonAnchor: {
+    // Keep native host view for reliable measureInWindow on Android.
   },
   floatingMainActionActive: {
     backgroundColor: theme.buttons.primary.backgroundColor,

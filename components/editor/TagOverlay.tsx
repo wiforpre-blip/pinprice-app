@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
-import { getResolvedTagPreset } from '@/constants/tagPresets';
+import { getResolvedTagPreset, getTagTextShadowStyle } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import type { ImageDisplayRect, PriceTag, TagType } from '@/types/tag';
 import { EDITOR_ZOOM_DEFAULT, FALLBACK_TAG_SIZE, screenDeltaToCanvasDelta } from '@/utils/editorGeometry';
@@ -39,7 +39,6 @@ type TagSize = {
 };
 
 const DRAG_THRESHOLD = 6;
-const LONG_PRESS_DELAY_MS = 260;
 const ZERO_OFFSET = { x: 0, y: 0 };
 
 export function TagOverlay({
@@ -66,14 +65,12 @@ export function TagOverlay({
   const displayText = textOverride ?? tag.text;
   const isPlainSoldIcon = displayType === 'sold' && tag.soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = displayType === 'sold' && tag.soldTextFormat === 'icon';
-  const isPlainText = displayType === 'text' && tag.stylePresetId === 'text-plain';
-  const isFlatTag = isPlainSoldIcon || isPlainText;
+  const isFlatTag = isPlainSoldIcon || tagStyle.isFlat;
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(ZERO_OFFSET);
   const [tagSize, setTagSize] = useState<TagSize>(FALLBACK_TAG_SIZE);
   const startPointRef = useRef({ x: 0, y: 0 });
   const hasDraggedRef = useRef(false);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tagRef = useRef(tag);
   const imageRectRef = useRef(imageRect);
   const minDragYRef = useRef(minDragY);
@@ -106,15 +103,6 @@ export function TagOverlay({
     onDragStart,
     onPress,
     onSizeChange,
-  };
-
-  const clearLongPressTimer = () => {
-    if (!longPressTimerRef.current) {
-      return;
-    }
-
-    clearTimeout(longPressTimerRef.current);
-    longPressTimerRef.current = null;
   };
 
   const getBoundedDragOffset = (dx: number, dy: number) => {
@@ -154,7 +142,7 @@ export function TagOverlay({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_event, gestureState) =>
         dragEnabledRef.current && (Math.abs(gestureState.dx) > DRAG_THRESHOLD || Math.abs(gestureState.dy) > DRAG_THRESHOLD),
-      onPanResponderGrant: (event) => {
+      onPanResponderGrant: () => {
         const currentTag = tagRef.current;
         const currentImageRect = imageRectRef.current;
 
@@ -165,16 +153,6 @@ export function TagOverlay({
         hasDraggedRef.current = false;
         setIsDragging(false);
         setDragOffset(ZERO_OFFSET);
-        clearLongPressTimer();
-
-        if (!dragEnabledRef.current) {
-          return;
-        }
-
-        longPressTimerRef.current = setTimeout(() => {
-          startDrag();
-          callbacksRef.current.onDragMove({ x: event.nativeEvent.pageX, y: event.nativeEvent.pageY });
-        }, LONG_PRESS_DELAY_MS);
       },
       onPanResponderMove: (event, gestureState) => {
         if (!dragEnabledRef.current) {
@@ -187,7 +165,6 @@ export function TagOverlay({
           return;
         }
 
-        clearLongPressTimer();
         startDrag();
         const boundedOffset = getBoundedDragOffset(gestureState.dx, gestureState.dy);
 
@@ -199,8 +176,6 @@ export function TagOverlay({
         callbacksRef.current.onDragMove({ x: event.nativeEvent.pageX, y: event.nativeEvent.pageY });
       },
       onPanResponderRelease: (event, gestureState) => {
-        clearLongPressTimer();
-
         if (!hasDraggedRef.current) {
           callbacksRef.current.onPress(tagRef.current);
         } else {
@@ -221,7 +196,6 @@ export function TagOverlay({
         setDragOffset(ZERO_OFFSET);
       },
       onPanResponderTerminate: () => {
-        clearLongPressTimer();
         hasDraggedRef.current = false;
         setIsDragging(false);
         setDragOffset(ZERO_OFFSET);
@@ -280,7 +254,18 @@ export function TagOverlay({
       {isPlainSoldIcon || isBadgeSoldIcon ? (
         <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
       ) : (
-        <Text numberOfLines={2} style={[styles.tagText, { color: tagStyle.color, fontSize: tagStyle.fontSize, lineHeight: tagStyle.lineHeight }]}>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.tagText,
+            getTagTextShadowStyle(tagStyle.textShadow),
+            {
+              color: tagStyle.color,
+              fontSize: tagStyle.fontSize,
+              lineHeight: tagStyle.lineHeight,
+              fontWeight: tagStyle.fontWeight,
+            },
+          ]}>
           {displayText}
         </Text>
       )}

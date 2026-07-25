@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -14,6 +15,8 @@ import { isDraftImageAvailable, removeEditorDraft } from '@/services/draft.servi
 import type { EditorDraft } from '@/types/draft';
 import { formatDraftDisplayTitle, formatDraftUpdatedAt } from '@/utils/draftDisplay';
 
+const ONBOARDING_HERO = require('../assets/images/onboarding-hero.png');
+
 export default function HomeScreen() {
   const router = useRouter();
   const { language, t } = useTranslation();
@@ -23,12 +26,23 @@ export default function HomeScreen() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const openEditor = (imageUri: string, draftId?: string) => {
+  const openEditor = (imageUri: string, options?: { draftId?: string; filename?: string | null }) => {
+    const trimmedFilename = options?.filename?.trim();
+    const params: { imageUri: string; draftId?: string; filename?: string } = {
+      imageUri: encodeURIComponent(imageUri),
+    };
+
+    if (options?.draftId) {
+      params.draftId = options.draftId;
+    }
+
+    if (trimmedFilename) {
+      params.filename = encodeURIComponent(trimmedFilename);
+    }
+
     router.push({
       pathname: '/editor',
-      params: draftId
-        ? { imageUri: encodeURIComponent(imageUri), draftId }
-        : { imageUri: encodeURIComponent(imageUri) },
+      params,
     });
   };
 
@@ -37,9 +51,10 @@ export default function HomeScreen() {
       return;
     }
 
-    const selectedUri = result.assets[0]?.uri;
+    const asset = result.assets[0];
+    const selectedUri = asset?.uri;
     if (selectedUri) {
-      openEditor(selectedUri);
+      openEditor(selectedUri, { filename: asset.fileName });
     }
   };
 
@@ -66,7 +81,7 @@ export default function HomeScreen() {
         return;
       }
 
-      openEditor(draft.imageUri, draft.id);
+      openEditor(draft.imageUri, { draftId: draft.id, filename: draft.filename });
     } finally {
       setIsOpeningDraft(false);
     }
@@ -188,19 +203,13 @@ export default function HomeScreen() {
             {message ? <Text style={styles.message}>{message}</Text> : null}
           </View>
 
-          <View style={styles.previewCard}>
-            <View style={styles.photoMock}>
-              <View style={[styles.productBlock, styles.productBlockLarge]} />
-              <View style={[styles.productBlock, styles.productBlockTop]} />
-              <View style={[styles.productBlock, styles.productBlockBottom]} />
-
-              <View style={[styles.tag, styles.priceTag, styles.priceTagPosition]}>
-                <Text style={[styles.tagText, styles.priceTagText]}>THB 1,250</Text>
-              </View>
-              <View style={[styles.tag, styles.soldTag, styles.soldTagPosition]}>
-                <Text style={[styles.tagText, styles.soldTagText]}>SOLD</Text>
-              </View>
-            </View>
+          <View style={styles.heroImageCard} pointerEvents="none">
+            <Image
+              accessible={false}
+              contentFit="contain"
+              source={ONBOARDING_HERO}
+              style={styles.heroImage}
+            />
           </View>
 
           <RecentDraftsSection
@@ -323,78 +332,12 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
   },
-  previewCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.sm,
-    ...theme.shadows.card,
+  heroImageCard: {
+    width: '100%',
+    opacity: 0.72,
   },
-  photoMock: {
+  heroImage: {
+    width: '100%',
     aspectRatio: 16 / 10,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.photoMockBackground,
-    overflow: 'hidden',
-  },
-  productBlock: {
-    position: 'absolute',
-    backgroundColor: theme.colors.photoMockItem,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.photoMockItemBorder,
-  },
-  productBlockLarge: {
-    width: '43%',
-    height: '48%',
-    left: '8%',
-    top: '16%',
-  },
-  productBlockTop: {
-    width: '30%',
-    height: '36%',
-    right: '10%',
-    top: '14%',
-  },
-  productBlockBottom: {
-    width: '33%',
-    height: '34%',
-    right: '18%',
-    bottom: '10%',
-  },
-  tag: {
-    position: 'absolute',
-    minHeight: 28,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...theme.shadows.tag,
-  },
-  tagText: {
-    ...theme.typography.tag,
-  },
-  priceTag: {
-    backgroundColor: theme.tags.price.backgroundColor,
-    borderColor: theme.tags.price.borderColor,
-  },
-  priceTagText: {
-    color: theme.tags.price.color,
-  },
-  priceTagPosition: {
-    left: '12%',
-    top: '59%',
-  },
-  soldTag: {
-    backgroundColor: theme.tags.sold.backgroundColor,
-    borderColor: theme.tags.sold.borderColor,
-  },
-  soldTagText: {
-    color: theme.tags.sold.color,
-  },
-  soldTagPosition: {
-    right: '12%',
-    top: '42%',
   },
 });

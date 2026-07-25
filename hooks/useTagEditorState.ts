@@ -17,6 +17,7 @@ import {
   SOLD_TEXT_FORMAT_CYCLE,
   TAG_LANGUAGE_CODE_CYCLE,
   TEXT_STYLE_PRESET_CYCLE,
+  getLargerSizePreset,
   getNextCycleValue,
   getSmallerSizePreset,
   isInfoTagType,
@@ -225,6 +226,7 @@ export function useTagEditorState({
   const [deleteCandidateTagId, setDeleteCandidateTagId] = useState<string | null>(null);
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [isStylePickerVisible, setIsStylePickerVisible] = useState(false);
+  const [isPendingPlacement, setIsPendingPlacement] = useState(false);
   const [currentToolType, setCurrentToolType] = useState<TagType>('price');
   const [currentStylePresetByType, setCurrentStylePresetByType] = useState<Record<TagType, TagStylePresetId>>({
     ...DEFAULT_TAG_STYLE_BY_TYPE,
@@ -270,6 +272,7 @@ export function useTagEditorState({
     setDragOriginalTag(null);
     setDragPoint(null);
     setIsStylePickerVisible(false);
+    setIsPendingPlacement(false);
   };
 
   const handleDraftChange = (preview: TagEditorDraftPreview) => {
@@ -293,6 +296,24 @@ export function useTagEditorState({
 
   const closeStylePicker = () => {
     setIsStylePickerVisible(false);
+  };
+
+  /** User closed the style sheet after picking — enter sticky pending-placement mode. */
+  const finishStylePicker = () => {
+    setIsStylePickerVisible(false);
+
+    if (editorMode !== 'tag' || !selectedImageUri) {
+      return;
+    }
+
+    setSelectedTagId(null);
+    setDraftTagId(null);
+    setDraftPreview(null);
+    setIsPendingPlacement(true);
+  };
+
+  const cancelPendingPlacement = () => {
+    setIsPendingPlacement(false);
   };
 
   const commitDraftTag = () => {
@@ -360,6 +381,7 @@ export function useTagEditorState({
     setDraftType(newTag.type);
     setDraftPreview(null);
     setIsStylePickerVisible(false);
+    setIsPendingPlacement(false);
   };
 
   const handleTagPress = (tag: PriceTag) => {
@@ -745,6 +767,7 @@ export function useTagEditorState({
 
     handleCancelTagEdit();
     setIsStylePickerVisible(false);
+    setIsPendingPlacement(false);
     closeOverlayMenus();
     clearAlignFeedback();
     setGroupDragOffset({ x: 0, y: 0 });
@@ -794,6 +817,7 @@ export function useTagEditorState({
     setSelectedTagId(null);
     setDraftTagId(null);
     setIsStylePickerVisible(false);
+    setIsPendingPlacement(false);
   };
 
   const restoreTags = (nextTags: PriceTag[]) => {
@@ -813,6 +837,7 @@ export function useTagEditorState({
     setDragOriginalTag(null);
     setDragPoint(null);
     setIsStylePickerVisible(false);
+    setIsPendingPlacement(false);
     setIsDeleteModalVisible(false);
     setDeleteCandidateTagId(null);
     setTagSizeById({});
@@ -828,10 +853,15 @@ export function useTagEditorState({
     selectedTag && selectedTag.type === stylePickerType
       ? getStylePresetForType(stylePickerType, selectedTag.stylePresetId)
       : currentStylePresetByType[stylePickerType];
-  const activeSizePresetId = toPickerSizePreset(
+  // Info tags store a stepped-down size for render; map back up so picker chips match the tap.
+  const storedActiveSize =
     selectedTag && selectedTag.type === stylePickerType
-      ? (selectedTag.sizePresetId ?? currentSizePresetId)
-      : (sizePresetOverrideByType[stylePickerType] ?? currentSizePresetId),
+      ? selectedTag.sizePresetId
+      : sizePresetOverrideByType[stylePickerType];
+  const activeSizePresetId = toPickerSizePreset(
+    storedActiveSize != null && isInfoTagType(stylePickerType)
+      ? getLargerSizePreset(storedActiveSize)
+      : (storedActiveSize ?? currentSizePresetId),
   );
   const soldLabel = t('tag.sold');
   const stylePreviewText = (() => {
@@ -878,8 +908,10 @@ export function useTagEditorState({
     alignFeedbackMessage,
     bottomDropAreaRef,
     cancelDeleteTag,
+    cancelPendingPlacement,
     clearTagEditorState,
     closeStylePicker,
+    finishStylePicker,
     commitDraftTag,
     confirmDeleteTag,
     currentLanguageCode,
@@ -915,6 +947,7 @@ export function useTagEditorState({
     isDraggingTag,
     isMultiSelectGroupDrag,
     isMultiSelectMode,
+    isPendingPlacement,
     isStylePickerVisible,
     openStylePicker,
     resetTagsAndChrome,

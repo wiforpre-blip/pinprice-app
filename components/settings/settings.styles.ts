@@ -194,10 +194,15 @@ export const settingsStyles = StyleSheet.create({
     borderColor: theme.buttons.primary.borderColor,
     backgroundColor: theme.buttons.primary.backgroundColor,
     paddingHorizontal: theme.spacing.lg,
+    // Extra vertical room so Thai vowels (e.g. สระอู in กู้คืน) are not clipped by the border.
+    paddingVertical: theme.spacing.sm,
+    overflow: 'visible',
   },
   unlockPrimaryButtonText: {
     ...theme.typography.button,
+    lineHeight: 24,
     color: theme.buttons.primary.color,
+    includeFontPadding: true,
   },
   unlockSecondaryButton: {
     minHeight: theme.buttons.height,
@@ -208,10 +213,14 @@ export const settingsStyles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
     paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    overflow: 'visible',
   },
   unlockSecondaryButtonText: {
     ...theme.typography.button,
+    lineHeight: 24,
     color: theme.colors.textPrimary,
+    includeFontPadding: true,
   },
   unlockDevButton: {
     minHeight: 44,

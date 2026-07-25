@@ -163,6 +163,26 @@ export const PinPriceTheme = {
       borderColor: 'transparent',
       color: '#000000',
     },
+    textSoftPastel: {
+      backgroundColor: '#E8D5F2',
+      borderColor: '#E8D5F2',
+      color: '#3D2A4A',
+    },
+    textMarker: {
+      backgroundColor: '#FFE566',
+      borderColor: '#FFE566',
+      color: '#000000',
+    },
+    textDark: {
+      backgroundColor: '#1A1A1A',
+      borderColor: '#1A1A1A',
+      color: '#FFFFFF',
+    },
+    textCaption: {
+      backgroundColor: 'transparent',
+      borderColor: 'transparent',
+      color: '#FFFFFF',
+    },
     priceRed: {
       backgroundColor: '#E5484D',
       borderColor: '#E5484D',

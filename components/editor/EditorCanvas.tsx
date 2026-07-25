@@ -145,7 +145,7 @@ export function EditorCanvas({
             />
           }
           showChart={panelMarkers.length > 0}>
-          <View ref={canvasRef} style={styles.imageCanvas} onLayout={onCanvasLayout}>
+          <View collapsable={false} ref={canvasRef} style={styles.imageCanvas} onLayout={onCanvasLayout}>
             <EditorZoomViewport
               isZoomMode={isZoomMode}
               zoomAnimatedStyle={zoomAnimatedStyle}
@@ -179,7 +179,7 @@ export function EditorCanvas({
   }
 
   return (
-    <View ref={canvasRef} style={[styles.canvas, isDraggingTag && styles.draggingCanvas]} onLayout={onCanvasLayout}>
+    <View collapsable={false} ref={canvasRef} style={[styles.canvas, isDraggingTag && styles.draggingCanvas]} onLayout={onCanvasLayout}>
       <EditorZoomViewport
         allowOverflow={isDraggingTag}
         isZoomMode={isZoomMode}

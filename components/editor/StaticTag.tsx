@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
-import { getResolvedTagPreset } from '@/constants/tagPresets';
+import { getResolvedTagPreset, getTagTextShadowStyle } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import type { TagSize } from '@/types/editor';
 import type { ImageDisplayRect, PriceTag } from '@/types/tag';
@@ -17,8 +17,7 @@ export function StaticTag({ imageRect, tag }: StaticTagProps) {
   const tagStyle = getResolvedTagPreset(tag);
   const isPlainSoldIcon = tag.type === 'sold' && tag.soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = tag.type === 'sold' && tag.soldTextFormat === 'icon';
-  const isPlainText = tag.type === 'text' && tag.stylePresetId === 'text-plain';
-  const isFlatTag = isPlainSoldIcon || isPlainText;
+  const isFlatTag = isPlainSoldIcon || tagStyle.isFlat;
   const [tagSize, setTagSize] = useState<TagSize>(FALLBACK_TAG_SIZE);
   const rawLeft = imageRect.x + tag.x * imageRect.width;
   const rawTop = imageRect.y + tag.y * imageRect.height;
@@ -56,7 +55,18 @@ export function StaticTag({ imageRect, tag }: StaticTagProps) {
       {isPlainSoldIcon || isBadgeSoldIcon ? (
         <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
       ) : (
-        <Text numberOfLines={2} style={[styles.staticTagText, { color: tagStyle.color, fontSize: tagStyle.fontSize, lineHeight: tagStyle.lineHeight }]}>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.staticTagText,
+            getTagTextShadowStyle(tagStyle.textShadow),
+            {
+              color: tagStyle.color,
+              fontSize: tagStyle.fontSize,
+              lineHeight: tagStyle.lineHeight,
+              fontWeight: tagStyle.fontWeight,
+            },
+          ]}>
           {tag.text}
         </Text>
       )}

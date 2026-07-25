@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View, type KeyboardEvent } from 'react-native';
+import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type KeyboardEvent } from 'react-native';
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
 import { DEFAULT_QUANTITY, SOLD_ICON_TEXT, SOLD_TEXT_FORMAT_CYCLE, TAG_SIZE_ORDER, toPickerSizePreset, type TagPickerSizePresetId } from '@/constants/tagDefaults';
@@ -9,6 +9,8 @@ import {
   TAG_STYLE_PRESETS,
   getStylePresetForType,
   getStylePresetIdsForType,
+  getTagTextShadowStyle,
+  isTransparentTagBackground,
 } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -222,11 +224,11 @@ function TextStylePresetRow({
   onSelect: (stylePresetId: TagStylePresetId) => void;
 }) {
   return (
-    <View style={styles.colorRow}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorRow}>
       {getStylePresetIdsForType('text').map((stylePresetId) => {
         const preset = TAG_STYLE_PRESETS[stylePresetId];
         const isActive = stylePresetId === activeStylePresetId;
-        const isPlain = stylePresetId === 'text-plain';
+        const isFlat = isTransparentTagBackground(preset.backgroundColor);
 
         return (
           <Pressable
@@ -240,13 +242,19 @@ function TextStylePresetRow({
               <View
                 style={[
                   styles.textStylePreview,
-                  isPlain && styles.textStylePreviewPlain,
+                  isFlat && styles.textStylePreviewPlain,
                   {
-                    backgroundColor: isPlain ? 'transparent' : preset.backgroundColor,
-                    borderColor: isPlain ? 'transparent' : preset.borderColor,
+                    backgroundColor: isFlat ? 'transparent' : preset.backgroundColor,
+                    borderColor: isFlat ? 'transparent' : preset.borderColor,
                   },
                 ]}>
-                <Text style={[styles.textStylePreviewText, { color: preset.color }]} numberOfLines={1}>
+                <Text
+                  style={[
+                    styles.textStylePreviewText,
+                    getTagTextShadowStyle(preset.textShadow ?? null),
+                    { color: preset.color, fontWeight: preset.fontWeight ?? '700' },
+                  ]}
+                  numberOfLines={1}>
                   {sampleLabel}
                 </Text>
               </View>
@@ -254,7 +262,7 @@ function TextStylePresetRow({
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 

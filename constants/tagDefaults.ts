@@ -11,7 +11,15 @@ export const SOLD_ICON_TEXT = '✕';
 export const SOLD_TEXT_FORMAT_CYCLE: SoldTextFormat[] = ['text', 'icon', 'icon_plain'];
 export const TAG_LANGUAGE_CODE_CYCLE: TagLanguageCode[] = ['TH', 'EN', 'JP', 'CN'];
 /** Visual styles cycled when re-tapping the text tool chip in the style picker. */
-export const TEXT_STYLE_PRESET_CYCLE: TagStylePresetId[] = ['text-default', 'text-white-border', 'text-plain'];
+export const TEXT_STYLE_PRESET_CYCLE: TagStylePresetId[] = [
+  'text-default',
+  'text-white-border',
+  'text-plain',
+  'text-soft-pastel',
+  'text-marker',
+  'text-dark',
+  'text-caption',
+];
 
 export const MAIN_TAG_TYPES: TagType[] = ['price', 'sold', 'text'];
 export const INFO_TAG_TYPES: TagType[] = ['condition', 'quantity', 'language'];
@@ -37,6 +45,16 @@ export function getSmallerSizePreset(sizePresetId: TagSizePresetId): TagSizePres
   }
 
   return TAG_SIZE_SCALE[index - 1]!;
+}
+
+/** Inverse of getSmallerSizePreset — map stored info-tag size back to picker chip size. */
+export function getLargerSizePreset(sizePresetId: TagSizePresetId): TagSizePresetId {
+  const index = TAG_SIZE_SCALE.indexOf(sizePresetId);
+  if (index < 0 || index >= TAG_SIZE_SCALE.length - 1) {
+    return 'xl';
+  }
+
+  return TAG_SIZE_SCALE[index + 1]!;
 }
 
 /** Map stored size (may be `xs`) to a picker chip id. */

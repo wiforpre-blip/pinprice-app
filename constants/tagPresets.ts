@@ -1,5 +1,15 @@
+import type { TextStyle } from 'react-native';
+
 import { PinPriceTheme as theme } from '@/constants/theme';
 import type { PriceTag, TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
+
+export type TagFontWeight = NonNullable<TextStyle['fontWeight']>;
+
+export type TagTextShadow = {
+  color: string;
+  offset: { width: number; height: number };
+  radius: number;
+};
 
 export type ResolvedTagPreset = {
   backgroundColor: string;
@@ -11,7 +21,35 @@ export type ResolvedTagPreset = {
   paddingVertical: number;
   fontSize: number;
   lineHeight: number;
+  fontWeight: TagFontWeight;
+  textShadow: TagTextShadow | null;
+  /** Transparent background — no badge chrome / view shadow. */
+  isFlat: boolean;
 };
+
+type TagStylePresetDefinition = {
+  label: string;
+  type: TagType;
+  backgroundColor: string;
+  borderColor: string;
+  color: string;
+  fontWeight?: TagFontWeight;
+  textShadow?: TagTextShadow | null;
+};
+
+const SOFT_WHITE_SHADOW: TagTextShadow = {
+  color: 'rgba(255, 255, 255, 0.92)',
+  offset: { width: 0, height: 1 },
+  radius: 3,
+};
+
+const STRONG_BLACK_SHADOW: TagTextShadow = {
+  color: 'rgba(0, 0, 0, 0.85)',
+  offset: { width: 0, height: 1 },
+  radius: 4,
+};
+
+const DEFAULT_TAG_FONT_WEIGHT: TagFontWeight = theme.typography.tag.fontWeight;
 
 export const DEFAULT_TAG_STYLE_BY_TYPE: Record<TagType, TagStylePresetId> = {
   price: 'price-white-black',
@@ -24,10 +62,7 @@ export const DEFAULT_TAG_STYLE_BY_TYPE: Record<TagType, TagStylePresetId> = {
 
 export const DEFAULT_TAG_SIZE_PRESET_ID: TagSizePresetId = 'medium';
 
-export const TAG_STYLE_PRESETS: Record<
-  TagStylePresetId,
-  { label: string; type: TagType; backgroundColor: string; borderColor: string; color: string }
-> = {
+export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinition> = {
   'price-white-black': {
     label: 'White / Black',
     type: 'price',
@@ -90,6 +125,7 @@ export const TAG_STYLE_PRESETS: Record<
     backgroundColor: theme.tags.text.backgroundColor,
     borderColor: theme.tags.text.borderColor,
     color: theme.tags.text.color,
+    fontWeight: '800',
   },
   'text-white-border': {
     label: 'White border',
@@ -97,6 +133,7 @@ export const TAG_STYLE_PRESETS: Record<
     backgroundColor: theme.tags.textWhiteBorder.backgroundColor,
     borderColor: theme.tags.textWhiteBorder.borderColor,
     color: theme.tags.textWhiteBorder.color,
+    fontWeight: '800',
   },
   'text-plain': {
     label: 'Plain text',
@@ -104,6 +141,41 @@ export const TAG_STYLE_PRESETS: Record<
     backgroundColor: theme.tags.textPlain.backgroundColor,
     borderColor: theme.tags.textPlain.borderColor,
     color: theme.tags.textPlain.color,
+    fontWeight: '800',
+    textShadow: SOFT_WHITE_SHADOW,
+  },
+  'text-soft-pastel': {
+    label: 'Soft pastel',
+    type: 'text',
+    backgroundColor: theme.tags.textSoftPastel.backgroundColor,
+    borderColor: theme.tags.textSoftPastel.borderColor,
+    color: theme.tags.textSoftPastel.color,
+    fontWeight: '700',
+  },
+  'text-marker': {
+    label: 'Marker',
+    type: 'text',
+    backgroundColor: theme.tags.textMarker.backgroundColor,
+    borderColor: theme.tags.textMarker.borderColor,
+    color: theme.tags.textMarker.color,
+    fontWeight: '800',
+  },
+  'text-dark': {
+    label: 'Dark',
+    type: 'text',
+    backgroundColor: theme.tags.textDark.backgroundColor,
+    borderColor: theme.tags.textDark.borderColor,
+    color: theme.tags.textDark.color,
+    fontWeight: '800',
+  },
+  'text-caption': {
+    label: 'Caption',
+    type: 'text',
+    backgroundColor: theme.tags.textCaption.backgroundColor,
+    borderColor: theme.tags.textCaption.borderColor,
+    color: theme.tags.textCaption.color,
+    fontWeight: '700',
+    textShadow: STRONG_BLACK_SHADOW,
   },
   'quantity-blue': {
     label: 'Blue',
@@ -193,6 +265,10 @@ export const TAG_SIZE_PRESETS: Record<
   },
 };
 
+export function isTransparentTagBackground(backgroundColor: string) {
+  return backgroundColor === 'transparent';
+}
+
 export function getStylePresetForType(type: TagType, stylePresetId?: TagStylePresetId) {
   if (stylePresetId && TAG_STYLE_PRESETS[stylePresetId]?.type === type) {
     return stylePresetId;
@@ -228,6 +304,7 @@ export function getResolvedTagPreset(tag: PriceTag, typeOverride?: TagType): Res
   const isPlainSoldIcon = type === 'sold' && tag.soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = type === 'sold' && tag.soldTextFormat === 'icon';
   const soldIconSize = Math.max(28, Math.round(sizePreset.fontSize * 2.2));
+  const isFlat = isTransparentTagBackground(stylePreset.backgroundColor);
 
   return {
     backgroundColor: stylePreset.backgroundColor,
@@ -239,5 +316,21 @@ export function getResolvedTagPreset(tag: PriceTag, typeOverride?: TagType): Res
     paddingVertical: isPlainSoldIcon ? theme.spacing.xs : sizePreset.paddingVertical,
     fontSize: isPlainSoldIcon || isBadgeSoldIcon ? soldIconSize : sizePreset.fontSize,
     lineHeight: isPlainSoldIcon || isBadgeSoldIcon ? soldIconSize : sizePreset.lineHeight,
+    fontWeight: stylePreset.fontWeight ?? DEFAULT_TAG_FONT_WEIGHT,
+    textShadow: stylePreset.textShadow ?? null,
+    isFlat,
+  };
+}
+
+/** Map resolved text shadow onto RN Text style props. */
+export function getTagTextShadowStyle(textShadow: TagTextShadow | null): TextStyle {
+  if (!textShadow) {
+    return {};
+  }
+
+  return {
+    textShadowColor: textShadow.color,
+    textShadowOffset: textShadow.offset,
+    textShadowRadius: textShadow.radius,
   };
 }

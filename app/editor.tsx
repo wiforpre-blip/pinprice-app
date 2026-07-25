@@ -12,9 +12,10 @@ import {
   type FloatingHistoryActionId,
   type FloatingMainActionId,
 } from '@/components/editor/EditorFloatingControls';
+import { EditorCoachMark } from '@/components/editor/EditorCoachMark';
 import { EditorHeader } from '@/components/editor/EditorHeader';
 import { EditorPreviewScreen } from '@/components/editor/EditorPreviewScreen';
-import { EditorTip, getTipPlacement } from '@/components/editor/EditorTip';
+import { PendingPlacementChip } from '@/components/editor/PendingPlacementChip';
 import { PriceRowEditor } from '@/components/editor/PriceRowEditor';
 import { StylePickerPanel } from '@/components/editor/StylePickerPanel';
 import { styles } from '@/components/editor/editor.styles';
@@ -26,11 +27,11 @@ import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
 
 import { useEditorChrome } from '@/hooks/useEditorChrome';
+import { useEditorCoach } from '@/hooks/useEditorCoach';
 import { useEditorDraftHydration } from '@/hooks/useEditorDraftHydration';
 import { useEditorExport } from '@/hooks/useEditorExport';
 import { useEditorLayout } from '@/hooks/useEditorLayout';
-import { getDraftId, getImageUri, useEditorSession } from '@/hooks/useEditorSession';
-import { useEditorTips } from '@/hooks/useEditorTips';
+import { getDraftId, getFilenameParam, getImageUri, useEditorSession } from '@/hooks/useEditorSession';
 import { useEditorZoom } from '@/hooks/useEditorZoom';
 import { usePriceListEditorState } from '@/hooks/usePriceListEditorState';
 import {
@@ -44,23 +45,32 @@ import { formatZoomPercent } from '@/utils/editorGeometry';
 
 type EditorParams = {
   draftId?: string | string[];
+  filename?: string | string[];
   imageUri?: string | string[];
 };
 
 export default function EditorScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { draftId, imageUri } = useLocalSearchParams<EditorParams>();
+  const { draftId, filename: filenameParam, imageUri } = useLocalSearchParams<EditorParams>();
   const selectedImageUri = getImageUri(imageUri);
   const selectedDraftId = getDraftId(draftId);
+  const routeFilename = getFilenameParam(filenameParam);
   // Reserve space for the main floating bar only — history row stays absolute and must not resize imageRect.
   const contentBottomPadding = selectedImageUri
     ? EDITOR_FLOATING_MAIN_BAR_HEIGHT + theme.spacing.lg + insets.bottom
     : theme.spacing.sm;
   const draftSnapshotRef = useRef<EditorDraftSnapshot | null>(null);
-  const notifyExportSuccessRef = useRef<() => void>(() => {});
+  const styleButtonRef = useRef<View | null>(null);
+  const tagTypesSectionRef = useRef<View | null>(null);
+  const sizeSectionRef = useRef<View | null>(null);
+  const [coachMeasureToken, setCoachMeasureToken] = useState(0);
+  const bumpCoachMeasure = useCallback(() => {
+    setCoachMeasureToken((current) => current + 1);
+  }, []);
   const getDraftSnapshot = useCallback(() => draftSnapshotRef.current, []);
   const {
+    applyUnlock,
     closePreview,
     exportAction,
     exportMessage,
@@ -77,9 +87,7 @@ export default function EditorScreen() {
     getDraftSnapshot,
     imageUri: selectedImageUri,
     initialDraftId: selectedDraftId,
-    onExportSuccess: () => {
-      notifyExportSuccessRef.current();
-    },
+    onExportSuccess: () => {},
   });
   const {
     canvasRef,
@@ -118,8 +126,10 @@ export default function EditorScreen() {
     alignFeedbackMessage,
     bottomDropAreaRef,
     cancelDeleteTag,
+    cancelPendingPlacement,
     clearTagEditorState,
     closeStylePicker,
+    finishStylePicker,
     commitDraftTag,
     confirmDeleteTag,
     currentLanguageCode,
@@ -155,6 +165,7 @@ export default function EditorScreen() {
     isDraggingTag,
     isMultiSelectGroupDrag,
     isMultiSelectMode,
+    isPendingPlacement,
     isStylePickerVisible,
     openStylePicker,
     resetTagsAndChrome,
@@ -243,6 +254,7 @@ export default function EditorScreen() {
     hasContentDirty,
     isExporting,
     isPreviewing,
+    routeFilename,
     selectedImageUri,
   });
 
@@ -304,47 +316,40 @@ export default function EditorScreen() {
     onBackgroundTap: handleZoomBackgroundTap,
   });
 
-  const isTagEditorOpen =
-    Boolean(selectedTag) &&
-    !isZoomMode &&
-    !isMultiSelectMode &&
-    draggingTagId !== selectedTagId &&
-    !isStylePickerVisible;
-
   const hasConfirmModal =
     isLeaveModalVisible || isDeleteModalVisible || isResetModalVisible || isMarkerDeleteModalVisible;
 
-  const { activeTipId, dismissActiveTip, notifyExportSuccess, notifyTagDragCompleted } = useEditorTips({
+  const { activeStepId, canGoBack, goBack, goNext, skip } = useEditorCoach({
+    closeStylePicker,
     editorMode,
+    finishStylePicker,
     hasConfirmModal,
     hasImage: Boolean(selectedImageUri),
     isDraggingTag,
     isExporting,
     isPreviewing,
     isStylePickerVisible,
-    isTagEditorOpen,
-    isZoomMode,
+    openStylePicker,
     tagCount: tags.length,
   });
 
-  notifyExportSuccessRef.current = notifyExportSuccess;
+  useEffect(() => {
+    if (!activeStepId) {
+      return;
+    }
 
-  const handleTagDragEndWithTip = useCallback(
-    (
-      tagId: string,
-      canvasX: number,
-      canvasY: number,
-      tagSize: Parameters<typeof handleTagDragEnd>[3],
-      releasePoint: Parameters<typeof handleTagDragEnd>[4],
-    ) => {
-      handleTagDragEnd(tagId, canvasX, canvasY, tagSize, releasePoint);
-      notifyTagDragCompleted();
-    },
-    [handleTagDragEnd, notifyTagDragCompleted],
-  );
+    bumpCoachMeasure();
+  }, [activeStepId, bumpCoachMeasure, isStylePickerVisible]);
 
   const handleCanvasPress = (event: GestureResponderEvent) => {
     if (!imageRect) {
+      return;
+    }
+
+    // First tap while style sheet is open: dismiss sheet only (enter pending placement).
+    // Do not create a tag — the next tap places it.
+    if (isStylePickerVisible) {
+      finishStylePicker();
       return;
     }
 
@@ -531,12 +536,15 @@ export default function EditorScreen() {
     <StylePickerPanel
       activeSizePresetId={activeSizePresetId}
       languageCode={currentLanguageCode}
-      onClose={closeStylePicker}
+      onClose={finishStylePicker}
+      onCoachSectionsLayout={bumpCoachMeasure}
       onSelectSizePreset={handleSelectSizePreset}
       onSelectToolType={handleSelectToolType}
       priceTextFormat={currentPriceTextFormat}
+      sizeSectionRef={sizeSectionRef}
       soldTextFormat={currentSoldTextFormat}
       stylePickerType={stylePickerType}
+      tagTypesSectionRef={tagTypesSectionRef}
       textStylePresetId={textStylePresetId}
     />
   ) : null;
@@ -544,6 +552,7 @@ export default function EditorScreen() {
   if (isPreviewing && selectedImageUri) {
     return (
       <EditorPreviewScreen
+        draftFilename={draftFilename}
         editorMode={editorMode}
         exportAction={exportAction}
         exportMessage={exportMessage}
@@ -551,17 +560,31 @@ export default function EditorScreen() {
         filename={filename}
         imageSize={imageSize}
         imageUri={selectedImageUri}
+        isEditingFilename={isEditingFilename}
         isExporting={isExporting}
         leaveConfirmModal={leaveConfirmModal}
+        onCancelFilenameEdit={cancelFilenameEdit}
         onClosePreview={closePreview}
+        onConfirmFilenameEdit={confirmFilenameEdit}
+        onDraftFilenameChange={setDraftFilename}
         onImageLoad={handleImageLoad}
         onPreviewLayout={handlePreviewLayout}
         onSaveImage={() => {
-          void handleSaveImage(filename);
+          const exportName = isEditingFilename ? draftFilename.trim() || filename : filename;
+          if (isEditingFilename) {
+            confirmFilenameEdit();
+          }
+          void handleSaveImage(exportName);
         }}
         onShareImage={() => {
-          void handleShareImage(filename);
+          const exportName = isEditingFilename ? draftFilename.trim() || filename : filename;
+          if (isEditingFilename) {
+            confirmFilenameEdit();
+          }
+          void handleShareImage(exportName);
         }}
+        onStartFilenameEdit={startFilenameEdit}
+        onUnlockChange={applyUnlock}
         panelMarkers={panelMarkers}
         previewSize={previewSize}
         showWatermark={showWatermark}
@@ -577,30 +600,38 @@ export default function EditorScreen() {
       {resetConfirmModal}
       {markerDeleteConfirmModal}
       <EditorHeader
-        draftFilename={draftFilename}
-        filename={filename}
-        isEditingFilename={isEditingFilename}
+        canRedo={canRedo}
+        canReset={canReset}
+        canUndo={canUndo}
         onBack={requestLeaveEditor}
-        onCancelFilenameEdit={cancelFilenameEdit}
-        onChangeDraftFilename={setDraftFilename}
-        onConfirmFilenameEdit={confirmFilenameEdit}
+        onHistoryAction={handleFloatingHistoryAction}
         onLayout={handleHeaderLayout}
         onOpenSettings={openSettings}
-        onStartFilenameEdit={startFilenameEdit}
         ref={headerRef}
+        showHistoryControls={
+          Boolean(selectedImageUri) && !isStylePickerVisible && !isDraggingTag && hasEditHistory
+        }
       />
 
-      <Text style={styles.placeholder}>
-        {selectedImageUri
-          ? isZoomMode
-            ? t('editor.zoomHint')
-            : isMultiSelectMode
-              ? t('editor.tapEmptyToExit')
-              : editorMode === 'priceList'
-                ? t('editor.tapPhotoToAddMarker')
-                : t('editor.tapPhotoToAdd')
-          : t('editor.choosePhotoToStart')}
-      </Text>
+      {isPendingPlacement && !isStylePickerVisible ? (
+        <PendingPlacementChip onCancel={cancelPendingPlacement} previewTag={stylePreviewTag} />
+      ) : null}
+
+      {!activeStepId ? (
+        <Text style={styles.placeholder}>
+          {selectedImageUri
+            ? isZoomMode
+              ? t('editor.zoomHint')
+              : isMultiSelectMode
+                ? t('editor.tapEmptyToExit')
+                : isPendingPlacement
+                  ? `${t('editor.placingHint')} ${t(`tag.${stylePickerType}`)}`
+                  : editorMode === 'priceList'
+                    ? t('editor.tapPhotoToAddMarker')
+                    : t('editor.tapPhotoToAdd')
+            : t('editor.choosePhotoToStart')}
+        </Text>
+      ) : null}
 
       <View
         style={[
@@ -639,7 +670,7 @@ export default function EditorScreen() {
           onSaveTag={handleSaveTag}
           onSelectMarker={handleSelectMarker}
           onTagDragCancel={handleTagDragCancel}
-          onTagDragEnd={handleTagDragEndWithTip}
+          onTagDragEnd={handleTagDragEnd}
           onTagDragMove={handleTagDragMove}
           onTagDragOffsetChange={handleTagDragOffsetChange}
           onTagDragStart={handleTagDragStart}
@@ -675,34 +706,40 @@ export default function EditorScreen() {
 
       <SettingsSheet onClose={closeSettings} visible={isSettingsOpen} />
 
-      {activeTipId ? (
-        <EditorTip
-          onDismiss={dismissActiveTip}
-          placement={getTipPlacement(activeTipId)}
-          tipId={activeTipId}
+      {activeStepId ? (
+        <EditorCoachMark
+          canGoBack={canGoBack}
+          canvasRef={canvasRef}
+          imageRect={imageRect}
+          measureToken={coachMeasureToken}
+          onBack={goBack}
+          onNext={goNext}
+          onSkip={skip}
+          sizeSectionRef={sizeSectionRef}
+          stepId={activeStepId}
+          styleButtonRef={styleButtonRef}
+          tagTypesSectionRef={tagTypesSectionRef}
         />
       ) : null}
 
       <EditorFloatingControls
         alignFeedbackMessage={alignFeedbackMessage}
         bottomDropAreaRef={bottomDropAreaRef}
-        canRedo={canRedo}
-        canReset={canReset}
         canSelect={canSelect}
-        canUndo={canUndo}
         editorMode={editorMode}
-        hasEditHistory={hasEditHistory}
         isDragOverDelete={isDragOverDelete}
         isDraggingTag={isDraggingTag}
         isMultiSelectGroupDrag={isMultiSelectGroupDrag}
         isMultiSelectMode={isMultiSelectMode}
+        isPendingPlacement={isPendingPlacement}
         isStylePickerVisible={isStylePickerVisible}
         isZoomMode={isZoomMode}
         onBottomDropAreaLayout={handleBottomDropAreaLayout}
-        onFloatingHistoryAction={handleFloatingHistoryAction}
         onFloatingMainAction={handleFloatingMainAction}
+        onStyleButtonLayout={bumpCoachMeasure}
         selectedImageUri={selectedImageUri}
         selectedTagIds={selectedTagIds}
+        styleButtonRef={styleButtonRef}
         zoomScaleLabel={isZoomMode || zoomScale !== 1 ? formatZoomPercent(zoomScale) : null}
       />
     </SafeAreaView>

@@ -1,8 +1,9 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import type { RefObject } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { INFO_TAG_TYPES, MAIN_TAG_TYPES, SOLD_ICON_TEXT, TAG_SIZE_ORDER, type TagPickerSizePresetId } from '@/constants/tagDefaults';
-import { DEFAULT_TAG_STYLE_BY_TYPE, TAG_STYLE_PRESETS } from '@/constants/tagPresets';
+import { DEFAULT_TAG_STYLE_BY_TYPE, TAG_STYLE_PRESETS, getTagTextShadowStyle, isTransparentTagBackground } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation } from '@/contexts/LanguageContext';
@@ -24,6 +25,9 @@ type StylePickerPanelProps = {
   soldTextFormat: SoldTextFormat;
   languageCode: TagLanguageCode;
   textStylePresetId: TagStylePresetId;
+  tagTypesSectionRef?: RefObject<View | null>;
+  sizeSectionRef?: RefObject<View | null>;
+  onCoachSectionsLayout?: () => void;
   onClose: () => void;
   onSelectToolType: (type: TagType) => void;
   onSelectSizePreset: (sizePresetId: TagSizePresetId) => void;
@@ -77,12 +81,12 @@ function ToolPreviewChip({
 }) {
   const isPlainSoldIcon = type === 'sold' && soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = type === 'sold' && soldTextFormat === 'icon';
-  const isPlainText = type === 'text' && stylePresetId === 'text-plain';
   const resolvedStylePresetId =
     stylePresetId && TAG_STYLE_PRESETS[stylePresetId]?.type === type
       ? stylePresetId
       : DEFAULT_TAG_STYLE_BY_TYPE[type];
   const preset = TAG_STYLE_PRESETS[isPlainSoldIcon ? 'sold-icon-plain' : resolvedStylePresetId];
+  const isPlainText = type === 'text' && isTransparentTagBackground(preset.backgroundColor);
   const preview = (
     <View
       style={[
@@ -109,7 +113,13 @@ function ToolPreviewChip({
           thicknessScale={2}
         />
       ) : (
-        <Text style={[styles.toolChipPreviewText, { color: preset.color }]} numberOfLines={1}>
+        <Text
+          style={[
+            styles.toolChipPreviewText,
+            type === 'text' ? getTagTextShadowStyle(preset.textShadow ?? null) : null,
+            { color: preset.color, fontWeight: type === 'text' ? (preset.fontWeight ?? '700') : undefined },
+          ]}
+          numberOfLines={1}>
           {label}
         </Text>
       )}
@@ -136,6 +146,9 @@ export function StylePickerPanel({
   soldTextFormat,
   languageCode,
   textStylePresetId,
+  tagTypesSectionRef,
+  sizeSectionRef,
+  onCoachSectionsLayout,
   onClose,
   onSelectToolType,
   onSelectSizePreset,
@@ -157,76 +170,80 @@ export function StylePickerPanel({
         </Pressable>
       </View>
 
-      <Text style={styles.sectionTitle}>{mainSectionTitle}</Text>
-      <View style={styles.toolRow}>
-        {MAIN_TAG_TYPES.map((type) => {
-          const label = getToolPreviewLabel({
-            type,
-            pricePreview,
-            soldLabel,
-            soldTextFormat,
-            languageCode,
-            textLabel,
-          });
+      <View collapsable={false} onLayout={onCoachSectionsLayout} ref={tagTypesSectionRef} style={styles.coachSection}>
+        <Text style={styles.sectionTitle}>{mainSectionTitle}</Text>
+        <View style={styles.toolRow}>
+          {MAIN_TAG_TYPES.map((type) => {
+            const label = getToolPreviewLabel({
+              type,
+              pricePreview,
+              soldLabel,
+              soldTextFormat,
+              languageCode,
+              textLabel,
+            });
 
-          return (
-            <ToolPreviewChip
-              key={type}
-              type={type}
-              label={label}
-              isActive={stylePickerType === type}
-              soldTextFormat={type === 'sold' ? soldTextFormat : undefined}
-              stylePresetId={type === 'text' ? textStylePresetId : undefined}
-              onPress={() => onSelectToolType(type)}
-            />
-          );
-        })}
+            return (
+              <ToolPreviewChip
+                key={type}
+                type={type}
+                label={label}
+                isActive={stylePickerType === type}
+                soldTextFormat={type === 'sold' ? soldTextFormat : undefined}
+                stylePresetId={type === 'text' ? textStylePresetId : undefined}
+                onPress={() => onSelectToolType(type)}
+              />
+            );
+          })}
+        </View>
+
+        <View style={styles.divider} />
+
+        <Text style={styles.sectionTitle}>{infoSectionTitle}</Text>
+        <View style={styles.toolRow}>
+          {INFO_TAG_TYPES.map((type) => {
+            const label = getToolPreviewLabel({
+              type,
+              pricePreview,
+              soldLabel,
+              soldTextFormat,
+              languageCode,
+              textLabel,
+            });
+
+            return (
+              <ToolPreviewChip
+                key={type}
+                type={type}
+                label={label}
+                isActive={stylePickerType === type}
+                onPress={() => onSelectToolType(type)}
+              />
+            );
+          })}
+        </View>
       </View>
 
       <View style={styles.divider} />
 
-      <Text style={styles.sectionTitle}>{infoSectionTitle}</Text>
-      <View style={styles.toolRow}>
-        {INFO_TAG_TYPES.map((type) => {
-          const label = getToolPreviewLabel({
-            type,
-            pricePreview,
-            soldLabel,
-            soldTextFormat,
-            languageCode,
-            textLabel,
-          });
+      <View collapsable={false} onLayout={onCoachSectionsLayout} ref={sizeSectionRef} style={styles.coachSection}>
+        <Text style={styles.sectionTitle}>{t('style.size')}</Text>
+        <View style={styles.sizeOptionGrid}>
+          {TAG_SIZE_ORDER.map((sizePresetId) => {
+            const isActive = sizePresetId === activeSizePresetId;
 
-          return (
-            <ToolPreviewChip
-              key={type}
-              type={type}
-              label={label}
-              isActive={stylePickerType === type}
-              onPress={() => onSelectToolType(type)}
-            />
-          );
-        })}
-      </View>
-
-      <View style={styles.divider} />
-
-      <Text style={styles.sectionTitle}>{t('style.size')}</Text>
-      <View style={styles.sizeOptionGrid}>
-        {TAG_SIZE_ORDER.map((sizePresetId) => {
-          const isActive = sizePresetId === activeSizePresetId;
-
-          return (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={isActive ? { selected: true } : undefined}
-              key={sizePresetId}
-              onPress={() => onSelectSizePreset(sizePresetId)}
-              style={[styles.sizeOption, isActive && styles.activeSizeOption]}>
-              <Text style={[styles.sizeOptionText, isActive && styles.activeSizeOptionText]}>{SIZE_CHIP_LABELS[sizePresetId]}</Text>
-            </Pressable>
-          );
-        })}
+            return (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={isActive ? { selected: true } : undefined}
+                key={sizePresetId}
+                onPress={() => onSelectSizePreset(sizePresetId)}
+                style={[styles.sizeOption, isActive && styles.activeSizeOption]}>
+                <Text style={[styles.sizeOptionText, isActive && styles.activeSizeOptionText]}>{SIZE_CHIP_LABELS[sizePresetId]}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -240,6 +257,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  coachSection: {
     gap: theme.spacing.sm,
   },
   stylePickerHeader: {

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackHandler } from 'react-native';
 
 const FALLBACK_FILENAME = 'Untitled';
+const UUID_LIKE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function getImageUri(imageUri: string | string[] | undefined) {
   const rawUri = Array.isArray(imageUri) ? imageUri[0] : imageUri;
@@ -25,15 +27,46 @@ export function getDraftId(draftId: string | string[] | undefined) {
   return trimmed ? trimmed : null;
 }
 
+export function getFilenameParam(filename: string | string[] | undefined) {
+  const rawFilename = Array.isArray(filename) ? filename[0] : filename;
+
+  if (!rawFilename) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(rawFilename).trim() || null;
+  } catch {
+    return rawFilename.trim() || null;
+  }
+}
+
 function getFilenameFromUri(uri: string | null) {
   if (!uri) {
-    return FALLBACK_FILENAME;
+    return null;
   }
 
   const cleanUri = uri.split(/[?#]/)[0];
-  const filename = cleanUri.split('/').filter(Boolean).pop();
+  const filename = cleanUri.split('/').filter(Boolean).pop()?.trim();
 
-  return filename?.trim() || FALLBACK_FILENAME;
+  if (!filename) {
+    return null;
+  }
+
+  const basename = filename.replace(/\.[a-zA-Z0-9]{1,5}$/, '');
+  if (UUID_LIKE.test(basename)) {
+    return null;
+  }
+
+  return filename;
+}
+
+function resolveInitialFilename(routeFilename: string | null, uri: string | null) {
+  if (routeFilename) {
+    return routeFilename;
+  }
+
+  return getFilenameFromUri(uri) || FALLBACK_FILENAME;
 }
 
 type UseEditorSessionOptions = {
@@ -41,6 +74,7 @@ type UseEditorSessionOptions = {
   hasContentDirty: boolean;
   isExporting: boolean;
   isPreviewing: boolean;
+  routeFilename?: string | null;
   selectedImageUri: string | null;
 };
 
@@ -49,10 +83,14 @@ export function useEditorSession({
   hasContentDirty,
   isExporting,
   isPreviewing,
+  routeFilename = null,
   selectedImageUri,
 }: UseEditorSessionOptions) {
   const router = useRouter();
-  const initialFilename = useMemo(() => getFilenameFromUri(selectedImageUri), [selectedImageUri]);
+  const initialFilename = useMemo(
+    () => resolveInitialFilename(routeFilename, selectedImageUri),
+    [routeFilename, selectedImageUri],
+  );
   const [filename, setFilename] = useState(initialFilename);
   const [draftFilename, setDraftFilename] = useState(initialFilename);
   const [baselineFilename, setBaselineFilename] = useState(initialFilename);
@@ -161,4 +199,4 @@ export function useEditorSession({
     setIsEditingFilename,
     startFilenameEdit,
   };
-}
+};

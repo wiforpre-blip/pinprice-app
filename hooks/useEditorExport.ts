@@ -198,7 +198,12 @@ export function useEditorExport({
     },
     [captureNamedExport, exportAction, onExportSuccess, persistDraftAfterExport, t],
   );
+  const applyUnlock = useCallback((unlocked: boolean) => {
+    setIsUnlocked(unlocked);
+  }, []);
+
   return {
+    applyUnlock,
     captureExportView,
     closePreview,
     exportAction,
