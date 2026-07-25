@@ -1,7 +1,8 @@
 import type { TextStyle } from 'react-native';
 
+import { DEFAULT_CONDITION_VALUE, parseConditionValue } from '@/constants/tagDefaults';
 import { PinPriceTheme as theme } from '@/constants/theme';
-import type { PriceTag, TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
+import type { PriceTag, TagConditionValue, TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
 
 export type TagFontWeight = NonNullable<TextStyle['fontWeight']>;
 
@@ -10,6 +11,8 @@ export type TagTextShadow = {
   offset: { width: number; height: number };
   radius: number;
 };
+
+export type TagShape = 'default' | 'circle';
 
 export type ResolvedTagPreset = {
   backgroundColor: string;
@@ -22,9 +25,14 @@ export type ResolvedTagPreset = {
   fontSize: number;
   lineHeight: number;
   fontWeight: TagFontWeight;
+  fontStyle: NonNullable<TextStyle['fontStyle']>;
   textShadow: TagTextShadow | null;
   /** Transparent background — no badge chrome / view shadow. */
   isFlat: boolean;
+  /** Circle badges use fixedSize for equal width/height. */
+  shape: TagShape;
+  /** Diameter when shape is `circle`; otherwise null. */
+  fixedSize: number | null;
 };
 
 type TagStylePresetDefinition = {
@@ -50,6 +58,41 @@ const STRONG_BLACK_SHADOW: TagTextShadow = {
 };
 
 const DEFAULT_TAG_FONT_WEIGHT: TagFontWeight = theme.typography.tag.fontWeight;
+
+/** Grade colors for condition tags — semantic, not style presets. */
+export const CONDITION_GRADE_STYLES: Record<
+  TagConditionValue,
+  { backgroundColor: string; borderColor: string; color: string }
+> = {
+  NM: {
+    backgroundColor: theme.tags.condition.backgroundColor,
+    borderColor: theme.tags.condition.borderColor,
+    color: theme.tags.condition.color,
+  },
+  LP: {
+    backgroundColor: theme.tags.conditionLp.backgroundColor,
+    borderColor: theme.tags.conditionLp.borderColor,
+    color: theme.tags.conditionLp.color,
+  },
+  MP: {
+    backgroundColor: theme.tags.conditionMp.backgroundColor,
+    borderColor: theme.tags.conditionMp.borderColor,
+    color: theme.tags.conditionMp.color,
+  },
+  HP: {
+    backgroundColor: theme.tags.conditionHp.backgroundColor,
+    borderColor: theme.tags.conditionHp.borderColor,
+    color: theme.tags.conditionHp.color,
+  },
+};
+
+export function resolveConditionValueFromTag(tag: Pick<PriceTag, 'condition' | 'text'>): TagConditionValue {
+  if (tag.condition) {
+    return parseConditionValue(tag.condition);
+  }
+
+  return parseConditionValue(tag.text);
+}
 
 export const DEFAULT_TAG_STYLE_BY_TYPE: Record<TagType, TagStylePresetId> = {
   price: 'price-white-black',
@@ -143,6 +186,14 @@ export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinitio
     color: theme.tags.textPlain.color,
     fontWeight: '800',
     textShadow: SOFT_WHITE_SHADOW,
+  },
+  'text-accent': {
+    label: 'Accent',
+    type: 'text',
+    backgroundColor: theme.tags.textAccent.backgroundColor,
+    borderColor: theme.tags.textAccent.borderColor,
+    color: theme.tags.textAccent.color,
+    fontWeight: '800',
   },
   'text-soft-pastel': {
     label: 'Soft pastel',
@@ -305,20 +356,36 @@ export function getResolvedTagPreset(tag: PriceTag, typeOverride?: TagType): Res
   const isBadgeSoldIcon = type === 'sold' && tag.soldTextFormat === 'icon';
   const soldIconSize = Math.max(28, Math.round(sizePreset.fontSize * 2.2));
   const isFlat = isTransparentTagBackground(stylePreset.backgroundColor);
+  const isCondition = type === 'condition';
+  const conditionValue = isCondition ? resolveConditionValueFromTag(tag) : DEFAULT_CONDITION_VALUE;
+  const conditionColors = CONDITION_GRADE_STYLES[conditionValue];
+  /** Fixed diameter so NM/LP/MP/HP stay circular regardless of glyph width. */
+  const conditionDiameter = Math.max(sizePreset.minHeight, Math.round(sizePreset.fontSize * 2.6));
 
   return {
-    backgroundColor: stylePreset.backgroundColor,
-    borderColor: stylePreset.borderColor,
-    color: stylePreset.color,
-    minHeight: isPlainSoldIcon || isBadgeSoldIcon ? soldIconSize + theme.spacing.sm : sizePreset.minHeight,
-    maxWidth: sizePreset.maxWidth,
-    paddingHorizontal: isPlainSoldIcon ? theme.spacing.xs : sizePreset.paddingHorizontal,
-    paddingVertical: isPlainSoldIcon ? theme.spacing.xs : sizePreset.paddingVertical,
+    backgroundColor: isCondition ? conditionColors.backgroundColor : stylePreset.backgroundColor,
+    borderColor: isCondition ? conditionColors.borderColor : stylePreset.borderColor,
+    color: isCondition ? conditionColors.color : stylePreset.color,
+    minHeight: isCondition
+      ? conditionDiameter
+      : isPlainSoldIcon || isBadgeSoldIcon
+        ? soldIconSize + theme.spacing.sm
+        : sizePreset.minHeight,
+    maxWidth: isCondition ? conditionDiameter : sizePreset.maxWidth,
+    paddingHorizontal: isCondition ? 0 : isPlainSoldIcon ? theme.spacing.xs : sizePreset.paddingHorizontal,
+    paddingVertical: isCondition ? 0 : isPlainSoldIcon ? theme.spacing.xs : sizePreset.paddingVertical,
     fontSize: isPlainSoldIcon || isBadgeSoldIcon ? soldIconSize : sizePreset.fontSize,
-    lineHeight: isPlainSoldIcon || isBadgeSoldIcon ? soldIconSize : sizePreset.lineHeight,
+    lineHeight: isCondition
+      ? sizePreset.fontSize
+      : isPlainSoldIcon || isBadgeSoldIcon
+        ? soldIconSize
+        : sizePreset.lineHeight,
     fontWeight: stylePreset.fontWeight ?? DEFAULT_TAG_FONT_WEIGHT,
+    fontStyle: isCondition ? 'italic' : 'normal',
     textShadow: stylePreset.textShadow ?? null,
     isFlat,
+    shape: isCondition ? 'circle' : 'default',
+    fixedSize: isCondition ? conditionDiameter : null,
   };
 }
 

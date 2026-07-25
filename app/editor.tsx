@@ -133,6 +133,7 @@ export default function EditorScreen() {
     commitDraftTag,
     confirmDeleteTag,
     currentLanguageCode,
+    currentConditionValue,
     currentPriceTextFormat,
     currentSoldTextFormat,
     deselectTagForMarkerSelect,
@@ -535,6 +536,7 @@ export default function EditorScreen() {
   const stylePickerPanel = isStylePickerVisible ? (
     <StylePickerPanel
       activeSizePresetId={activeSizePresetId}
+      conditionValue={currentConditionValue}
       languageCode={currentLanguageCode}
       onClose={finishStylePicker}
       onCoachSectionsLayout={bumpCoachMeasure}

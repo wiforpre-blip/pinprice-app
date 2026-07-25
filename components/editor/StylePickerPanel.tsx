@@ -1,14 +1,20 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { INFO_TAG_TYPES, MAIN_TAG_TYPES, SOLD_ICON_TEXT, TAG_SIZE_ORDER, type TagPickerSizePresetId } from '@/constants/tagDefaults';
-import { DEFAULT_TAG_STYLE_BY_TYPE, TAG_STYLE_PRESETS, getTagTextShadowStyle, isTransparentTagBackground } from '@/constants/tagPresets';
+import {
+  CONDITION_GRADE_STYLES,
+  DEFAULT_TAG_STYLE_BY_TYPE,
+  TAG_STYLE_PRESETS,
+  getTagTextShadowStyle,
+  isTransparentTagBackground,
+} from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
-import type { PriceTextFormat, SoldTextFormat, TagLanguageCode, TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
+import type { PriceTextFormat, SoldTextFormat, TagConditionValue, TagLanguageCode, TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
 import { formatPriceDisplay } from '@/utils/priceText';
 
 const SIZE_CHIP_LABELS: Record<TagPickerSizePresetId, string> = {
@@ -23,6 +29,7 @@ type StylePickerPanelProps = {
   activeSizePresetId: TagSizePresetId;
   priceTextFormat: PriceTextFormat;
   soldTextFormat: SoldTextFormat;
+  conditionValue: TagConditionValue;
   languageCode: TagLanguageCode;
   textStylePresetId: TagStylePresetId;
   tagTypesSectionRef?: RefObject<View | null>;
@@ -38,6 +45,7 @@ function getToolPreviewLabel({
   pricePreview,
   soldLabel,
   soldTextFormat,
+  conditionValue,
   languageCode,
   textLabel,
 }: {
@@ -45,6 +53,7 @@ function getToolPreviewLabel({
   pricePreview: string;
   soldLabel: string;
   soldTextFormat: SoldTextFormat;
+  conditionValue: TagConditionValue;
   languageCode: TagLanguageCode;
   textLabel: string;
 }) {
@@ -56,7 +65,7 @@ function getToolPreviewLabel({
     case 'text':
       return textLabel;
     case 'condition':
-      return 'NM';
+      return conditionValue;
     case 'quantity':
       return 'x4';
     case 'language':
@@ -64,29 +73,71 @@ function getToolPreviewLabel({
   }
 }
 
+function SectionRow({ labelLines, children }: { labelLines: [string, string] | [string]; children: ReactNode }) {
+  return (
+    <View style={styles.sectionRow}>
+      <View
+        accessibilityLabel={labelLines.join(' ')}
+        accessibilityRole="header"
+        style={styles.rowLabelWrap}>
+        {labelLines.map((line, index) => (
+          <Text importantForAccessibility="no" key={`${line}-${index}`} style={styles.rowLabel}>
+            {line}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.sectionRowContent}>{children}</View>
+    </View>
+  );
+}
+
 function ToolPreviewChip({
   type,
   label,
+  caption,
   isActive,
   soldTextFormat,
+  conditionValue,
   stylePresetId,
   onPress,
 }: {
   type: TagType;
   label: string;
+  caption: string;
   isActive: boolean;
   soldTextFormat?: SoldTextFormat;
+  conditionValue?: TagConditionValue;
   stylePresetId?: TagStylePresetId;
   onPress: () => void;
 }) {
   const isPlainSoldIcon = type === 'sold' && soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = type === 'sold' && soldTextFormat === 'icon';
+  const isCondition = type === 'condition';
   const resolvedStylePresetId =
     stylePresetId && TAG_STYLE_PRESETS[stylePresetId]?.type === type
       ? stylePresetId
       : DEFAULT_TAG_STYLE_BY_TYPE[type];
   const preset = TAG_STYLE_PRESETS[isPlainSoldIcon ? 'sold-icon-plain' : resolvedStylePresetId];
+  const conditionColors = CONDITION_GRADE_STYLES[conditionValue ?? 'NM'];
   const isPlainText = type === 'text' && isTransparentTagBackground(preset.backgroundColor);
+  const backgroundColor = isCondition
+    ? conditionColors.backgroundColor
+    : isPlainSoldIcon || isPlainText
+      ? 'transparent'
+      : preset.backgroundColor;
+  const borderColor = isCondition
+    ? isActive
+      ? theme.colors.textPrimary
+      : conditionColors.borderColor
+    : isPlainSoldIcon || isPlainText
+      ? isActive
+        ? theme.colors.textPrimary
+        : 'transparent'
+      : isActive
+        ? theme.colors.textPrimary
+        : preset.borderColor;
+  const textColor = isCondition ? conditionColors.color : preset.color;
+
   const preview = (
     <View
       style={[
@@ -94,22 +145,17 @@ function ToolPreviewChip({
         isActive && styles.activeToolChipPreview,
         isPlainSoldIcon && styles.plainSoldPreview,
         isPlainText && styles.plainTextPreview,
+        isCondition && styles.conditionPreview,
         {
-          backgroundColor: isPlainSoldIcon || isPlainText ? 'transparent' : preset.backgroundColor,
-          borderColor:
-            isPlainSoldIcon || isPlainText
-              ? isActive
-                ? theme.colors.textPrimary
-                : 'transparent'
-              : isActive
-                ? theme.colors.textPrimary
-                : preset.borderColor,
+          backgroundColor,
+          borderColor,
+          borderWidth: isCondition ? 2 : undefined,
         },
       ]}>
       {isPlainSoldIcon || isBadgeSoldIcon ? (
         <SoldCrossIcon
           color={isPlainSoldIcon ? theme.colors.sold : preset.color}
-          size={isPlainSoldIcon ? 28 : 18}
+          size={isPlainSoldIcon ? 26 : 16}
           thicknessScale={2}
         />
       ) : (
@@ -117,7 +163,8 @@ function ToolPreviewChip({
           style={[
             styles.toolChipPreviewText,
             type === 'text' ? getTagTextShadowStyle(preset.textShadow ?? null) : null,
-            { color: preset.color, fontWeight: type === 'text' ? (preset.fontWeight ?? '700') : undefined },
+            isCondition && styles.conditionPreviewText,
+            { color: textColor, fontWeight: type === 'text' ? (preset.fontWeight ?? '700') : undefined },
           ]}
           numberOfLines={1}>
           {label}
@@ -128,13 +175,16 @@ function ToolPreviewChip({
 
   return (
     <Pressable
-      accessibilityLabel={label}
+      accessibilityLabel={caption}
       accessibilityRole="button"
       accessibilityState={isActive ? { selected: true } : undefined}
       hitSlop={4}
       onPress={onPress}
-      style={styles.toolChip}>
-      {type === 'text' ? <View style={styles.textToolStage}>{preview}</View> : preview}
+      style={[styles.toolChip, isActive && styles.activeToolChip]}>
+      <View style={styles.toolChipPreviewSlot}>{preview}</View>
+      <Text style={[styles.toolChipCaption, isActive && styles.activeToolChipCaption]} numberOfLines={1}>
+        {caption}
+      </Text>
     </Pressable>
   );
 }
@@ -144,6 +194,7 @@ export function StylePickerPanel({
   activeSizePresetId,
   priceTextFormat,
   soldTextFormat,
+  conditionValue,
   languageCode,
   textStylePresetId,
   tagTypesSectionRef,
@@ -158,11 +209,16 @@ export function StylePickerPanel({
   const pricePreview = formatPriceDisplay('1000', priceTextFormat, currency, language) || '฿1,000';
   const soldLabel = t('tag.sold');
   const textLabel = language === 'th' ? 'ข้อความ' : 'Text';
-  const mainSectionTitle = language === 'th' ? 'ป้ายหลัก' : 'Main tags';
-  const infoSectionTitle = language === 'th' ? 'ป้ายข้อมูลสินค้า' : 'Item info';
+  const mainSectionTitle: [string, string] | [string] = language === 'th' ? ['ป้าย', 'หลัก'] : ['Main'];
+  const infoSectionTitle: [string, string] | [string] = language === 'th' ? ['ป้าย', 'ข้อมูล'] : ['Info'];
+  const sizeSectionTitle: [string, string] | [string] = language === 'th' ? ['ขนาด'] : ['Size'];
 
   return (
     <View style={styles.stylePickerPanel}>
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.handleRow}>
+        <View style={styles.handle} />
+      </View>
+
       <View style={styles.stylePickerHeader}>
         <Text style={styles.stylePickerTitle}>{t('editor.style')}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel={t('style.closePicker')} onPress={onClose} style={styles.stylePickerCloseButton}>
@@ -171,79 +227,85 @@ export function StylePickerPanel({
       </View>
 
       <View collapsable={false} onLayout={onCoachSectionsLayout} ref={tagTypesSectionRef} style={styles.coachSection}>
-        <Text style={styles.sectionTitle}>{mainSectionTitle}</Text>
-        <View style={styles.toolRow}>
-          {MAIN_TAG_TYPES.map((type) => {
-            const label = getToolPreviewLabel({
-              type,
-              pricePreview,
-              soldLabel,
-              soldTextFormat,
-              languageCode,
-              textLabel,
-            });
+        <SectionRow labelLines={mainSectionTitle}>
+          <View style={styles.toolRow}>
+            {MAIN_TAG_TYPES.map((type) => {
+              const label = getToolPreviewLabel({
+                type,
+                pricePreview,
+                soldLabel,
+                soldTextFormat,
+                conditionValue,
+                languageCode,
+                textLabel,
+              });
 
-            return (
-              <ToolPreviewChip
-                key={type}
-                type={type}
-                label={label}
-                isActive={stylePickerType === type}
-                soldTextFormat={type === 'sold' ? soldTextFormat : undefined}
-                stylePresetId={type === 'text' ? textStylePresetId : undefined}
-                onPress={() => onSelectToolType(type)}
-              />
-            );
-          })}
-        </View>
+              return (
+                <ToolPreviewChip
+                  key={type}
+                  type={type}
+                  label={label}
+                  caption={t(`tag.${type}`)}
+                  isActive={stylePickerType === type}
+                  soldTextFormat={type === 'sold' ? soldTextFormat : undefined}
+                  stylePresetId={type === 'text' ? textStylePresetId : undefined}
+                  onPress={() => onSelectToolType(type)}
+                />
+              );
+            })}
+          </View>
+        </SectionRow>
 
-        <View style={styles.divider} />
+        <SectionRow labelLines={infoSectionTitle}>
+          <View style={styles.toolRow}>
+            {INFO_TAG_TYPES.map((type) => {
+              const label = getToolPreviewLabel({
+                type,
+                pricePreview,
+                soldLabel,
+                soldTextFormat,
+                conditionValue,
+                languageCode,
+                textLabel,
+              });
 
-        <Text style={styles.sectionTitle}>{infoSectionTitle}</Text>
-        <View style={styles.toolRow}>
-          {INFO_TAG_TYPES.map((type) => {
-            const label = getToolPreviewLabel({
-              type,
-              pricePreview,
-              soldLabel,
-              soldTextFormat,
-              languageCode,
-              textLabel,
-            });
-
-            return (
-              <ToolPreviewChip
-                key={type}
-                type={type}
-                label={label}
-                isActive={stylePickerType === type}
-                onPress={() => onSelectToolType(type)}
-              />
-            );
-          })}
-        </View>
+              return (
+                <ToolPreviewChip
+                  key={type}
+                  type={type}
+                  label={label}
+                  caption={t(`tag.${type}`)}
+                  isActive={stylePickerType === type}
+                  conditionValue={type === 'condition' ? conditionValue : undefined}
+                  onPress={() => onSelectToolType(type)}
+                />
+              );
+            })}
+          </View>
+        </SectionRow>
       </View>
 
       <View style={styles.divider} />
 
       <View collapsable={false} onLayout={onCoachSectionsLayout} ref={sizeSectionRef} style={styles.coachSection}>
-        <Text style={styles.sectionTitle}>{t('style.size')}</Text>
-        <View style={styles.sizeOptionGrid}>
-          {TAG_SIZE_ORDER.map((sizePresetId) => {
-            const isActive = sizePresetId === activeSizePresetId;
+        <SectionRow labelLines={sizeSectionTitle}>
+          <View style={styles.sizeOptionGrid}>
+            {TAG_SIZE_ORDER.map((sizePresetId) => {
+              const isActive = sizePresetId === activeSizePresetId;
 
-            return (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={isActive ? { selected: true } : undefined}
-                key={sizePresetId}
-                onPress={() => onSelectSizePreset(sizePresetId)}
-                style={[styles.sizeOption, isActive && styles.activeSizeOption]}>
-                <Text style={[styles.sizeOptionText, isActive && styles.activeSizeOptionText]}>{SIZE_CHIP_LABELS[sizePresetId]}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={isActive ? { selected: true } : undefined}
+                  key={sizePresetId}
+                  onPress={() => onSelectSizePreset(sizePresetId)}
+                  style={[styles.sizeOption, isActive && styles.activeSizeOption]}>
+                  <Text style={[styles.sizeOptionText, isActive && styles.activeSizeOptionText]}>{SIZE_CHIP_LABELS[sizePresetId]}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </SectionRow>
       </View>
     </View>
   );
@@ -251,16 +313,60 @@ export function StylePickerPanel({
 
 const styles = StyleSheet.create({
   stylePickerPanel: {
+    borderTopLeftRadius: theme.radius.lg,
+    borderTopRightRadius: theme.radius.lg,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: theme.colors.photoMockItemBorder,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xs,
+    paddingBottom: theme.spacing.sm,
     gap: theme.spacing.sm,
+    // Upward cast so the docked panel reads as a layer over the canvas.
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  handleRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 2,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.photoMockItemBorder,
   },
   coachSection: {
     gap: theme.spacing.sm,
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  rowLabelWrap: {
+    width: 44,
+    justifyContent: 'center',
+    gap: 0,
+  },
+  rowLabel: {
+    ...theme.typography.caption,
+    fontSize: 11,
+    // Tight but non-overlapping lines for Thai two-line labels (ป้าย / หลัก).
+    lineHeight: 14,
+    color: theme.colors.textMuted,
+  },
+  sectionRowContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
   },
   stylePickerHeader: {
     minHeight: 32,
@@ -269,7 +375,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   stylePickerTitle: {
-    ...theme.typography.caption,
+    ...theme.typography.button,
+    fontSize: 14,
+    // Extra line box so Thai above-marks (e.g. ล์) are not clipped.
+    lineHeight: 22,
+    paddingTop: 2,
     color: theme.colors.textPrimary,
   },
   stylePickerCloseButton: {
@@ -279,75 +389,101 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: theme.radius.sm,
   },
-  sectionTitle: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.border,
-    marginVertical: theme.spacing.xs,
-  },
   toolRow: {
     flexDirection: 'row',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xs,
   },
   toolChip: {
     minHeight: 44,
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 2,
+    borderRadius: theme.radius.sm,
+    // Keep borderWidth constant so selecting Main↔Info chips does not reflow row height.
+    borderWidth: 2.5,
+    borderColor: 'transparent',
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+  },
+  activeToolChip: {
+    borderColor: theme.colors.accent,
+  },
+  /** Fixed slot so captions sit on one baseline across different preview heights. */
+  toolChipPreviewSlot: {
+    height: 32,
+    width: '100%',
+    alignItems: 'center',
     justifyContent: 'center',
   },
+  toolChipCaption: {
+    ...theme.typography.caption,
+    fontSize: 10,
+    lineHeight: 14,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    maxWidth: '100%',
+  },
+  activeToolChipCaption: {
+    color: theme.colors.textPrimary,
+    fontWeight: '700',
+  },
   toolChipPreview: {
-    minHeight: 32,
-    minWidth: 56,
+    minHeight: 28,
+    minWidth: 48,
     maxWidth: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.sm,
     borderWidth: 1,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
   },
   plainSoldPreview: {
-    minWidth: 32,
+    minWidth: 28,
     borderWidth: 0,
     paddingHorizontal: 0,
+  },
+  conditionPreview: {
+    width: 32,
+    height: 32,
+    minHeight: 32,
+    minWidth: 32,
+    maxWidth: 32,
+    borderRadius: 16,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
+  conditionPreviewText: {
+    fontStyle: 'italic',
+    fontWeight: '800',
+    fontSize: 11,
   },
   plainTextPreview: {
     borderWidth: 0,
     backgroundColor: 'transparent',
-  },
-  textToolStage: {
-    minHeight: 36,
-    maxWidth: '100%',
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.photoMockBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.xs,
-    paddingVertical: 4,
   },
   activeToolChipPreview: {
     borderWidth: 2,
   },
   toolChipPreviewText: {
     ...theme.typography.caption,
+    fontSize: 11,
   },
   sizeOptionGrid: {
     flexDirection: 'row',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xs,
   },
   sizeOption: {
-    minHeight: 44,
+    minHeight: 40,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.sm,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.sm,
+    backgroundColor: theme.colors.background,
+    paddingHorizontal: theme.spacing.xs,
   },
   activeSizeOption: {
     borderColor: theme.buttons.primary.borderColor,

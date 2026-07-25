@@ -25,7 +25,34 @@
     "currency": "สกุลเงิน",
     "version": "เวอร์ชันแอป",
     "contact": "ติดต่อผู้พัฒนา",
-    "help": "ช่วยเหลือ",
+    "help": {
+      "title": "ช่วยเหลือ",
+      "howToTitle": "วิธีใช้งาน PinPrice",
+      "howTo": {
+        "tapAdd": "แตะรูปเพื่อเพิ่มป้ายราคา",
+        "tapEdit": "แตะป้ายเพื่อแก้ราคา หรือเปลี่ยนเป็น Price / Sold / Reserved",
+        "longPressSold": "กดค้างที่ป้ายเพื่อเปลี่ยนเป็น Sold",
+        "dragMove": "ลากป้ายเพื่อย้ายตำแหน่ง",
+        "undo": "ใช้ Undo ถ้าวางผิด ลบผิด หรือเปลี่ยนผิด",
+        "preview": "กด Preview เพื่อตรวจรูปก่อน Save / Share"
+      },
+      "privacyTitle": "ความเป็นส่วนตัว",
+      "privacy": {
+        "localFirst": "PinPrice ทำงานแบบ local-first บนเครื่องคุณ",
+        "onDevice": "รูปภาพอยู่บนเครื่องของคุณ",
+        "noAccount": "ไม่มีบัญชีผู้ใช้",
+        "noCloud": "ไม่มี cloud sync",
+        "noMarketplace": "ไม่มี marketplace",
+        "permissions": "ขอสิทธิ์กล้อง/รูปภาพเพื่อถ่าย เลือก บันทึก และแชร์รูปเท่านั้น"
+      },
+      "privacyPolicy": "นโยบายความเป็นส่วนตัว",
+      "privacyPolicyComingSoon": "เร็วๆ นี้",
+      "showTipsAgain": "แสดงทิปส์อีกครั้ง",
+      "resetTipsTitle": "แสดงทิปส์อีกครั้ง?",
+      "resetTipsBody": "ทิปส์ในตัวแก้ไขและ style coach จะแสดงอีกครั้ง ภาษา สกุลเงิน และการตั้งค่าอื่นไม่เปลี่ยน",
+      "resetTipsConfirm": "แสดงทิปส์",
+      "resetTipsDone": "ทิปส์จะแสดงอีกครั้งเมื่อเปิดตัวแก้ไขครั้งถัดไป"
+    },
     "removeWatermark": "ลบลายน้ำถาวร",
     "unlocked": "ปลดล็อกแล้ว",
     "comingSoon": "เร็วๆ นี้",

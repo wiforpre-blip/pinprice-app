@@ -243,4 +243,68 @@ export const settingsStyles = StyleSheet.create({
   unlockStatusError: {
     color: theme.colors.sold,
   },
+  helpBody: {
+    gap: theme.spacing.sm,
+  },
+  helpSectionTitle: {
+    ...theme.typography.button,
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.xs,
+  },
+  helpSectionGap: {
+    height: theme.spacing.sm,
+  },
+  helpBulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    paddingVertical: 2,
+  },
+  helpBulletMark: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+    lineHeight: 22,
+  },
+  helpBulletText: {
+    flex: 1,
+    ...theme.typography.body,
+    fontSize: 15,
+    lineHeight: 22,
+    color: theme.colors.textSecondary,
+  },
+  helpLinkRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+  },
+  helpLinkLabel: {
+    flex: 1,
+    ...theme.typography.body,
+    color: theme.colors.textPrimary,
+  },
+  helpLinkLabelDisabled: {
+    color: theme.colors.textMuted,
+  },
+  helpActionButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+  },
+  helpActionButtonDisabled: {
+    opacity: 0.6,
+  },
+  helpActionButtonText: {
+    ...theme.typography.button,
+    color: theme.colors.textPrimary,
+  },
 });

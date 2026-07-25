@@ -18,6 +18,7 @@ export function StaticTag({ imageRect, tag }: StaticTagProps) {
   const isPlainSoldIcon = tag.type === 'sold' && tag.soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = tag.type === 'sold' && tag.soldTextFormat === 'icon';
   const isFlatTag = isPlainSoldIcon || tagStyle.isFlat;
+  const isCircle = tagStyle.shape === 'circle' && tagStyle.fixedSize != null;
   const [tagSize, setTagSize] = useState<TagSize>(FALLBACK_TAG_SIZE);
   const rawLeft = imageRect.x + tag.x * imageRect.width;
   const rawTop = imageRect.y + tag.y * imageRect.height;
@@ -40,10 +41,16 @@ export function StaticTag({ imageRect, tag }: StaticTagProps) {
       style={[
         styles.staticTag,
         isFlatTag && styles.flatTag,
+        isCircle && {
+          width: tagStyle.fixedSize!,
+          height: tagStyle.fixedSize!,
+          borderRadius: tagStyle.fixedSize! / 2,
+          overflow: 'hidden' as const,
+        },
         {
           backgroundColor: tagStyle.backgroundColor,
           borderColor: tagStyle.borderColor,
-          borderWidth: isFlatTag ? 0 : 1,
+          borderWidth: isFlatTag ? 0 : isCircle ? 2 : 1,
           minHeight: tagStyle.minHeight,
           maxWidth: tagStyle.maxWidth,
           paddingHorizontal: tagStyle.paddingHorizontal,
@@ -56,7 +63,7 @@ export function StaticTag({ imageRect, tag }: StaticTagProps) {
         <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
       ) : (
         <Text
-          numberOfLines={2}
+          numberOfLines={isCircle ? 1 : 2}
           style={[
             styles.staticTagText,
             getTagTextShadowStyle(tagStyle.textShadow),
@@ -65,6 +72,7 @@ export function StaticTag({ imageRect, tag }: StaticTagProps) {
               fontSize: tagStyle.fontSize,
               lineHeight: tagStyle.lineHeight,
               fontWeight: tagStyle.fontWeight,
+              fontStyle: tagStyle.fontStyle,
             },
           ]}>
           {tag.text}

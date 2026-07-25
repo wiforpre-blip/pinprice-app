@@ -25,7 +25,34 @@
     "currency": "Currency",
     "version": "App Version",
     "contact": "Contact Developer",
-    "help": "Help",
+    "help": {
+      "title": "Help",
+      "howToTitle": "How to use PinPrice",
+      "howTo": {
+        "tapAdd": "Tap the photo to add a price tag",
+        "tapEdit": "Tap a tag to edit the price or change to Price / Sold / Reserved",
+        "longPressSold": "Long-press a tag to mark it Sold",
+        "dragMove": "Drag a tag to move it",
+        "undo": "Use Undo if you place, delete, or change something by mistake",
+        "preview": "Tap Preview to check the photo before Save / Share"
+      },
+      "privacyTitle": "Privacy",
+      "privacy": {
+        "localFirst": "PinPrice works local-first on your device",
+        "onDevice": "Photos stay on your device",
+        "noAccount": "No user account",
+        "noCloud": "No cloud sync",
+        "noMarketplace": "No marketplace",
+        "permissions": "Camera and photo access are used only to take, choose, save, and share photos"
+      },
+      "privacyPolicy": "Privacy Policy",
+      "privacyPolicyComingSoon": "Coming soon",
+      "showTipsAgain": "Show tips again",
+      "resetTipsTitle": "Show tips again?",
+      "resetTipsBody": "Editor tips and the style coach will show again. Language, currency, and other settings stay unchanged.",
+      "resetTipsConfirm": "Show tips",
+      "resetTipsDone": "Tips will show again next time you open the editor."
+    },
     "removeWatermark": "Remove watermark forever",
     "unlocked": "Unlocked",
     "comingSoon": "Coming soon",

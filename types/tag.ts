@@ -12,6 +12,7 @@ export type TagStylePresetId =
   | 'text-default'
   | 'text-white-border'
   | 'text-plain'
+  | 'text-accent'
   | 'text-soft-pastel'
   | 'text-marker'
   | 'text-dark'
@@ -31,8 +32,8 @@ export type PriceTextFormat = 'symbol' | 'currency_word' | 'number';
 /** How sold status is shown on the tag. */
 export type SoldTextFormat = 'text' | 'icon' | 'icon_plain';
 
-/** Condition grade on the tag. Phase 1 uses NM only; LP/MP can be added later. */
-export type TagConditionValue = 'NM';
+/** Card condition grade shown on condition tags. */
+export type TagConditionValue = 'NM' | 'LP' | 'MP' | 'HP';
 
 /** Language code shown on language tags (not app UI locale). */
 export type TagLanguageCode = 'TH' | 'EN' | 'JP' | 'CN';
@@ -52,7 +53,7 @@ export type PriceTag = {
   soldTextFormat?: SoldTextFormat;
   /** Quantity-only: numeric count (display often as `x{n}`). */
   quantity?: number;
-  /** Condition-only: grade value (placeholder starts at NM). */
+  /** Condition-only: grade value (NM / LP / MP / HP). */
   condition?: TagConditionValue;
   /** Language-only: code shown on the tag. */
   languageCode?: TagLanguageCode;
@@ -84,5 +85,6 @@ export type TagEditorDraftPreview = {
   sizePresetId?: TagSizePresetId;
   priceTextFormat?: PriceTextFormat;
   soldTextFormat?: SoldTextFormat;
+  condition?: TagConditionValue;
   languageCode?: TagLanguageCode;
 };

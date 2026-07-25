@@ -33,6 +33,10 @@ export function PendingPlacementChip({ previewTag, onCancel }: PendingPlacementC
           ]}>
           {isPlainSoldIcon || isBadgeSoldIcon ? (
             <SoldCrossIcon color={isPlainSoldIcon ? theme.colors.sold : resolved.color} size={12} thicknessScale={2} />
+          ) : previewTag.type === 'condition' ? (
+            <Text style={[styles.conditionSwatchText, { color: resolved.color }]} numberOfLines={1}>
+              {previewTag.text}
+            </Text>
           ) : (
             <View style={[styles.swatchDot, { backgroundColor: resolved.color }]} />
           )}
@@ -88,6 +92,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  conditionSwatchText: {
+    fontSize: 8,
+    lineHeight: 10,
+    fontWeight: '800',
+    fontStyle: 'italic',
   },
   label: {
     ...theme.typography.caption,

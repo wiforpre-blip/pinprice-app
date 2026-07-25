@@ -187,7 +187,9 @@ export default function HomeScreen() {
                 styles.primaryButton,
                 (isOpeningPicker || isOpeningDraft) && styles.disabledButton,
               ]}>
-              <Text style={[styles.buttonText, styles.primaryButtonText]}>{t('home.choosePhoto')}</Text>
+              <Text style={[styles.buttonText, styles.primaryButtonText, language === 'th' && styles.buttonTextThai]}>
+                {t('home.choosePhoto')}
+              </Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -198,7 +200,9 @@ export default function HomeScreen() {
                 styles.secondaryButton,
                 (isOpeningPicker || isOpeningDraft) && styles.disabledButton,
               ]}>
-              <Text style={[styles.buttonText, styles.secondaryButtonText]}>{t('home.takePhoto')}</Text>
+              <Text style={[styles.buttonText, styles.secondaryButtonText, language === 'th' && styles.buttonTextThai]}>
+                {t('home.takePhoto')}
+              </Text>
             </Pressable>
             {message ? <Text style={styles.message}>{message}</Text> : null}
           </View>
@@ -261,7 +265,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    ...theme.typography.caption,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '700',
     color: theme.colors.textPrimary,
     textAlign: 'center',
   },
@@ -307,9 +313,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
   },
   buttonText: {
     ...theme.typography.button,
+  },
+  buttonTextThai: {
+    // Extra line box so Thai below-marks (สระอู in เลือกรูป / ถ่ายรูป) are not clipped.
+    lineHeight: 26,
+    paddingBottom: 2,
   },
   primaryButton: {
     backgroundColor: theme.buttons.primary.backgroundColor,

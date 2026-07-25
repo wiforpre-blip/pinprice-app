@@ -1,20 +1,32 @@
-import type { TagLanguageCode, SoldTextFormat, TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
+import type { TagConditionValue, TagLanguageCode, SoldTextFormat, TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
 
 export const DEFAULT_PRICE_TEXT = '';
 export const DEFAULT_SOLD_TEXT = 'SOLD';
 export const DEFAULT_TEXT_TAG = '';
-export const DEFAULT_CONDITION_TEXT = 'NM';
+export const DEFAULT_CONDITION_VALUE: TagConditionValue = 'NM';
+export const DEFAULT_CONDITION_TEXT = DEFAULT_CONDITION_VALUE;
 export const DEFAULT_QUANTITY = 1;
 export const DEFAULT_LANGUAGE_CODE: TagLanguageCode = 'TH';
 export const SOLD_ICON_TEXT = '✕';
 
 export const SOLD_TEXT_FORMAT_CYCLE: SoldTextFormat[] = ['text', 'icon', 'icon_plain'];
+/** Grades cycled when re-tapping the condition tool chip in the style picker. */
+export const TAG_CONDITION_VALUE_CYCLE: TagConditionValue[] = ['NM', 'LP', 'MP', 'HP'];
 export const TAG_LANGUAGE_CODE_CYCLE: TagLanguageCode[] = ['TH', 'EN', 'JP', 'CN'];
+
+export function parseConditionValue(value: string | undefined | null): TagConditionValue {
+  if (value === 'NM' || value === 'LP' || value === 'MP' || value === 'HP') {
+    return value;
+  }
+
+  return DEFAULT_CONDITION_VALUE;
+}
 /** Visual styles cycled when re-tapping the text tool chip in the style picker. */
 export const TEXT_STYLE_PRESET_CYCLE: TagStylePresetId[] = [
   'text-default',
   'text-white-border',
   'text-plain',
+  'text-accent',
   'text-soft-pastel',
   'text-marker',
   'text-dark',

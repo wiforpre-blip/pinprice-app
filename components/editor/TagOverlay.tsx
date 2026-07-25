@@ -66,6 +66,7 @@ export function TagOverlay({
   const isPlainSoldIcon = displayType === 'sold' && tag.soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = displayType === 'sold' && tag.soldTextFormat === 'icon';
   const isFlatTag = isPlainSoldIcon || tagStyle.isFlat;
+  const isCircle = tagStyle.shape === 'circle' && tagStyle.fixedSize != null;
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(ZERO_OFFSET);
   const [tagSize, setTagSize] = useState<TagSize>(FALLBACK_TAG_SIZE);
@@ -232,10 +233,16 @@ export function TagOverlay({
         isSelected && styles.selectedTag,
         isDragging && styles.draggingTag,
         isFlatTag && styles.flatTag,
+        isCircle && {
+          width: tagStyle.fixedSize!,
+          height: tagStyle.fixedSize!,
+          borderRadius: tagStyle.fixedSize! / 2,
+          overflow: 'hidden' as const,
+        },
         {
           backgroundColor: tagStyle.backgroundColor,
           borderColor: tagStyle.borderColor,
-          borderWidth: isFlatTag ? 0 : 1,
+          borderWidth: isFlatTag ? 0 : isCircle ? 2 : 1,
           minHeight: tagStyle.minHeight,
           maxWidth: tagStyle.maxWidth,
           paddingHorizontal: tagStyle.paddingHorizontal,
@@ -247,15 +254,15 @@ export function TagOverlay({
       ]}>
       {isSelected ? (
         <>
-          <View pointerEvents="none" style={styles.selectedRingOuter} />
-          <View pointerEvents="none" style={styles.selectedRingInner} />
+          <View pointerEvents="none" style={[styles.selectedRingOuter, isCircle && styles.circleSelectedRing]} />
+          <View pointerEvents="none" style={[styles.selectedRingInner, isCircle && styles.circleSelectedRing]} />
         </>
       ) : null}
       {isPlainSoldIcon || isBadgeSoldIcon ? (
         <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
       ) : (
         <Text
-          numberOfLines={2}
+          numberOfLines={isCircle ? 1 : 2}
           style={[
             styles.tagText,
             getTagTextShadowStyle(tagStyle.textShadow),
@@ -264,6 +271,7 @@ export function TagOverlay({
               fontSize: tagStyle.fontSize,
               lineHeight: tagStyle.lineHeight,
               fontWeight: tagStyle.fontWeight,
+              fontStyle: tagStyle.fontStyle,
             },
           ]}>
           {displayText}
@@ -316,6 +324,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md - 1,
     borderWidth: 2,
     borderColor: theme.colors.selectionRingInner,
+  },
+  circleSelectedRing: {
+    borderRadius: 999,
   },
   tagText: {
     ...theme.typography.tag,

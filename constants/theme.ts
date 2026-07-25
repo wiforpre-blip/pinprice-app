@@ -9,8 +9,8 @@ export const PinPriceTheme = {
     border: '#E5E5E5',
     sold: '#E5484D',
     success: '#1F9D55',
-    /** Brand accent for price style presets (e.g. yellow / black). */
-    accent: '#F5C518',
+    /** Brand accent — selected chrome + price accent preset. Text on accent: black only. */
+    accent: '#E8FF47',
     accentText: '#000000',
     priceTagBackground: '#FFFFFF',
     priceTagBorder: '#000000',
@@ -109,8 +109,8 @@ export const PinPriceTheme = {
       color: '#000000',
     },
     priceAccent: {
-      backgroundColor: '#F5C518',
-      borderColor: '#F5C518',
+      backgroundColor: '#E8FF47',
+      borderColor: '#E8FF47',
       color: '#000000',
     },
     sold: {
@@ -138,9 +138,25 @@ export const PinPriceTheme = {
       borderColor: '#4A5B6A',
       color: '#FFFFFF',
     },
+    /** Default / NM — grade colors resolved in tagPresets by TagConditionValue. */
     condition: {
-      backgroundColor: '#FFFFFF',
-      borderColor: '#000000',
+      backgroundColor: '#57B28B',
+      borderColor: 'rgba(255, 255, 255, 0.9)',
+      color: '#000000',
+    },
+    conditionLp: {
+      backgroundColor: '#9ACD32',
+      borderColor: 'rgba(255, 255, 255, 0.9)',
+      color: '#000000',
+    },
+    conditionMp: {
+      backgroundColor: '#F7E53B',
+      borderColor: 'rgba(255, 255, 255, 0.9)',
+      color: '#000000',
+    },
+    conditionHp: {
+      backgroundColor: '#F5A623',
+      borderColor: 'rgba(255, 255, 255, 0.9)',
       color: '#000000',
     },
     language: {
@@ -161,6 +177,11 @@ export const PinPriceTheme = {
     textPlain: {
       backgroundColor: 'transparent',
       borderColor: 'transparent',
+      color: '#000000',
+    },
+    textAccent: {
+      backgroundColor: '#E8FF47',
+      borderColor: '#E8FF47',
       color: '#000000',
     },
     textSoftPastel: {

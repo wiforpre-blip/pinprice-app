@@ -247,6 +247,7 @@ export function EditorCanvas({
                           sizePresetId: draftPreview.sizePresetId ?? tag.sizePresetId,
                           priceTextFormat: draftPreview.priceTextFormat ?? tag.priceTextFormat,
                           soldTextFormat: draftPreview.soldTextFormat ?? tag.soldTextFormat,
+                          condition: draftPreview.condition ?? tag.condition,
                           languageCode: draftPreview.languageCode ?? tag.languageCode,
                         }
                       : tag

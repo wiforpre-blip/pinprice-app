@@ -8,6 +8,7 @@ import {
 } from '@/constants/tagPresets';
 import {
   DEFAULT_CONDITION_TEXT,
+  DEFAULT_CONDITION_VALUE,
   DEFAULT_LANGUAGE_CODE,
   DEFAULT_PRICE_TEXT,
   DEFAULT_QUANTITY,
@@ -15,6 +16,7 @@ import {
   DEFAULT_TEXT_TAG,
   SOLD_ICON_TEXT,
   SOLD_TEXT_FORMAT_CYCLE,
+  TAG_CONDITION_VALUE_CYCLE,
   TAG_LANGUAGE_CODE_CYCLE,
   TEXT_STYLE_PRESET_CYCLE,
   getLargerSizePreset,
@@ -31,6 +33,7 @@ import type {
   PriceTag,
   PriceTextFormat,
   SoldTextFormat,
+  TagConditionValue,
   TagEditorDraftPreview,
   TagEditorSaveUpdates,
   TagLanguageCode,
@@ -50,6 +53,7 @@ import { clampPriceTextFormat, formatPriceDisplay, getPriceTextFormatsForCurrenc
 
 export {
   DEFAULT_CONDITION_TEXT,
+  DEFAULT_CONDITION_VALUE,
   DEFAULT_LANGUAGE_CODE,
   DEFAULT_PRICE_TEXT,
   DEFAULT_QUANTITY,
@@ -92,6 +96,7 @@ type CreateTagOptions = {
   priceTextFormat: PriceTextFormat;
   soldTextFormat: SoldTextFormat;
   languageCode: TagLanguageCode;
+  condition: TagConditionValue;
 };
 
 function createPriceTag(
@@ -158,12 +163,12 @@ function createPriceTag(
       return {
         id,
         type,
-        text: getDefaultTextForType(type, soldLabel),
+        text: options.condition,
         x,
         y,
         stylePresetId: resolvedStylePresetId,
         sizePresetId,
-        condition: 'NM',
+        condition: options.condition,
       };
     case 'language':
       return {
@@ -236,6 +241,7 @@ export function useTagEditorState({
   const [currentPriceTextFormat, setCurrentPriceTextFormat] = useState<PriceTextFormat>('symbol');
   const [currentSoldTextFormat, setCurrentSoldTextFormat] = useState<SoldTextFormat>('text');
   const [currentLanguageCode, setCurrentLanguageCode] = useState<TagLanguageCode>(DEFAULT_LANGUAGE_CODE);
+  const [currentConditionValue, setCurrentConditionValue] = useState<TagConditionValue>(DEFAULT_CONDITION_VALUE);
 
   const selectedTag = tags.find((tag) => tag.id === selectedTagId) ?? null;
   const isDraggingTag = draggingTagId !== null;
@@ -285,6 +291,7 @@ export function useTagEditorState({
         current.sizePresetId === preview.sizePresetId &&
         current.priceTextFormat === preview.priceTextFormat &&
         current.soldTextFormat === preview.soldTextFormat &&
+        current.condition === preview.condition &&
         current.languageCode === preview.languageCode
       ) {
         return current;
@@ -368,6 +375,7 @@ export function useTagEditorState({
         priceTextFormat: clampPriceTextFormat(currency, currentPriceTextFormat),
         soldTextFormat: currentSoldTextFormat,
         languageCode: currentLanguageCode,
+        condition: currentConditionValue,
       },
     );
 
@@ -571,7 +579,7 @@ export function useTagEditorState({
             : previousTag.priceTextFormat,
         soldTextFormat: previousTag.type === 'sold' ? (updates.soldTextFormat ?? previousTag.soldTextFormat ?? 'text') : previousTag.soldTextFormat,
         quantity: previousTag.type === 'quantity' ? (updates.quantity ?? previousTag.quantity ?? DEFAULT_QUANTITY) : previousTag.quantity,
-        condition: previousTag.type === 'condition' ? (updates.condition ?? previousTag.condition ?? 'NM') : previousTag.condition,
+        condition: previousTag.type === 'condition' ? (updates.condition ?? previousTag.condition ?? DEFAULT_CONDITION_VALUE) : previousTag.condition,
         languageCode:
           previousTag.type === 'language' ? (updates.languageCode ?? previousTag.languageCode ?? DEFAULT_LANGUAGE_CODE) : previousTag.languageCode,
       };
@@ -618,6 +626,10 @@ export function useTagEditorState({
         setCurrentLanguageCode(nextTag.languageCode);
       }
 
+      if (previousTag.type === 'condition' && nextTag.condition) {
+        setCurrentConditionValue(nextTag.condition);
+      }
+
       return currentTags.map((tag) => (tag.id === tagId ? nextTag : tag));
     });
     clearTagEditorState();
@@ -649,6 +661,11 @@ export function useTagEditorState({
 
       if (type === 'language') {
         setCurrentLanguageCode((current) => getNextCycleValue(TAG_LANGUAGE_CODE_CYCLE, current));
+        return;
+      }
+
+      if (type === 'condition') {
+        setCurrentConditionValue((current) => getNextCycleValue(TAG_CONDITION_VALUE_CYCLE, current));
         return;
       }
     }
@@ -871,7 +888,7 @@ export function useTagEditorState({
       case 'text':
         return language === 'th' ? 'ข้อความ' : 'Text';
       case 'condition':
-        return DEFAULT_CONDITION_TEXT;
+        return currentConditionValue;
       case 'quantity':
         return 'x4';
       case 'language':
@@ -899,6 +916,7 @@ export function useTagEditorState({
     sizePresetId: stylePreviewSizeId,
     priceTextFormat: stylePickerType === 'price' ? currentPriceTextFormat : undefined,
     soldTextFormat: stylePickerType === 'sold' ? currentSoldTextFormat : undefined,
+    condition: stylePickerType === 'condition' ? currentConditionValue : undefined,
     languageCode: stylePickerType === 'language' ? currentLanguageCode : undefined,
   };
 
@@ -915,6 +933,7 @@ export function useTagEditorState({
     commitDraftTag,
     confirmDeleteTag,
     currentLanguageCode,
+    currentConditionValue,
     currentPriceTextFormat,
     currentSoldTextFormat,
     deselectTagForMarkerSelect,

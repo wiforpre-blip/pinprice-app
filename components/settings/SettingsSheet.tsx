@@ -4,6 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { CurrencySelectorSheet } from '@/components/settings/CurrencySelectorSheet';
 import { FeedbackSheet } from '@/components/settings/FeedbackSheet';
+import { HelpSheet } from '@/components/settings/HelpSheet';
 import { UnlockPaywallSheet } from '@/components/settings/UnlockPaywallSheet';
 import { settingsStyles as styles } from '@/components/settings/settings.styles';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
@@ -24,6 +25,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { currency } = useCurrency();
   const { language, setLanguage, t } = useTranslation();
   const [isCurrencySelectorOpen, setIsCurrencySelectorOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isUnlockPaywallOpen, setIsUnlockPaywallOpen] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -48,6 +50,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
 
   const handleClose = () => {
     setIsCurrencySelectorOpen(false);
+    setIsHelpOpen(false);
     setIsFeedbackOpen(false);
     setIsUnlockPaywallOpen(false);
     onClose();
@@ -92,10 +95,15 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
 
           <View style={styles.divider} />
 
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>{t('settings.help')}</Text>
-            <Text style={styles.rowValueMuted}>{t('settings.comingSoon')}</Text>
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setIsHelpOpen(true)}
+            style={styles.row}>
+            <Text style={styles.rowLabel}>{t('settings.help.title')}</Text>
+            <View style={styles.rowTrailing}>
+              <MaterialIcons color={theme.colors.textMuted} name="chevron-right" size={22} />
+            </View>
+          </Pressable>
 
           <Pressable
             accessibilityRole="button"
@@ -131,6 +139,8 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
         onClose={() => setIsCurrencySelectorOpen(false)}
         visible={visible && isCurrencySelectorOpen}
       />
+
+      <HelpSheet onClose={() => setIsHelpOpen(false)} visible={visible && isHelpOpen} />
 
       <FeedbackSheet onClose={() => setIsFeedbackOpen(false)} visible={visible && isFeedbackOpen} />
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type KeyboardEvent } from 'react-native';
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
-import { DEFAULT_QUANTITY, SOLD_ICON_TEXT, SOLD_TEXT_FORMAT_CYCLE, TAG_SIZE_ORDER, toPickerSizePreset, type TagPickerSizePresetId } from '@/constants/tagDefaults';
+import { DEFAULT_CONDITION_VALUE, DEFAULT_QUANTITY, SOLD_ICON_TEXT, SOLD_TEXT_FORMAT_CYCLE, TAG_CONDITION_VALUE_CYCLE, TAG_SIZE_ORDER, toPickerSizePreset, type TagPickerSizePresetId } from '@/constants/tagDefaults';
 import {
   DEFAULT_TAG_SIZE_PRESET_ID,
   DEFAULT_TAG_STYLE_BY_TYPE,
@@ -11,6 +11,7 @@ import {
   getStylePresetIdsForType,
   getTagTextShadowStyle,
   isTransparentTagBackground,
+  resolveConditionValueFromTag,
 } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -20,6 +21,7 @@ import type {
   PriceTag,
   PriceTextFormat,
   SoldTextFormat,
+  TagConditionValue,
   TagEditorDraftPreview,
   TagEditorSaveUpdates,
   TagLanguageCode,
@@ -84,6 +86,7 @@ function buildDisplayText({
   soldTextFormat,
   quantity,
   languageCode,
+  conditionValue,
   freeText,
   soldLabel,
   currency,
@@ -95,6 +98,7 @@ function buildDisplayText({
   soldTextFormat: SoldTextFormat;
   quantity: string;
   languageCode: TagLanguageCode;
+  conditionValue: TagConditionValue;
   freeText: string;
   soldLabel: string;
   currency: Parameters<typeof formatPriceDisplay>[2];
@@ -112,7 +116,7 @@ function buildDisplayText({
       return `x${Number(digits)}`;
     }
     case 'condition':
-      return 'NM';
+      return conditionValue;
     case 'language':
       return languageCode;
   }
@@ -309,6 +313,7 @@ export function TagEditor({
   const [soldTextFormat, setSoldTextFormat] = useState<SoldTextFormat>('text');
   const [quantity, setQuantity] = useState(String(DEFAULT_QUANTITY));
   const [languageCode, setLanguageCode] = useState<TagLanguageCode>('TH');
+  const [conditionValue, setConditionValue] = useState<TagConditionValue>(DEFAULT_CONDITION_VALUE);
   const [freeText, setFreeText] = useState('');
   const [stylePresetId, setStylePresetId] = useState<TagStylePresetId>(DEFAULT_TAG_STYLE_BY_TYPE.price);
   const [sizePresetId, setSizePresetId] = useState<TagSizePresetId>(DEFAULT_TAG_SIZE_PRESET_ID);
@@ -343,6 +348,7 @@ export function TagEditor({
         setLanguageCode(tag.languageCode ?? (LANGUAGE_CODES.includes(tag.text as TagLanguageCode) ? (tag.text as TagLanguageCode) : 'TH'));
         break;
       case 'condition':
+        setConditionValue(resolveConditionValueFromTag(tag));
         break;
     }
   }, [currency, tag, visible]);
@@ -383,12 +389,13 @@ export function TagEditor({
       soldTextFormat,
       quantity,
       languageCode,
+      conditionValue,
       freeText,
       soldLabel,
       currency,
       language,
     });
-  }, [tag, priceAmount, priceTextFormat, soldTextFormat, quantity, languageCode, freeText, soldLabel, currency, language]);
+  }, [tag, priceAmount, priceTextFormat, soldTextFormat, quantity, languageCode, conditionValue, freeText, soldLabel, currency, language]);
 
   useEffect(() => {
     if (!visible || !tag) {
@@ -401,11 +408,12 @@ export function TagEditor({
       sizePresetId: TYPES_WITH_SIZE_PICKER.includes(tag.type) ? sizePresetId : tag.sizePresetId,
       priceTextFormat: tag.type === 'price' ? priceTextFormat : undefined,
       soldTextFormat: tag.type === 'sold' ? soldTextFormat : undefined,
+      condition: tag.type === 'condition' ? conditionValue : undefined,
       languageCode: tag.type === 'language' ? languageCode : undefined,
     };
 
     onDraftChange(preview);
-  }, [displayText, languageCode, onDraftChange, priceTextFormat, sizePresetId, soldTextFormat, stylePresetId, tag, visible]);
+  }, [conditionValue, displayText, languageCode, onDraftChange, priceTextFormat, sizePresetId, soldTextFormat, stylePresetId, tag, visible]);
 
   if (!visible || !tag) {
     return null;
@@ -440,7 +448,7 @@ export function TagEditor({
         break;
       }
       case 'condition':
-        onSave(tag.id, { text: displayText, stylePresetId, condition: 'NM' });
+        onSave(tag.id, { text: displayText, stylePresetId, condition: conditionValue });
         break;
       case 'language':
         onSave(tag.id, { text: displayText, stylePresetId, languageCode, ...sizeUpdate });
@@ -528,7 +536,13 @@ export function TagEditor({
         />
       ) : null}
 
-      {tag.type === 'condition' ? <Text style={styles.placeholderNote}>NM</Text> : null}
+      {tag.type === 'condition' ? (
+        <View style={styles.optionRow}>
+          {TAG_CONDITION_VALUE_CYCLE.map((grade) => (
+            <OptionChip key={grade} label={grade} isActive={conditionValue === grade} onPress={() => setConditionValue(grade)} />
+          ))}
+        </View>
+      ) : null}
 
       {tag.type === 'language' ? (
         <View style={styles.optionRow}>
@@ -696,12 +710,6 @@ const styles = StyleSheet.create({
   textStylePreviewText: {
     ...theme.typography.caption,
     fontWeight: '700',
-  },
-  placeholderNote: {
-    ...theme.typography.body,
-    color: theme.colors.textPrimary,
-    minHeight: 44,
-    textAlignVertical: 'center',
   },
   actions: {
     flexDirection: 'row',
