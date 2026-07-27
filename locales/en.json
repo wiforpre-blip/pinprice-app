@@ -199,7 +199,15 @@
     "delete": "Delete",
     "dragToDelete": "Release here to delete",
     "confirmDeleteTitle": "Delete this tag?",
-    "confirmDeleteBody": "This tag will be removed from the photo."
+    "confirmDeleteBody": "This tag will be removed from the photo.",
+    "dock": {
+      "color": "Color",
+      "style": "Style",
+      "size": "Size",
+      "format": "Format",
+      "grade": "Grade",
+      "language": "Language"
+    }
   },
   "style": {
     "closePicker": "Close style picker",

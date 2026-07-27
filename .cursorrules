@@ -232,6 +232,18 @@ When a file mixes responsibilities:
 
 The editor is the core product.
 
+Tag edit chrome (`TagEditor`):
+
+* Split UI: input float near the tag + edit dock fixed to the bottom of the canvas
+* Float: text/number input only (when needed) + `×` cancel; never style/format chips or a tall all-in-one popup
+* Price float is `[amount] [×]` only; price format lives in the dock (`Format` sub-menu)
+* Dock: short main menu (`Color` / `Format` / `Style` / `Size` / type options + `Save`)
+* Sub-menus open in the same dock space; picking a value updates live preview but does **not** auto-return — user presses `←` to go back
+* Dock `bottom` uses canvas-relative keyboard overlap (host `measure` vs keyboard `screenY`), not raw keyboard height and never tag-based `top`
+* Outside tap on the image auto-commits a valid draft / existing edits; blank new price/text drafts cancel; `×` is always intentional cancel (no auto-save)
+* Outside-tap dismiss must not also place a new tag on the same tap
+* Keep live `draftPreview`; do not merge this edit dock into `StylePickerPanel`
+
 Tag behavior:
 
 * Tap image to add tag

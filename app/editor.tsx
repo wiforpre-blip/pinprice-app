@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Keyboard, Text, View } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
 
 import { useLocalSearchParams } from 'expo-router';
@@ -149,6 +149,7 @@ export default function EditorScreen() {
     handleAlignSelectedTags,
     handleBottomDropAreaLayout,
     handleCancelTagEdit,
+    handleDismissTagEdit,
     handleDeleteTag,
     handleDraftChange,
     handleSaveTag,
@@ -236,6 +237,23 @@ export default function EditorScreen() {
     panelMarkers.length > 0 ||
     Boolean(selectedTagId) ||
     Boolean(draftTagId);
+
+  const handleHardwareBackPress = useCallback(() => {
+    // 1) Soft keyboard open → dismiss keyboard only (keep float/dock).
+    if ((Keyboard.metrics()?.height ?? 0) > 0) {
+      Keyboard.dismiss();
+      return true;
+    }
+
+    // 2) Tag editor open → dismiss/auto-commit before leaving the screen.
+    if (editorMode === 'tag' && selectedTag) {
+      handleDismissTagEdit();
+      return true;
+    }
+
+    return false;
+  }, [editorMode, handleDismissTagEdit, selectedTag]);
+
   const {
     applyRestoredFilename,
     cancelFilenameEdit,
@@ -255,6 +273,7 @@ export default function EditorScreen() {
     hasContentDirty,
     isExporting,
     isPreviewing,
+    onHardwareBackPress: handleHardwareBackPress,
     routeFilename,
     selectedImageUri,
   });
@@ -294,7 +313,7 @@ export default function EditorScreen() {
     }
 
     if (editorMode === 'tag' && selectedTag) {
-      handleCancelTagEdit();
+      handleDismissTagEdit();
       return;
     }
 
@@ -306,7 +325,7 @@ export default function EditorScreen() {
     editingMarkerId,
     exitMultiSelectMode,
     handleCancelMarkerPriceEdit,
-    handleCancelTagEdit,
+    handleDismissTagEdit,
     isMultiSelectMode,
     selectedTag,
   ]);
@@ -360,7 +379,9 @@ export default function EditorScreen() {
     }
 
     if (editorMode === 'tag' && selectedTag) {
-      handleCancelTagEdit();
+      // Auto-save valid draft / edits; blank new price|text cancels.
+      // Always return — never also place a new tag on this same tap.
+      handleDismissTagEdit();
       return;
     }
 

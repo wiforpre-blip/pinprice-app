@@ -49,7 +49,7 @@ import {
   isPointInsideImageRect,
   isPointInsideRect,
 } from '@/utils/editorGeometry';
-import { clampPriceTextFormat, formatPriceDisplay, getPriceTextFormatsForCurrency } from '@/utils/priceText';
+import { clampPriceTextFormat, extractPriceDigits, formatPriceDisplay, getPriceTextFormatsForCurrency } from '@/utils/priceText';
 
 export {
   DEFAULT_CONDITION_TEXT,
@@ -90,6 +90,59 @@ function getSafeTagText(text: string, type: TagType, soldLabel: string) {
   }
 
   return trimmedText;
+}
+
+/** New drafts that are still blank may be discarded on outside tap; typed tags stay. */
+function isNewDraftEmpty(tag: PriceTag, draftPreview: TagEditorDraftPreview | null, draftText: string) {
+  const text = (draftPreview?.text ?? draftText).trim();
+
+  switch (tag.type) {
+    case 'price':
+      return extractPriceDigits(text).length === 0;
+    case 'text':
+      return text.length === 0;
+    case 'sold':
+    case 'quantity':
+    case 'condition':
+    case 'language':
+      return false;
+  }
+}
+
+function buildSaveUpdatesFromDraft(
+  tag: PriceTag,
+  draftPreview: TagEditorDraftPreview | null,
+  draftText: string
+): TagEditorSaveUpdates {
+  const text = draftPreview?.text ?? draftText;
+  const updates: TagEditorSaveUpdates = {
+    text,
+    stylePresetId: draftPreview?.stylePresetId ?? tag.stylePresetId,
+    sizePresetId: draftPreview?.sizePresetId ?? tag.sizePresetId,
+  };
+
+  if (tag.type === 'price') {
+    updates.priceTextFormat = draftPreview?.priceTextFormat ?? tag.priceTextFormat;
+  }
+
+  if (tag.type === 'sold') {
+    updates.soldTextFormat = draftPreview?.soldTextFormat ?? tag.soldTextFormat;
+  }
+
+  if (tag.type === 'condition') {
+    updates.condition = draftPreview?.condition ?? tag.condition;
+  }
+
+  if (tag.type === 'language') {
+    updates.languageCode = draftPreview?.languageCode ?? tag.languageCode;
+  }
+
+  if (tag.type === 'quantity') {
+    const digits = extractPriceDigits(text);
+    updates.quantity = digits ? Number(digits) : (tag.quantity ?? DEFAULT_QUANTITY);
+  }
+
+  return updates;
 }
 
 type CreateTagOptions = {
@@ -398,6 +451,10 @@ export function useTagEditorState({
         currentIds.includes(tag.id) ? currentIds.filter((id) => id !== tag.id) : [...currentIds, tag.id],
       );
       return;
+    }
+
+    if (selectedTag && selectedTag.id !== tag.id) {
+      handleDismissTagEdit();
     }
 
     setSelectedTagId(tag.id);
@@ -751,6 +808,28 @@ export function useTagEditorState({
     clearTagEditorState();
   };
 
+  /**
+   * Outside tap / switch-away: keep intentional work.
+   * - New blank price/text draft → cancel (same as ×)
+   * - New draft with valid content, or edit of existing tag → save then close
+   * Does not create a new tag; caller must return before addTagAtPoint.
+   */
+  const handleDismissTagEdit = () => {
+    if (!selectedTag) {
+      clearTagEditorState();
+      return;
+    }
+
+    const isNewDraft = draftTagId === selectedTag.id;
+
+    if (isNewDraft && isNewDraftEmpty(selectedTag, draftPreview, draftText)) {
+      handleCancelTagEdit();
+      return;
+    }
+
+    handleSaveTag(selectedTag.id, buildSaveUpdatesFromDraft(selectedTag, draftPreview, draftText));
+  };
+
   const clearAlignFeedback = () => {
     if (alignFeedbackTimerRef.current) {
       clearTimeout(alignFeedbackTimerRef.current);
@@ -949,6 +1028,7 @@ export function useTagEditorState({
     handleAlignSelectedTags,
     handleBottomDropAreaLayout,
     handleCancelTagEdit,
+    handleDismissTagEdit,
     handleDeleteTag,
     handleDraftChange,
     handleSaveTag,

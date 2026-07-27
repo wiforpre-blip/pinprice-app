@@ -74,6 +74,8 @@ type UseEditorSessionOptions = {
   hasContentDirty: boolean;
   isExporting: boolean;
   isPreviewing: boolean;
+  /** Return true to consume hardware back before leave-editor flow. */
+  onHardwareBackPress?: () => boolean;
   routeFilename?: string | null;
   selectedImageUri: string | null;
 };
@@ -83,6 +85,7 @@ export function useEditorSession({
   hasContentDirty,
   isExporting,
   isPreviewing,
+  onHardwareBackPress,
   routeFilename = null,
   selectedImageUri,
 }: UseEditorSessionOptions) {
@@ -155,6 +158,10 @@ export function useEditorSession({
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (onHardwareBackPress?.()) {
+        return true;
+      }
+
       requestLeaveEditor();
       return true;
     });
@@ -162,7 +169,7 @@ export function useEditorSession({
     return () => {
       subscription.remove();
     };
-  }, [requestLeaveEditor]);
+  }, [onHardwareBackPress, requestLeaveEditor]);
 
   const startFilenameEdit = () => {
     setDraftFilename(filename);

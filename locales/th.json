@@ -199,7 +199,15 @@
     "delete": "ลบ",
     "dragToDelete": "ปล่อยตรงนี้เพื่อลบ",
     "confirmDeleteTitle": "ลบป้ายนี้?",
-    "confirmDeleteBody": "ป้ายนี้จะถูกลบออกจากรูป"
+    "confirmDeleteBody": "ป้ายนี้จะถูกลบออกจากรูป",
+    "dock": {
+      "color": "สี",
+      "style": "สไตล์",
+      "size": "ขนาด",
+      "format": "รูปแบบ",
+      "grade": "เกรด",
+      "language": "ภาษา"
+    }
   },
   "style": {
     "closePicker": "ปิดตัวเลือกสไตล์",
