@@ -22,6 +22,8 @@ import type { PanelMarker } from '@/types/pricePanel';
 import type { PriceTag } from '@/types/tag';
 
 const UNTITLED_FILENAME = 'Untitled';
+/** Preview CTA to open lifetime unlock — hidden until paywall is ready to ship. */
+const SHOW_REMOVE_WATERMARK_BANNER = false;
 
 type EditorPreviewScreenProps = {
   draftFilename: string;
@@ -30,6 +32,7 @@ type EditorPreviewScreenProps = {
   exportMessage: string | null;
   exportRef: RefObject<View | null>;
   filename: string;
+  hasSavedToGallery: boolean;
   imageSize: Size | null;
   imageUri: string;
   isEditingFilename: boolean;
@@ -39,7 +42,9 @@ type EditorPreviewScreenProps = {
   onClosePreview: () => void;
   onConfirmFilenameEdit: () => void;
   onDraftFilenameChange: (value: string) => void;
+  onCaptureImageLoad: (loaded: boolean) => void;
   onImageLoad: (event: ImageLoadEventData) => void;
+  onNewPhoto: () => void;
   onPreviewLayout: (event: LayoutChangeEvent) => void;
   onSaveImage: () => void;
   onShareImage: () => void;
@@ -58,6 +63,7 @@ export function EditorPreviewScreen({
   exportMessage,
   exportRef,
   filename,
+  hasSavedToGallery,
   imageSize,
   imageUri,
   isEditingFilename,
@@ -67,7 +73,9 @@ export function EditorPreviewScreen({
   onClosePreview,
   onConfirmFilenameEdit,
   onDraftFilenameChange,
+  onCaptureImageLoad,
   onImageLoad,
+  onNewPhoto,
   onPreviewLayout,
   onSaveImage,
   onShareImage,
@@ -114,13 +122,25 @@ export function EditorPreviewScreen({
       />
 
       <View style={styles.previewTopBar}>
-        <Pressable
-          accessibilityRole="button"
-          disabled={isExporting}
-          onPress={handleClosePreview}
-          style={styles.backButton}>
-          <Text style={[styles.backButtonText, isExporting && styles.disabledText]}>{t('editor.edit')}</Text>
-        </Pressable>
+        <View style={styles.previewHeaderLeft}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={isExporting}
+            onPress={handleClosePreview}
+            style={styles.backButton}>
+            <Text style={[styles.backButtonText, isExporting && styles.disabledText]}>{t('editor.edit')}</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={isExporting}
+            onPress={onNewPhoto}
+            style={styles.newPhotoButton}>
+            <Text style={[styles.newPhotoButtonText, isExporting && styles.disabledText]}>
+              {t('editor.newPhoto')}
+            </Text>
+          </Pressable>
+        </View>
 
         {isEditingFilename ? (
           <TextInput
@@ -182,9 +202,11 @@ export function EditorPreviewScreen({
       </View>
 
       <View style={styles.previewContent}>
+        {/* Tag export: on-screen preview is separate from the full-res capture target inside ExportPreview. */}
         <ExportPreview
           ref={exportRef}
           editorMode={editorMode}
+          onCaptureImageLoad={onCaptureImageLoad}
           imageSize={imageSize}
           imageUri={imageUri}
           onImageLoad={onImageLoad}
@@ -194,11 +216,17 @@ export function EditorPreviewScreen({
           showWatermark={showWatermark}
           tags={tags}
         />
+
+        {exportMessage ? (
+          <View pointerEvents="none" style={styles.exportToastOverlay}>
+            <View style={styles.exportToast}>
+              <Text style={styles.exportToastText}>{exportMessage}</Text>
+            </View>
+          </View>
+        ) : null}
       </View>
 
-      {exportMessage ? <Text style={styles.exportMessage}>{exportMessage}</Text> : null}
-
-      {showWatermark ? (
+      {SHOW_REMOVE_WATERMARK_BANNER && showWatermark ? (
         <Pressable
           accessibilityRole="button"
           accessibilityState={isExporting ? { disabled: true } : undefined}
@@ -220,9 +248,17 @@ export function EditorPreviewScreen({
           disabled={isExporting}
           onPress={onSaveImage}
           style={[styles.previewActionButton, styles.previewPrimaryAction, isExporting && styles.bottomActionDisabled]}>
-          <MaterialIcons color={theme.buttons.primary.color} name="save-alt" size={22} />
+          <MaterialIcons
+            color={theme.buttons.primary.color}
+            name={hasSavedToGallery && exportAction !== 'save' ? 'check' : 'save-alt'}
+            size={22}
+          />
           <Text style={styles.previewPrimaryActionText}>
-            {exportAction === 'save' ? t('editor.saving') : t('export.saveImage')}
+            {exportAction === 'save'
+              ? t('editor.saving')
+              : hasSavedToGallery
+                ? t('export.saved')
+                : t('export.saveImage')}
           </Text>
         </Pressable>
 
@@ -253,11 +289,33 @@ const styles = StyleSheet.create({
   },
   backButton: {
     minHeight: 44,
-    width: 72,
+    paddingRight: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
     justifyContent: 'center',
+    overflow: 'visible',
   },
   backButtonText: {
     ...theme.typography.button,
+    lineHeight: 24,
+    includeFontPadding: true,
+    color: theme.colors.textPrimary,
+  },
+  previewHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  newPhotoButton: {
+    minHeight: 44,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
+  newPhotoButtonText: {
+    ...theme.typography.button,
+    lineHeight: 24,
+    includeFontPadding: true,
     color: theme.colors.textPrimary,
   },
   disabledText: {
@@ -306,19 +364,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   previewTopBar: {
-    minHeight: 60,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
   },
   previewTopSpacer: {
-    width: 72,
+    minWidth: 48,
   },
   previewContent: {
     flex: 1,
@@ -326,12 +383,27 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.md,
   },
-  exportMessage: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
+  exportToastOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.sm,
+  },
+  exportToast: {
+    maxWidth: '100%',
+    borderRadius: theme.radius.lg,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    paddingHorizontal: theme.spacing.xxl,
+    paddingTop: theme.spacing.lg + 2,
+    paddingBottom: theme.spacing.lg + 6,
+  },
+  exportToastText: {
+    fontSize: 24,
+    lineHeight: 36,
+    fontWeight: '600',
+    color: theme.colors.white,
+    textAlign: 'center',
   },
   unlockBanner: {
     minHeight: 44,
@@ -373,6 +445,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.sm,
     borderWidth: 1,
     paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    overflow: 'visible',
   },
   previewPrimaryAction: {
     borderColor: theme.buttons.primary.borderColor,
@@ -380,6 +454,8 @@ const styles = StyleSheet.create({
   },
   previewPrimaryActionText: {
     ...theme.typography.button,
+    lineHeight: 24,
+    includeFontPadding: true,
     color: theme.buttons.primary.color,
   },
   previewSecondaryAction: {
@@ -388,6 +464,8 @@ const styles = StyleSheet.create({
   },
   previewSecondaryActionText: {
     ...theme.typography.button,
+    lineHeight: 24,
+    includeFontPadding: true,
     color: theme.buttons.secondary.color,
   },
   bottomActionDisabled: {

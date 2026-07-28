@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, Text, View } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
+import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,6 +50,9 @@ type EditorParams = {
   imageUri?: string | string[];
 };
 
+const STYLE_SHEET_ENTER_MS = 280;
+const STYLE_SHEET_EXIT_MS = 220;
+
 export default function EditorScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -70,26 +74,6 @@ export default function EditorScreen() {
   }, []);
   const getDraftSnapshot = useCallback(() => draftSnapshotRef.current, []);
   const {
-    applyUnlock,
-    closePreview,
-    exportAction,
-    exportMessage,
-    exportRef,
-    handlePreviewLayout,
-    handleSaveImage,
-    handleShareImage,
-    isExporting,
-    isPreviewing,
-    openPreview: openExportPreview,
-    previewSize,
-    showWatermark,
-  } = useEditorExport({
-    getDraftSnapshot,
-    imageUri: selectedImageUri,
-    initialDraftId: selectedDraftId,
-    onExportSuccess: () => {},
-  });
-  const {
     canvasRef,
     canvasSize,
     dragTopBoundaryY,
@@ -100,6 +84,29 @@ export default function EditorScreen() {
     imageRect,
     imageSize,
   } = useEditorLayout();
+  const {
+    applyUnlock,
+    closePreview,
+    exportAction,
+    exportMessage,
+    exportRef,
+    handleCaptureImageLoad,
+    handlePreviewLayout,
+    handleSaveImage,
+    handleShareImage,
+    hasSavedToGallery,
+    isExporting,
+    isPreviewing,
+    openPreview: openExportPreview,
+    previewSize,
+    showWatermark,
+  } = useEditorExport({
+    getDraftSnapshot,
+    imageSize,
+    imageUri: selectedImageUri,
+    initialDraftId: selectedDraftId,
+    onExportSuccess: () => {},
+  });
   const [hasEditHistory, setHasEditHistory] = useState(false);
   const [isResetModalVisible, setIsResetModalVisible] = useState(false);
   const {
@@ -180,6 +187,7 @@ export default function EditorScreen() {
     tagSizeById,
     tags,
     textStylePresetId,
+    soldStylePresetId,
   } = useTagEditorState({
     closeOverlayMenus,
     confirmPendingDraftHistory,
@@ -221,6 +229,7 @@ export default function EditorScreen() {
     pushHistory,
   });
   const canReset = tags.length > 0 || panelMarkers.length > 0;
+  const canExport = canReset;
   const canSelect = tags.length > 0;
   bindChrome({
     clearPricePanelState,
@@ -265,6 +274,7 @@ export default function EditorScreen() {
     isEditingFilename,
     isLeaveModalVisible,
     requestLeaveEditor,
+    requestNewPhoto,
     setDraftFilename,
     setIsEditingFilename,
     startFilenameEdit,
@@ -296,7 +306,7 @@ export default function EditorScreen() {
   };
 
   const openPreview = () => {
-    if (!selectedImageUri) {
+    if (!selectedImageUri || !canExport) {
       return;
     }
 
@@ -426,7 +436,7 @@ export default function EditorScreen() {
 
   const handleFloatingMainAction = (actionId: FloatingMainActionId) => {
     if (actionId === 'style') {
-      if (isMultiSelectMode) {
+      if (isMultiSelectMode || isZoomMode) {
         return;
       }
 
@@ -455,6 +465,7 @@ export default function EditorScreen() {
 
       // Close edit popup when entering/leaving Zoom so tap-to-edit does not fire by accident.
       // Multi-select selection state is left alone.
+      cancelPendingPlacement();
       if (!isMultiSelectMode) {
         handleCancelTagEdit();
       }
@@ -464,6 +475,11 @@ export default function EditorScreen() {
     }
 
     if (actionId === 'export') {
+      if (!canExport) {
+        return;
+      }
+
+      cancelPendingPlacement();
       openPreview();
     }
   };
@@ -554,7 +570,7 @@ export default function EditorScreen() {
     />
   );
 
-  const stylePickerPanel = isStylePickerVisible ? (
+  const stylePickerPanel = (
     <StylePickerPanel
       activeSizePresetId={activeSizePresetId}
       conditionValue={currentConditionValue}
@@ -569,8 +585,9 @@ export default function EditorScreen() {
       stylePickerType={stylePickerType}
       tagTypesSectionRef={tagTypesSectionRef}
       textStylePresetId={textStylePresetId}
+      soldStylePresetId={soldStylePresetId}
     />
-  ) : null;
+  );
 
   if (isPreviewing && selectedImageUri) {
     return (
@@ -585,12 +602,15 @@ export default function EditorScreen() {
         imageUri={selectedImageUri}
         isEditingFilename={isEditingFilename}
         isExporting={isExporting}
+        hasSavedToGallery={hasSavedToGallery}
         leaveConfirmModal={leaveConfirmModal}
         onCancelFilenameEdit={cancelFilenameEdit}
         onClosePreview={closePreview}
         onConfirmFilenameEdit={confirmFilenameEdit}
+        onCaptureImageLoad={handleCaptureImageLoad}
         onDraftFilenameChange={setDraftFilename}
         onImageLoad={handleImageLoad}
+        onNewPhoto={requestNewPhoto}
         onPreviewLayout={handlePreviewLayout}
         onSaveImage={() => {
           const exportName = isEditingFilename ? draftFilename.trim() || filename : filename;
@@ -636,81 +656,94 @@ export default function EditorScreen() {
         }
       />
 
-      {isPendingPlacement && !isStylePickerVisible ? (
-        <PendingPlacementChip onCancel={cancelPendingPlacement} previewTag={stylePreviewTag} />
-      ) : null}
-
-      {!activeStepId ? (
+      {!activeStepId && (!selectedImageUri || isZoomMode || isMultiSelectMode) ? (
         <Text style={styles.placeholder}>
           {selectedImageUri
             ? isZoomMode
               ? t('editor.zoomHint')
-              : isMultiSelectMode
-                ? t('editor.tapEmptyToExit')
-                : isPendingPlacement
-                  ? `${t('editor.placingHint')} ${t(`tag.${stylePickerType}`)}`
-                  : editorMode === 'priceList'
-                    ? t('editor.tapPhotoToAddMarker')
-                    : t('editor.tapPhotoToAdd')
+              : t('editor.tapEmptyToExit')
             : t('editor.choosePhotoToStart')}
         </Text>
       ) : null}
 
-      <View
-        style={[
-          styles.content,
-          { paddingBottom: contentBottomPadding },
-          isDraggingTag && styles.contentDragging,
-        ]}>
-        <EditorCanvas
-          canvasRef={canvasRef}
-          canvasSize={canvasSize}
-          draftPreview={draftPreview}
-          draftTagId={draftTagId}
-          draftText={draftText}
-          draftType={draftType}
-          dragTopBoundaryY={dragTopBoundaryY}
-          draggingTagId={draggingTagId}
-          editorMode={editorMode}
-          getDefaultTextForType={(type) => getDefaultTextForType(type, t('tag.sold'))}
-          groupDragOffset={groupDragOffset}
-          groupDragOriginalTagsRef={groupDragOriginalTagsRef}
-          imageRect={imageRect}
-          imageUri={selectedImageUri}
-          isDraggingTag={isDraggingTag}
-          isMultiSelectMode={isMultiSelectMode}
-          isStylePickerVisible={isStylePickerVisible}
-          isZoomMode={isZoomMode}
-          onCancelTagEdit={handleCancelTagEdit}
-          onCanvasLayout={handleCanvasLayout}
-          onCanvasPress={handleCanvasPress}
-          onDeleteMarker={requestDeleteMarker}
-          onDeleteTag={handleDeleteTag}
-          onDraftChange={handleDraftChange}
-          onEditMarkerPrice={handleEditMarkerPrice}
-          onImageLoad={handleImageLoad}
-          onLeaveEmpty={requestLeaveEditor}
-          onSaveTag={handleSaveTag}
-          onSelectMarker={handleSelectMarker}
-          onTagDragCancel={handleTagDragCancel}
-          onTagDragEnd={handleTagDragEnd}
-          onTagDragMove={handleTagDragMove}
-          onTagDragOffsetChange={handleTagDragOffsetChange}
-          onTagDragStart={handleTagDragStart}
-          onTagPress={handleTagPress}
-          onTagSizeChange={handleTagSizeChange}
-          panelMarkers={panelMarkers}
-          selectedMarkerId={selectedMarkerId}
-          selectedTag={selectedTag}
-          selectedTagId={selectedTagId}
-          selectedTagIds={selectedTagIds}
-          stylePreviewTag={stylePreviewTag}
-          tagSizeById={tagSizeById}
-          tags={tags}
-          viewportScale={zoomScale}
-          zoomAnimatedStyle={zoomAnimatedStyle}
-          zoomGesture={zoomGesture}
-        />
+      <View style={styles.workspace}>
+        {selectedImageUri &&
+        editorMode === 'tag' &&
+        !isStylePickerVisible &&
+        !activeStepId &&
+        !isMultiSelectMode &&
+        !isZoomMode ? (
+          <View pointerEvents="box-none" style={styles.placementChipOverlay}>
+            <PendingPlacementChip onCancel={cancelPendingPlacement} previewTag={stylePreviewTag} />
+          </View>
+        ) : null}
+
+        <View
+          style={[
+            styles.content,
+            { paddingBottom: contentBottomPadding },
+            isDraggingTag && styles.contentDragging,
+          ]}>
+          <EditorCanvas
+            canvasRef={canvasRef}
+            canvasSize={canvasSize}
+            draftPreview={draftPreview}
+            draftTagId={draftTagId}
+            draftText={draftText}
+            draftType={draftType}
+            dragTopBoundaryY={dragTopBoundaryY}
+            draggingTagId={draggingTagId}
+            editorMode={editorMode}
+            getDefaultTextForType={(type) => getDefaultTextForType(type, t('tag.sold'))}
+            groupDragOffset={groupDragOffset}
+            groupDragOriginalTagsRef={groupDragOriginalTagsRef}
+            imageRect={imageRect}
+            imageUri={selectedImageUri}
+            isDraggingTag={isDraggingTag}
+            isMultiSelectMode={isMultiSelectMode}
+            isStylePickerVisible={isStylePickerVisible}
+            isZoomMode={isZoomMode}
+            onCancelTagEdit={handleCancelTagEdit}
+            onCanvasLayout={handleCanvasLayout}
+            onCanvasPress={handleCanvasPress}
+            onDeleteMarker={requestDeleteMarker}
+            onDeleteTag={handleDeleteTag}
+            onDraftChange={handleDraftChange}
+            onEditMarkerPrice={handleEditMarkerPrice}
+            onImageLoad={handleImageLoad}
+            onLeaveEmpty={requestLeaveEditor}
+            onSaveTag={handleSaveTag}
+            onSelectMarker={handleSelectMarker}
+            onTagDragCancel={handleTagDragCancel}
+            onTagDragEnd={handleTagDragEnd}
+            onTagDragMove={handleTagDragMove}
+            onTagDragOffsetChange={handleTagDragOffsetChange}
+            onTagDragStart={handleTagDragStart}
+            onTagPress={handleTagPress}
+            onTagSizeChange={handleTagSizeChange}
+            panelMarkers={panelMarkers}
+            selectedMarkerId={selectedMarkerId}
+            selectedTag={selectedTag}
+            selectedTagId={selectedTagId}
+            selectedTagIds={selectedTagIds}
+            stylePreviewTag={stylePreviewTag}
+            tagSizeById={tagSizeById}
+            tags={tags}
+            viewportScale={zoomScale}
+            zoomAnimatedStyle={zoomAnimatedStyle}
+            zoomGesture={zoomGesture}
+          />
+        </View>
+
+        {isStylePickerVisible ? (
+          <Animated.View
+            entering={SlideInDown.duration(STYLE_SHEET_ENTER_MS)}
+            exiting={SlideOutDown.duration(STYLE_SHEET_EXIT_MS)}
+            pointerEvents="box-none"
+            style={styles.stylePickerOverlay}>
+            {stylePickerPanel}
+          </Animated.View>
+        ) : null}
       </View>
 
       <PriceRowEditor
@@ -720,8 +753,6 @@ export default function EditorScreen() {
         onSave={handleSaveMarkerPrice}
         visible={editorMode === 'priceList' && Boolean(editingMarker)}
       />
-
-      {stylePickerPanel}
 
       <BottomSheetOverlay onClose={closeMoreMenu} title={t('editor.moreMenuTitle')} visible={isMoreMenuVisible}>
         <Text style={styles.moreMenuPlaceholder}>{t('editor.moreMenuPlaceholder')}</Text>
@@ -748,13 +779,13 @@ export default function EditorScreen() {
       <EditorFloatingControls
         alignFeedbackMessage={alignFeedbackMessage}
         bottomDropAreaRef={bottomDropAreaRef}
+        canExport={canExport}
         canSelect={canSelect}
         editorMode={editorMode}
         isDragOverDelete={isDragOverDelete}
         isDraggingTag={isDraggingTag}
         isMultiSelectGroupDrag={isMultiSelectGroupDrag}
         isMultiSelectMode={isMultiSelectMode}
-        isPendingPlacement={isPendingPlacement}
         isStylePickerVisible={isStylePickerVisible}
         isZoomMode={isZoomMode}
         onBottomDropAreaLayout={handleBottomDropAreaLayout}
