@@ -1,15 +1,42 @@
-import { useRef, useState } from 'react';
-import { LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { forwardRef, useEffect, useRef, useState } from 'react';
+import {
+  LayoutChangeEvent,
+  PanResponder,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type KeyboardTypeOptions,
+} from 'react-native';
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
-import { getResolvedTagPreset, getTagTextShadowStyle } from '@/constants/tagPresets';
+import { getResolvedTagPreset, getTagTextShadowStyle, getTagViewShadowStyle, resolveTagMaxWidth, resolveTextTagDefaultWidth, TAG_BODY_MAX_LINES } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import type { ImageDisplayRect, PriceTag, TagType } from '@/types/tag';
-import { EDITOR_ZOOM_DEFAULT, FALLBACK_TAG_SIZE, screenDeltaToCanvasDelta } from '@/utils/editorGeometry';
+import { clampPointToImageRect, EDITOR_ZOOM_DEFAULT, FALLBACK_TAG_SIZE, screenDeltaToCanvasDelta } from '@/utils/editorGeometry';
+
+export type TagInlineEdit = {
+  value: string;
+  /** Return the accepted value to keep local input in sync (e.g. after sanitize). */
+  onChangeText: (text: string) => void | string;
+  keyboardType?: KeyboardTypeOptions;
+  autoFocus?: boolean;
+  multiline?: boolean;
+  maxLength?: number;
+  placeholder?: string;
+  prefix?: string;
+  selection?: TextInputSelection;
+  onFocus?: () => void;
+  /** Return false to ignore the key (best-effort; platform support varies). */
+  onKeyPress?: (key: string) => boolean;
+  onSelectionChange?: (selection: TextInputSelection) => void;
+};
 
 type TagOverlayProps = {
   dragEnabled?: boolean;
   externalDragOffset?: DragPoint | null;
+  inlineEdit?: TagInlineEdit | null;
   isSelected?: boolean;
   minDragY?: number;
   tag: PriceTag;
@@ -38,28 +65,73 @@ type TagSize = {
   height: number;
 };
 
+type TextInputSelection = {
+  start: number;
+  end: number;
+};
+
 const DRAG_THRESHOLD = 6;
+const MULTILINE_INPUT_VERTICAL_PAD = 6;
 const ZERO_OFFSET = { x: 0, y: 0 };
 
-export function TagOverlay({
-  dragEnabled = true,
-  externalDragOffset = null,
-  isSelected = false,
-  minDragY,
-  tag,
-  textOverride,
-  typeOverride,
-  imageRect,
-  viewportScale = EDITOR_ZOOM_DEFAULT,
-  clampDragOffset,
-  onDragCancel,
-  onDragEnd,
-  onDragMove,
-  onDragOffsetChange,
-  onDragStart,
-  onPress,
-  onSizeChange,
-}: TagOverlayProps) {
+/**
+ * Sync width estimate for text-tag chips (same frame as onChangeText).
+ * Slightly overestimates so the chip grows before native multiline wraps.
+ */
+function estimateTextTagChipWidth(
+  text: string,
+  fontSize: number,
+  paddingHorizontal: number,
+  defaultWidth: number,
+  maxWidth: number,
+) {
+  const lines = text.length === 0 ? [''] : text.split('\n');
+  let longest = 0;
+
+  for (const line of lines) {
+    let lineWidth = 0;
+    for (const char of line) {
+      const code = char.codePointAt(0) ?? 0;
+      if (code <= 0x007f) {
+        lineWidth += fontSize * (char === ' ' || char === '\t' ? 0.35 : 0.65);
+      } else if (code >= 0x0e00 && code <= 0x0e7f) {
+        // Thai — slight overestimate so chip grows before native wrap.
+        lineWidth += fontSize * 0.9;
+      } else {
+        lineWidth += fontSize * 1.0;
+      }
+    }
+    longest = Math.max(longest, lineWidth);
+  }
+
+  // Extra glyph of slack so the next keypress rarely wraps at the old width.
+  const contentWidth = Math.ceil(longest + fontSize * 0.25 + paddingHorizontal * 2);
+  return Math.min(maxWidth, Math.max(defaultWidth, contentWidth));
+}
+
+export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOverlay(
+  {
+    dragEnabled = true,
+    externalDragOffset = null,
+    inlineEdit = null,
+    isSelected = false,
+    minDragY,
+    tag,
+    textOverride,
+    typeOverride,
+    imageRect,
+    viewportScale = EDITOR_ZOOM_DEFAULT,
+    clampDragOffset,
+    onDragCancel,
+    onDragEnd,
+    onDragMove,
+    onDragOffsetChange,
+    onDragStart,
+    onPress,
+    onSizeChange,
+  },
+  ref
+) {
   const displayType = typeOverride ?? tag.type;
   const tagStyle = getResolvedTagPreset(tag, displayType);
   const displayText = textOverride ?? tag.text;
@@ -67,9 +139,15 @@ export function TagOverlay({
   const isBadgeSoldIcon = displayType === 'sold' && tag.soldTextFormat === 'icon';
   const isFlatTag = isPlainSoldIcon || tagStyle.isFlat;
   const isCircle = tagStyle.shape === 'circle' && tagStyle.fixedSize != null;
+  const isInlineEditing = inlineEdit != null && !isPlainSoldIcon && !isBadgeSoldIcon;
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(ZERO_OFFSET);
   const [tagSize, setTagSize] = useState<TagSize>(FALLBACK_TAG_SIZE);
+  // Local value so typing updates the native field immediately (no wait for parent publish effect).
+  const [localInputValue, setLocalInputValue] = useState(inlineEdit?.value ?? '');
+  /** Live chip width while editing text — updated in the same frame as onChangeText (grow-before-wrap). */
+  const [textContentWidth, setTextContentWidth] = useState<number | null>(null);
+  const tagViewRef = useRef<View>(null);
   const startPointRef = useRef({ x: 0, y: 0 });
   const hasDraggedRef = useRef(false);
   const tagRef = useRef(tag);
@@ -105,6 +183,40 @@ export function TagOverlay({
     onPress,
     onSizeChange,
   };
+
+  // Sync from parent when edit opens or parent corrects value — set width in the same update path.
+  useEffect(() => {
+    if (inlineEdit == null) {
+      return;
+    }
+
+    setLocalInputValue(inlineEdit.value);
+  }, [inlineEdit?.value, isInlineEditing]);
+
+  // Seed / clear chip width for text editing (grow-before-wrap uses sync estimate on each keystroke).
+  useEffect(() => {
+    if (!isInlineEditing || displayType !== 'text') {
+      setTextContentWidth(null);
+      return;
+    }
+
+    const defaultWidth = resolveTextTagDefaultWidth(imageRect.width);
+    const seeded = estimateTextTagChipWidth(
+      inlineEdit?.value ?? '',
+      tagStyle.fontSize,
+      tagStyle.paddingHorizontal,
+      defaultWidth,
+      imageRect.width,
+    );
+    setTextContentWidth(seeded);
+  }, [
+    displayType,
+    imageRect.width,
+    inlineEdit?.value,
+    isInlineEditing,
+    tagStyle.fontSize,
+    tagStyle.paddingHorizontal,
+  ]);
 
   const getBoundedDragOffset = (dx: number, dy: number) => {
     const localDelta = screenDeltaToCanvasDelta(dx, dy, viewportScaleRef.current);
@@ -205,9 +317,63 @@ export function TagOverlay({
     }),
   ).current;
 
-  const left = imageRect.x + tag.x * imageRect.width;
-  const top = imageRect.y + tag.y * imageRect.height;
+  const rawLeft = imageRect.x + tag.x * imageRect.width;
+  const rawTop = imageRect.y + tag.y * imageRect.height;
+  // Avoid re-clamping while typing — size changes would shift the chip and make the first glyph jump.
+  const leftTop = isInlineEditing
+    ? { x: rawLeft, y: rawTop }
+    : clampPointToImageRect(rawLeft, rawTop, imageRect, tagSize);
+  const left = leftTop.x;
+  const top = leftTop.y;
   const activeOffset = isDragging ? dragOffset : externalDragOffset ?? ZERO_OFFSET;
+  // Cap by remaining space to the right so tags never hang past the photo edge.
+  const roomToRight = Math.max(0, imageRect.x + imageRect.width - left);
+  const isTextTag = displayType === 'text';
+  // Text: max = full image (≤ roomToRight). Default create width stays ~49% of image.
+  const textDefaultWidth = Math.min(resolveTextTagDefaultWidth(imageRect.width), roomToRight);
+  const displayMaxWidth = Math.min(resolveTagMaxWidth(tag, imageRect.width, typeOverride), roomToRight);
+  // Text tags: no fixed line cap — grow with content until the image bottom.
+  // Other body tags keep TAG_BODY_MAX_LINES; circle/quantity stay single-line.
+  const bodyMaxLines = isCircle || displayType === 'quantity' ? 1 : isTextTag ? undefined : TAG_BODY_MAX_LINES;
+  const isQuantity = displayType === 'quantity';
+  const isCompactInline = isInlineEditing && (isQuantity || displayType === 'price');
+  // Remaining image height from tag top — hard cap so the chip never hangs past the photo.
+  const roomBelow = Math.max(tagStyle.minHeight, imageRect.y + imageRect.height - top);
+  const multilineInputMaxHeight =
+    isInlineEditing && inlineEdit?.multiline
+      ? Math.max(tagStyle.lineHeight + MULTILINE_INPUT_VERTICAL_PAD, roomBelow - tagStyle.paddingVertical * 2)
+      : undefined;
+  const singleLineInputMinHeight = Math.max(
+    tagStyle.minHeight - tagStyle.paddingVertical * 2,
+    tagStyle.lineHeight,
+  );
+  const inlineHostMinHeight = tagStyle.minHeight;
+  // Digits-only width (prefix "x" is a sibling). Keep 3-digit capacity stable while editing.
+  const quantityDigitsWidth = isQuantity ? Math.ceil(tagStyle.fontSize * 3 * 0.72 + 4) : 0;
+  // "x" + 3 digits + padding — must fit inside the blue chip or the prefix paints outside the bg.
+  const quantityEditChipWidth = isQuantity
+    ? Math.ceil(tagStyle.fontSize * (0.72 + 3 * 0.72) + tagStyle.paddingHorizontal * 2 + 8)
+    : 0;
+  const tagMaxWidth =
+    isInlineEditing && isQuantity ? Math.max(displayMaxWidth, quantityEditChipWidth) : displayMaxWidth;
+  // Text edit: chip + TextInput share the same width (center-aligned). Grow via sync estimate.
+  const textEditWidth =
+    isTextTag && isInlineEditing
+      ? Math.min(displayMaxWidth, Math.max(textDefaultWidth, textContentWidth ?? textDefaultWidth))
+      : undefined;
+  const contentTextAlign = isQuantity ? ('left' as const) : ('center' as const);
+  const textStyle = [
+    styles.tagText,
+    isQuantity ? styles.tagTextStart : null,
+    getTagTextShadowStyle(tagStyle.textShadow),
+    {
+      color: tagStyle.color,
+      fontSize: tagStyle.fontSize,
+      lineHeight: tagStyle.lineHeight,
+      fontWeight: tagStyle.fontWeight,
+      fontStyle: tagStyle.fontStyle,
+    },
+  ];
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -223,63 +389,178 @@ export function TagOverlay({
 
   return (
     <View
-      {...panResponder.panHandlers}
-      accessible
-      accessibilityRole="button"
-      accessibilityLabel={`Edit ${displayText} tag`}
+      ref={tagViewRef}
+      {...(isInlineEditing ? undefined : panResponder.panHandlers)}
+      accessible={!isInlineEditing}
+      accessibilityRole={isInlineEditing ? undefined : 'button'}
+      accessibilityLabel={isInlineEditing ? undefined : `Edit ${displayText} tag`}
       onLayout={handleLayout}
       style={[
         styles.tag,
-        isSelected && styles.selectedTag,
-        isDragging && styles.draggingTag,
-        isFlatTag && styles.flatTag,
         isCircle && {
           width: tagStyle.fixedSize!,
           height: tagStyle.fixedSize!,
-          borderRadius: tagStyle.fixedSize! / 2,
-          overflow: 'hidden' as const,
+          // Selection rings sit outside the chip; keep overflow visible when selected.
+          overflow: (isSelected ? 'visible' : 'hidden') as 'visible' | 'hidden',
         },
         {
           backgroundColor: tagStyle.backgroundColor,
           borderColor: tagStyle.borderColor,
-          borderWidth: isFlatTag ? 0 : isCircle ? 2 : 1,
+          borderWidth: isCircle ? Math.max(tagStyle.borderWidth, 2) : tagStyle.borderWidth,
+          borderRadius: isCircle && tagStyle.fixedSize != null ? tagStyle.fixedSize / 2 : tagStyle.borderRadius,
           minHeight: tagStyle.minHeight,
-          maxWidth: tagStyle.maxWidth,
-          paddingHorizontal: tagStyle.paddingHorizontal,
-          paddingVertical: tagStyle.paddingVertical,
+          maxWidth: tagMaxWidth,
+          ...(textEditWidth != null ? { width: textEditWidth } : null),
+          ...(isTextTag ? { maxHeight: roomBelow, overflow: 'hidden' as const } : null),
+          // Zero outer padding while editing so TextInput host fills the full tag hit area.
+          paddingHorizontal: isInlineEditing ? 0 : tagStyle.paddingHorizontal,
+          paddingVertical: isInlineEditing ? 0 : tagStyle.paddingVertical,
+          alignItems: isQuantity ? 'flex-start' : 'center',
           left,
           top,
           transform: [{ translateX: activeOffset.x }, { translateY: activeOffset.y }],
+          ...getTagViewShadowStyle(isFlatTag ? null : tagStyle.viewShadow),
         },
+        isSelected && styles.selectedTag,
+        isDragging && styles.draggingTag,
       ]}>
       {isSelected ? (
         <>
-          <View pointerEvents="none" style={[styles.selectedRingOuter, isCircle && styles.circleSelectedRing]} />
-          <View pointerEvents="none" style={[styles.selectedRingInner, isCircle && styles.circleSelectedRing]} />
+          <View
+            pointerEvents="none"
+            style={[
+              styles.selectedRingOuter,
+              isCircle && styles.circleSelectedRing,
+              !isCircle && {
+                borderRadius: Math.max(theme.radius.md, tagStyle.borderRadius + theme.spacing.sm + 1),
+              },
+            ]}
+          />
+          <View
+            pointerEvents="none"
+            style={[
+              styles.selectedRingInner,
+              isCircle && styles.circleSelectedRing,
+              !isCircle && {
+                borderRadius: Math.max(theme.radius.md - 1, tagStyle.borderRadius + theme.spacing.sm),
+              },
+            ]}
+          />
         </>
       ) : null}
-      {isPlainSoldIcon || isBadgeSoldIcon ? (
-        <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
-      ) : (
-        <Text
-          numberOfLines={isCircle ? 1 : 2}
+      {isInlineEditing && inlineEdit ? (
+        <View
           style={[
-            styles.tagText,
-            getTagTextShadowStyle(tagStyle.textShadow),
+            styles.inlineEditHost,
+            isCompactInline ? styles.inlineEditHostCompact : styles.inlineEditHostStretch,
+            isQuantity && styles.inlineEditHostQuantity,
             {
-              color: tagStyle.color,
-              fontSize: tagStyle.fontSize,
-              lineHeight: tagStyle.lineHeight,
-              fontWeight: tagStyle.fontWeight,
-              fontStyle: tagStyle.fontStyle,
+              minHeight: inlineHostMinHeight,
+              paddingHorizontal: tagStyle.paddingHorizontal,
+              paddingVertical: tagStyle.paddingVertical,
             },
           ]}>
+          {inlineEdit.prefix ? (
+            <Text pointerEvents="none" style={[textStyle, styles.inlinePrefix]}>
+              {inlineEdit.prefix}
+            </Text>
+          ) : null}
+          <TextInput
+            ref={ref}
+            autoCorrect={false}
+            autoFocus={inlineEdit.autoFocus ?? true}
+            blurOnSubmit={false}
+            keyboardType={inlineEdit.keyboardType}
+            maxLength={inlineEdit.maxLength}
+            multiline={inlineEdit.multiline}
+            // Omit numberOfLines when multiline so Android can auto-grow from 1 line up to maxHeight.
+            numberOfLines={inlineEdit.multiline ? undefined : 1}
+            onChangeText={(nextText) => {
+              const accepted = inlineEdit.onChangeText(nextText);
+              const nextValue = typeof accepted === 'string' ? accepted : nextText;
+              // Grow chip + input together (same width). setNativeProps applies width before re-render
+              // to reduce wrap-then-expand when the glyph is already in the native field.
+              if (isTextTag) {
+                const nextWidth = estimateTextTagChipWidth(
+                  nextValue,
+                  tagStyle.fontSize,
+                  tagStyle.paddingHorizontal,
+                  textDefaultWidth,
+                  displayMaxWidth,
+                );
+                tagViewRef.current?.setNativeProps({ style: { width: nextWidth } });
+                setTextContentWidth(nextWidth);
+              }
+              setLocalInputValue(nextValue);
+            }}
+            onFocus={inlineEdit.onFocus}
+            onKeyPress={
+              inlineEdit.onKeyPress
+                ? (event) => {
+                    if (inlineEdit.onKeyPress?.(event.nativeEvent.key) === false) {
+                      event.preventDefault?.();
+                    }
+                  }
+                : undefined
+            }
+            placeholder={inlineEdit.placeholder}
+            placeholderTextColor={theme.colors.textMuted}
+            returnKeyType={inlineEdit.multiline ? 'default' : 'done'}
+            // Allow scroll only when content hits the image-height cap; otherwise grow freely.
+            scrollEnabled={inlineEdit.multiline ? true : undefined}
+            selection={inlineEdit.selection}
+            showSoftInputOnFocus
+            underlineColorAndroid="transparent"
+            style={[
+              styles.inlineInput,
+              textStyle,
+              inlineEdit.multiline && styles.inlineInputMultiline,
+              // Avoid flex:1 on multiline — it locks height to the host and blocks Android auto-grow.
+              isCompactInline
+                ? styles.inlineInputCompact
+                : inlineEdit.multiline
+                  ? styles.inlineInputMultilineStretch
+                  : styles.inlineInputStretch,
+              {
+                minHeight: singleLineInputMinHeight,
+                ...(inlineEdit.multiline
+                  ? {
+                      maxHeight: multilineInputMaxHeight,
+                    }
+                  : null),
+                minWidth:
+                  isQuantity
+                    ? quantityDigitsWidth
+                    : displayType === 'price'
+                      ? Math.ceil(tagStyle.fontSize * 3.2)
+                      : undefined,
+                ...(isQuantity
+                  ? {
+                      width: quantityDigitsWidth,
+                    }
+                  : null),
+              },
+            ]}
+            textAlign={contentTextAlign}
+            textAlignVertical={inlineEdit.multiline ? 'top' : 'center'}
+            onSelectionChange={
+              inlineEdit.onSelectionChange
+                ? (event) => inlineEdit.onSelectionChange?.(event.nativeEvent.selection)
+                : undefined
+            }
+            value={localInputValue}
+          />
+        </View>
+      ) : isPlainSoldIcon || isBadgeSoldIcon ? (
+        <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
+      ) : (
+        <Text numberOfLines={bodyMaxLines} style={[textStyle, isTextTag ? { maxHeight: roomBelow - tagStyle.paddingVertical * 2 } : null]}>
           {displayText}
         </Text>
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   tag: {
@@ -289,12 +570,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    ...theme.shadows.tag,
-  },
-  flatTag: {
-    shadowOpacity: 0,
-    elevation: 0,
-    shadowRadius: 0,
   },
   selectedTag: {
     zIndex: 4,
@@ -331,5 +606,50 @@ const styles = StyleSheet.create({
   tagText: {
     ...theme.typography.tag,
     textAlign: 'center',
+  },
+  tagTextStart: {
+    textAlign: 'left',
+  },
+  inlineEditHost: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineEditHostCompact: {
+    alignSelf: 'center',
+  },
+  inlineEditHostQuantity: {
+    alignSelf: 'stretch',
+    justifyContent: 'flex-start',
+    width: '100%',
+  },
+  inlineEditHostStretch: {
+    alignSelf: 'stretch',
+    width: '100%',
+  },
+  inlinePrefix: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  inlineInput: {
+    padding: 0,
+    margin: 0,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+  },
+  inlineInputCompact: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  inlineInputStretch: {
+    flex: 1,
+  },
+  // Width fills host; height comes from content (auto-grow) up to maxHeight.
+  inlineInputMultilineStretch: {
+    alignSelf: 'stretch',
+    width: '100%',
+  },
+  inlineInputMultiline: {
+    paddingTop: Platform.OS === 'ios' ? 2 : 0,
   },
 });

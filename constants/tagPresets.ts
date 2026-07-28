@@ -1,8 +1,9 @@
-import type { TextStyle } from 'react-native';
+import type { TextStyle, ViewStyle } from 'react-native';
 
 import { DEFAULT_CONDITION_VALUE, parseConditionValue } from '@/constants/tagDefaults';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import type { PriceTag, TagConditionValue, TagSizePresetId, TagStylePresetId, TagType } from '@/types/tag';
+import { extractPriceDigits } from '@/utils/priceText';
 
 export type TagFontWeight = NonNullable<TextStyle['fontWeight']>;
 
@@ -10,6 +11,15 @@ export type TagTextShadow = {
   color: string;
   offset: { width: number; height: number };
   radius: number;
+};
+
+/** View chrome shadow (iOS shadow* + Android elevation). `null` = flat. */
+export type TagViewShadow = {
+  shadowColor: string;
+  shadowOffset: { width: number; height: number };
+  shadowOpacity: number;
+  shadowRadius: number;
+  elevation: number;
 };
 
 export type TagShape = 'default' | 'circle';
@@ -27,7 +37,11 @@ export type ResolvedTagPreset = {
   fontWeight: TagFontWeight;
   fontStyle: NonNullable<TextStyle['fontStyle']>;
   textShadow: TagTextShadow | null;
-  /** Transparent background — no badge chrome / view shadow. */
+  borderRadius: number;
+  borderWidth: number;
+  /** View chrome shadow; `null` means flat (no elevation/shadow). */
+  viewShadow: TagViewShadow | null;
+  /** No view chrome shadow — typically transparent / outline badges. */
   isFlat: boolean;
   /** Circle badges use fixedSize for equal width/height. */
   shape: TagShape;
@@ -43,6 +57,10 @@ type TagStylePresetDefinition = {
   color: string;
   fontWeight?: TagFontWeight;
   textShadow?: TagTextShadow | null;
+  borderRadius?: number;
+  borderWidth?: number;
+  /** Explicit view shadow; omit for default (flat when transparent bg, else tag shadow). */
+  viewShadow?: TagViewShadow | null;
 };
 
 const SOFT_WHITE_SHADOW: TagTextShadow = {
@@ -58,6 +76,27 @@ const STRONG_BLACK_SHADOW: TagTextShadow = {
 };
 
 const DEFAULT_TAG_FONT_WEIGHT: TagFontWeight = theme.typography.tag.fontWeight;
+const DEFAULT_TAG_BORDER_RADIUS = theme.radius.sm;
+const DEFAULT_TAG_BORDER_WIDTH = 1;
+const CIRCLE_TAG_BORDER_WIDTH = 2;
+const PILL_BORDER_RADIUS = 999;
+
+const DEFAULT_TAG_VIEW_SHADOW: TagViewShadow = {
+  shadowColor: theme.shadows.tag.shadowColor,
+  shadowOffset: { ...theme.shadows.tag.shadowOffset },
+  shadowOpacity: theme.shadows.tag.shadowOpacity,
+  shadowRadius: theme.shadows.tag.shadowRadius,
+  elevation: theme.shadows.tag.elevation,
+};
+
+/** Soft marketplace-style chrome shadow. */
+const SOFT_TAG_VIEW_SHADOW: TagViewShadow = {
+  shadowColor: '#000000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 2,
+};
 
 /** Grade colors for condition tags — semantic, not style presets. */
 export const CONDITION_GRADE_STYLES: Record<
@@ -134,6 +173,70 @@ export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinitio
     borderColor: theme.tags.priceRed.borderColor,
     color: theme.tags.priceRed.color,
   },
+  'price-marketplace-white': {
+    label: 'Marketplace',
+    type: 'price',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#D0D5DD',
+    color: '#111827',
+    fontWeight: '600',
+    borderRadius: 10,
+    borderWidth: 1,
+    viewShadow: SOFT_TAG_VIEW_SHADOW,
+  },
+  'price-facebook-blue': {
+    label: 'Facebook',
+    type: 'price',
+    backgroundColor: '#1877F2',
+    borderColor: '#0D65D9',
+    color: '#FFFFFF',
+    fontWeight: '700',
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  'price-ebay-yellow': {
+    label: 'eBay',
+    type: 'price',
+    backgroundColor: '#F5AF02',
+    borderColor: '#111111',
+    color: '#111111',
+    fontWeight: '800',
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  'price-outline-white': {
+    label: 'Outline',
+    type: 'price',
+    backgroundColor: 'transparent',
+    borderColor: '#FFFFFF',
+    color: '#FFFFFF',
+    fontWeight: '800',
+    borderRadius: DEFAULT_TAG_BORDER_RADIUS,
+    borderWidth: 2,
+    textShadow: STRONG_BLACK_SHADOW,
+    viewShadow: null,
+  },
+  'price-neon-green': {
+    label: 'Neon',
+    type: 'price',
+    backgroundColor: '#39FF14',
+    borderColor: '#111111',
+    color: '#111111',
+    fontWeight: '800',
+    borderRadius: PILL_BORDER_RADIUS,
+    borderWidth: 1,
+  },
+  'price-pink-sale': {
+    label: 'Sale Pink',
+    type: 'price',
+    backgroundColor: '#FF2D55',
+    borderColor: '#C9184A',
+    color: '#FFFFFF',
+    fontWeight: '800',
+    borderRadius: PILL_BORDER_RADIUS,
+    borderWidth: 1,
+    viewShadow: SOFT_TAG_VIEW_SHADOW,
+  },
   'sold-red': {
     label: 'Red',
     type: 'sold',
@@ -195,38 +298,74 @@ export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinitio
     color: theme.tags.textAccent.color,
     fontWeight: '800',
   },
-  'text-soft-pastel': {
-    label: 'Soft pastel',
+  'text-marketplace-white': {
+    label: 'Marketplace',
     type: 'text',
-    backgroundColor: theme.tags.textSoftPastel.backgroundColor,
-    borderColor: theme.tags.textSoftPastel.borderColor,
-    color: theme.tags.textSoftPastel.color,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#D0D5DD',
+    color: '#111827',
+    fontWeight: '600',
+    borderRadius: 10,
+    borderWidth: 1,
+    viewShadow: SOFT_TAG_VIEW_SHADOW,
+  },
+  'text-facebook-blue': {
+    label: 'Facebook',
+    type: 'text',
+    backgroundColor: '#1877F2',
+    borderColor: '#0D65D9',
+    color: '#FFFFFF',
     fontWeight: '700',
+    borderRadius: 8,
+    borderWidth: 1,
   },
-  'text-marker': {
-    label: 'Marker',
+  'text-ebay-yellow': {
+    label: 'eBay',
     type: 'text',
-    backgroundColor: theme.tags.textMarker.backgroundColor,
-    borderColor: theme.tags.textMarker.borderColor,
-    color: theme.tags.textMarker.color,
+    backgroundColor: '#F5AF02',
+    borderColor: '#111111',
+    color: '#111111',
     fontWeight: '800',
+    borderRadius: 4,
+    borderWidth: 1,
   },
-  'text-dark': {
-    label: 'Dark',
+  'text-outline-white': {
+    label: 'Outline',
     type: 'text',
-    backgroundColor: theme.tags.textDark.backgroundColor,
-    borderColor: theme.tags.textDark.borderColor,
-    color: theme.tags.textDark.color,
+    backgroundColor: 'transparent',
+    borderColor: '#FFFFFF',
+    color: '#FFFFFF',
     fontWeight: '800',
-  },
-  'text-caption': {
-    label: 'Caption',
-    type: 'text',
-    backgroundColor: theme.tags.textCaption.backgroundColor,
-    borderColor: theme.tags.textCaption.borderColor,
-    color: theme.tags.textCaption.color,
-    fontWeight: '700',
+    borderRadius: DEFAULT_TAG_BORDER_RADIUS,
+    borderWidth: 2,
     textShadow: STRONG_BLACK_SHADOW,
+    viewShadow: null,
+  },
+  'text-soft-note': {
+    label: 'Soft note',
+    type: 'text',
+    backgroundColor: '#FFF8E7',
+    borderColor: '#E6D5A8',
+    color: '#1F2937',
+    fontWeight: '600',
+    borderRadius: 10,
+    borderWidth: 1,
+    viewShadow: SOFT_TAG_VIEW_SHADOW,
+  },
+  'text-dark-caption': {
+    label: 'Dark caption',
+    type: 'text',
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    borderColor: '#111111',
+    color: '#FFFFFF',
+    fontWeight: '700',
+    borderRadius: 8,
+    borderWidth: 1,
+    textShadow: {
+      color: 'rgba(0, 0, 0, 0.4)',
+      offset: { width: 0, height: 1 },
+      radius: 2,
+    },
   },
   'quantity-blue': {
     label: 'Blue',
@@ -355,12 +494,31 @@ export function getResolvedTagPreset(tag: PriceTag, typeOverride?: TagType): Res
   const isPlainSoldIcon = type === 'sold' && tag.soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = type === 'sold' && tag.soldTextFormat === 'icon';
   const soldIconSize = Math.max(28, Math.round(sizePreset.fontSize * 2.2));
-  const isFlat = isTransparentTagBackground(stylePreset.backgroundColor);
+  /** Solid red X (icon_plain): 160% of shared sold-icon base (80% of the prior 200% size). */
+  const resolvedSoldIconSize = isPlainSoldIcon ? Math.round(soldIconSize * 1.6) : soldIconSize;
+  const isTransparentBg = isTransparentTagBackground(stylePreset.backgroundColor);
+  const viewShadow: TagViewShadow | null =
+    stylePreset.viewShadow !== undefined
+      ? stylePreset.viewShadow
+      : isTransparentBg || isPlainSoldIcon
+        ? null
+        : DEFAULT_TAG_VIEW_SHADOW;
+  const isFlat = viewShadow == null;
   const isCondition = type === 'condition';
   const conditionValue = isCondition ? resolveConditionValueFromTag(tag) : DEFAULT_CONDITION_VALUE;
   const conditionColors = CONDITION_GRADE_STYLES[conditionValue];
   /** Fixed diameter so NM/LP/MP/HP stay circular regardless of glyph width. */
   const conditionDiameter = Math.max(sizePreset.minHeight, Math.round(sizePreset.fontSize * 2.6));
+  const borderWidth =
+    stylePreset.borderWidth ??
+    (isCondition
+      ? CIRCLE_TAG_BORDER_WIDTH
+      : isTransparentBg && stylePreset.borderColor === 'transparent'
+        ? 0
+        : DEFAULT_TAG_BORDER_WIDTH);
+  const borderRadius = isCondition
+    ? conditionDiameter / 2
+    : (stylePreset.borderRadius ?? DEFAULT_TAG_BORDER_RADIUS);
 
   return {
     backgroundColor: isCondition ? conditionColors.backgroundColor : stylePreset.backgroundColor,
@@ -369,23 +527,111 @@ export function getResolvedTagPreset(tag: PriceTag, typeOverride?: TagType): Res
     minHeight: isCondition
       ? conditionDiameter
       : isPlainSoldIcon || isBadgeSoldIcon
-        ? soldIconSize + theme.spacing.sm
+        ? resolvedSoldIconSize + theme.spacing.sm
         : sizePreset.minHeight,
     maxWidth: isCondition ? conditionDiameter : sizePreset.maxWidth,
     paddingHorizontal: isCondition ? 0 : isPlainSoldIcon ? theme.spacing.xs : sizePreset.paddingHorizontal,
     paddingVertical: isCondition ? 0 : isPlainSoldIcon ? theme.spacing.xs : sizePreset.paddingVertical,
-    fontSize: isPlainSoldIcon || isBadgeSoldIcon ? soldIconSize : sizePreset.fontSize,
+    fontSize: isPlainSoldIcon || isBadgeSoldIcon ? resolvedSoldIconSize : sizePreset.fontSize,
     lineHeight: isCondition
       ? sizePreset.fontSize
       : isPlainSoldIcon || isBadgeSoldIcon
-        ? soldIconSize
+        ? resolvedSoldIconSize
         : sizePreset.lineHeight,
     fontWeight: stylePreset.fontWeight ?? DEFAULT_TAG_FONT_WEIGHT,
     fontStyle: isCondition ? 'italic' : 'normal',
     textShadow: stylePreset.textShadow ?? null,
-    isFlat,
+    borderRadius,
+    borderWidth: isPlainSoldIcon ? 0 : borderWidth,
+    viewShadow: isPlainSoldIcon ? null : viewShadow,
+    isFlat: isPlainSoldIcon ? true : isFlat,
     shape: isCondition ? 'circle' : 'default',
     fixedSize: isCondition ? conditionDiameter : null,
+  };
+}
+
+/** Visible body lines before ellipsis (non-text, non-circle tags). Text tags grow until image height. */
+export const TAG_BODY_MAX_LINES = 3;
+
+/**
+ * Default text-tag chip width on create (fraction of image width).
+ * Max allowed width is the full image (see resolveTagMaxWidth) — do not stretch empty edit to max.
+ */
+export const TEXT_TAG_DEFAULT_WIDTH_RATIO = 0.49;
+
+/** Default pixel width for a new/empty text tag chip. */
+export function resolveTextTagDefaultWidth(imageWidth: number) {
+  return Math.max(64, Math.round(Math.max(0, imageWidth) * TEXT_TAG_DEFAULT_WIDTH_RATIO));
+}
+
+/**
+ * Text tags may grow up to the full image width (caller also caps by room-to-right).
+ * Quantity grows with digit count (1 line) up to size-preset maxWidth.
+ * Other types keep size-preset maxWidth.
+ */
+export function resolveTagMaxWidth(tag: PriceTag, imageWidth: number, typeOverride?: TagType): number {
+  const type = typeOverride ?? tag.type;
+  if (type === 'text') {
+    return Math.max(0, imageWidth);
+  }
+
+  const preset = getResolvedTagPreset(tag, typeOverride);
+  if (type === 'quantity') {
+    const qtyDigits = extractPriceDigits(tag.text) || String(tag.quantity ?? 1);
+    const digitCount = Math.max(1, qtyDigits.length);
+    // "x" + N digits + padding — grow horizontally, never force wrap.
+    const contentWidth = Math.ceil(preset.fontSize * (1.15 + digitCount * 0.72) + preset.paddingHorizontal * 2 + 4);
+    return Math.min(preset.maxWidth, Math.max(contentWidth, preset.minHeight));
+  }
+
+  if (type === 'language') {
+    const contentWidth = Math.ceil(preset.fontSize * 2.5 + preset.paddingHorizontal * 2);
+    return Math.min(preset.maxWidth, Math.max(contentWidth, preset.minHeight));
+  }
+
+  return preset.maxWidth;
+}
+
+/**
+ * Estimated pixel size used when clamping a newly placed tag into the image.
+ * Prefer a realistic chip width so right-edge placements stay inside the photo.
+ */
+export function estimatePlacementTagSize(
+  type: TagType,
+  sizePresetId?: TagSizePresetId,
+  imageWidth?: number,
+): { width: number; height: number } {
+  const preset = TAG_SIZE_PRESETS[sizePresetId ?? DEFAULT_TAG_SIZE_PRESET_ID];
+  const height = preset.minHeight + preset.paddingVertical * 2;
+
+  if (type === 'quantity') {
+    const width = Math.ceil(preset.fontSize * 2.2 + preset.paddingHorizontal * 2 + 4);
+    return { width: Math.max(width, preset.minHeight), height };
+  }
+
+  if (type === 'language') {
+    // Match compact language chip ("TH"/"EN") so right-edge create works like quantity.
+    const width = Math.ceil(preset.fontSize * 2.5 + preset.paddingHorizontal * 2);
+    return { width: Math.max(width, preset.minHeight), height };
+  }
+
+  if (type === 'condition') {
+    const diameter = Math.max(preset.minHeight + preset.paddingVertical * 2, 36);
+    return { width: diameter, height: diameter };
+  }
+
+  if (type === 'text') {
+    // Default create width (~49% of image) — not the full max — so edge taps clamp correctly.
+    const width =
+      imageWidth != null && imageWidth > 0
+        ? resolveTextTagDefaultWidth(imageWidth)
+        : Math.min(preset.maxWidth, Math.max(64, Math.round(preset.maxWidth * TEXT_TAG_DEFAULT_WIDTH_RATIO)));
+    return { width, height };
+  }
+
+  return {
+    width: Math.min(preset.maxWidth, Math.max(80, Math.round(preset.maxWidth * 0.55))),
+    height,
   };
 }
 
@@ -399,5 +645,24 @@ export function getTagTextShadowStyle(textShadow: TagTextShadow | null): TextSty
     textShadowColor: textShadow.color,
     textShadowOffset: textShadow.offset,
     textShadowRadius: textShadow.radius,
+  };
+}
+
+/** Map resolved view shadow onto RN View style props (`null` = flat). */
+export function getTagViewShadowStyle(viewShadow: TagViewShadow | null): ViewStyle {
+  if (!viewShadow) {
+    return {
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      elevation: 0,
+    };
+  }
+
+  return {
+    shadowColor: viewShadow.shadowColor,
+    shadowOffset: viewShadow.shadowOffset,
+    shadowOpacity: viewShadow.shadowOpacity,
+    shadowRadius: viewShadow.shadowRadius,
+    elevation: viewShadow.elevation,
   };
 }

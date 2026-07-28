@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   Dimensions,
   Keyboard,
@@ -11,9 +11,12 @@ import {
   TextInput,
   View,
   type KeyboardEvent,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
+import type { TagInlineEdit } from '@/components/editor/TagOverlay';
 import { DEFAULT_CONDITION_VALUE, DEFAULT_QUANTITY, SOLD_ICON_TEXT, SOLD_TEXT_FORMAT_CYCLE, TAG_CONDITION_VALUE_CYCLE, TAG_SIZE_ORDER, toPickerSizePreset, type TagPickerSizePresetId } from '@/constants/tagDefaults';
 import {
   DEFAULT_TAG_SIZE_PRESET_ID,
@@ -42,7 +45,7 @@ import type {
   TagStylePresetId,
   TagType,
 } from '@/types/tag';
-import { FALLBACK_TAG_SIZE } from '@/utils/editorGeometry';
+import { FALLBACK_TAG_SIZE, getKeyboardCanvasLift } from '@/utils/editorGeometry';
 import { extractPriceDigits, formatPriceDisplay, getPriceTextFormatsForCurrency, clampPriceTextFormat } from '@/utils/priceText';
 
 type CanvasSize = {
@@ -53,23 +56,26 @@ type CanvasSize = {
 type TagEditorProps = {
   canvasSize: CanvasSize;
   imageRect: ImageDisplayRect;
+  /** Forwarded TextInput ref from the selected TagOverlay (inline edit). */
+  inputRef?: RefObject<TextInput | null>;
   isNewTag: boolean;
   tag: PriceTag | null;
   visible: boolean;
   onCancel: () => void;
-  onDraftChange: (preview: TagEditorDraftPreview) => void;
+  /** Temporary visual lift for image/tags — must not change normalized tag positions. */
+  onCanvasLiftChange?: (liftY: number) => void;
+  onDraftChange: (preview: TagEditorDraftPreview, options?: { syncOnly?: boolean }) => void;
+  onInlineEditChange?: (edit: TagInlineEdit | null) => void;
   onSave: (tagId: string, updates: TagEditorSaveUpdates) => void;
 };
 
 type DockMenu = 'main' | 'color' | 'style' | 'size' | 'format' | 'grade' | 'language';
 
-const FLOAT_GAP = theme.spacing.sm;
-const FLOAT_MIN_WIDTH = 160;
-const FLOAT_MAX_WIDTH = 280;
-const FLOAT_INPUT_HEIGHT = 52;
-const FLOAT_CLOSE_ONLY_HEIGHT = 44;
-const DOCK_HEIGHT_ESTIMATE = 64;
-/** Extra pad beyond tag body so selection ring / long text stay clear of the float. */
+const KEYBOARD_LIFT_GAP = theme.spacing.sm;
+const PRICE_AMOUNT_MAX_DIGITS = 6;
+const QUANTITY_MAX_DIGITS = 3;
+const DOCK_HEIGHT_ESTIMATE = 56;
+/** Extra pad beyond tag body so selection ring / long text stay clear of the keyboard dock. */
 const TAG_CLEARANCE_PAD = theme.spacing.md;
 const LANGUAGE_CODES: TagLanguageCode[] = ['TH', 'EN', 'JP', 'CN'];
 const SIZE_CHIP_LABELS: Record<TagPickerSizePresetId, string> = {
@@ -80,20 +86,11 @@ const SIZE_CHIP_LABELS: Record<TagPickerSizePresetId, string> = {
 };
 const PREVIEW_AMOUNT = '1000';
 const TYPES_WITH_SIZE_PICKER: TagType[] = ['price', 'sold', 'text', 'language'];
-const TYPES_WITH_FLOAT_INPUT: TagType[] = ['price', 'text', 'quantity'];
-
-type FloatPlacement = { left: number; top: number };
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function rectsOverlap(
-  a: { left: number; top: number; width: number; height: number },
-  b: { left: number; top: number; width: number; height: number }
-) {
-  return a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top;
-}
+export const TYPES_WITH_INLINE_INPUT: TagType[] = ['price', 'text', 'quantity'];
+/** Used only when we have never measured an IME yet — prefers lifting before autoFocus. */
+const PROVISIONAL_KEYBOARD_OVERLAP = Platform.OS === 'ios' ? 320 : 280;
+/** Late fallback if autoFocus never raised the IME (hardware keyboard / rare devices). */
+const INLINE_FOCUS_FALLBACK_MS = 600;
 
 /** Same overlap signals as BottomSheetOverlay — Android edge-to-edge under-reports height alone. */
 function getKeyboardHeight(coords: { height: number; screenY: number }) {
@@ -105,12 +102,101 @@ function getKeyboardHeight(coords: { height: number; screenY: number }) {
   return Math.max(0, coords.height, fromScreenY, fromWindowY);
 }
 
-function estimateFloatHeight(tagType: TagType) {
-  if (TYPES_WITH_FLOAT_INPUT.includes(tagType)) {
-    return FLOAT_INPUT_HEIGHT;
+type KeyboardSettleTimers = {
+  a: ReturnType<typeof setTimeout> | null;
+  b: ReturnType<typeof setTimeout> | null;
+  c: ReturnType<typeof setTimeout> | null;
+};
+
+function clearKeyboardSettleTimers(timers: KeyboardSettleTimers) {
+  if (timers.a) {
+    clearTimeout(timers.a);
+  }
+  if (timers.b) {
+    clearTimeout(timers.b);
+  }
+  if (timers.c) {
+    clearTimeout(timers.c);
+  }
+  timers.a = null;
+  timers.b = null;
+  timers.c = null;
+}
+
+/** Measure host vs keyboard top; fall back to keyboard height when host layout is not ready. */
+function applyHostKeyboardOverlap(
+  getHost: () => View | null,
+  keyboardTop: number,
+  keyboardHeight: number,
+  onOverlap: (overlap: number) => void,
+) {
+  getHost()?.measure((_x, _y, _width, height, _pageX, pageY) => {
+    if (height <= 0) {
+      onOverlap(Math.max(0, Math.round(keyboardHeight)));
+      return;
+    }
+
+    // pageY matches endCoordinates.screenY space (same pattern as drag/delete hit-testing).
+    onOverlap(Math.max(0, Math.round(pageY + height - keyboardTop)));
+  });
+}
+
+/** Re-measure across keyboard animation settle frames (IME height/position can lag). */
+function scheduleHostKeyboardOverlapUpdate(
+  getHost: () => View | null,
+  timers: KeyboardSettleTimers,
+  keyboardTop: number,
+  keyboardHeight: number,
+  onOverlap: (overlap: number) => void,
+) {
+  clearKeyboardSettleTimers(timers);
+  const apply = () => applyHostKeyboardOverlap(getHost, keyboardTop, keyboardHeight, onOverlap);
+  apply();
+  requestAnimationFrame(apply);
+  timers.a = setTimeout(apply, 50);
+  timers.b = setTimeout(apply, 120);
+  timers.c = setTimeout(apply, 280);
+}
+
+function syncHostKeyboardOverlapFromMetrics(
+  getHost: () => View | null,
+  timers: KeyboardSettleTimers,
+  onOverlap: (overlap: number) => void,
+) {
+  const metrics = Keyboard.metrics();
+  if (!metrics || metrics.height <= 0) {
+    return;
   }
 
-  return FLOAT_CLOSE_ONLY_HEIGHT;
+  scheduleHostKeyboardOverlapUpdate(getHost, timers, metrics.screenY, getKeyboardHeight(metrics), onOverlap);
+}
+
+/** Reject over-limit edits without setState so the controlled input does not flash then revert. */
+function acceptPriceDigits(nextText: string, currentDigits: string) {
+  const digits = extractPriceDigits(nextText);
+  if (digits.length <= PRICE_AMOUNT_MAX_DIGITS) {
+    return digits;
+  }
+
+  // Already at cap: keep current so a 7th keypress does not insert-then-revert.
+  if (currentDigits.length >= PRICE_AMOUNT_MAX_DIGITS) {
+    return currentDigits;
+  }
+
+  return digits.slice(0, PRICE_AMOUNT_MAX_DIGITS);
+}
+
+function acceptQuantityDigits(nextText: string, currentDigits: string) {
+  const digits = extractPriceDigits(nextText);
+  if (digits.length <= QUANTITY_MAX_DIGITS) {
+    return digits;
+  }
+
+  if (currentDigits.length >= QUANTITY_MAX_DIGITS) {
+    return currentDigits;
+  }
+
+  return digits.slice(0, QUANTITY_MAX_DIGITS);
 }
 
 function estimateTagClearance(tag: PriceTag) {
@@ -121,98 +207,17 @@ function estimateTagClearance(tag: PriceTag) {
   };
 }
 
-/**
- * Place float around the tag without covering it.
- * Prefer above/below; fall back to left/right. Never clamp into the tag rect.
- */
-function getFloatPosition(
-  tag: PriceTag,
-  imageRect: ImageDisplayRect,
-  canvasSize: CanvasSize,
-  floatWidth: number,
-  floatHeight: number,
-  keyboardOverlap: number
-): FloatPlacement {
-  const tagLeft = imageRect.x + tag.x * imageRect.width;
-  const tagTop = imageRect.y + tag.y * imageRect.height;
-  const clearance = estimateTagClearance(tag);
-  const tagRect = {
-    left: tagLeft - TAG_CLEARANCE_PAD / 2,
-    top: tagTop - TAG_CLEARANCE_PAD / 2,
-    width: clearance.width,
-    height: clearance.height,
-  };
-  const tagCenterX = tagLeft + clearance.width / 2;
-  const centeredLeft = clamp(
-    tagCenterX - floatWidth / 2,
-    FLOAT_GAP,
-    Math.max(FLOAT_GAP, canvasSize.width - floatWidth - FLOAT_GAP)
-  );
-
-  const visibleTop = FLOAT_GAP;
-  const visibleBottom = Math.max(
-    floatHeight + FLOAT_GAP * 2,
-    canvasSize.height - keyboardOverlap - DOCK_HEIGHT_ESTIMATE - FLOAT_GAP
-  );
-  const maxTop = Math.max(visibleTop, visibleBottom - floatHeight - FLOAT_GAP);
-
-  const aboveTop = tagRect.top - floatHeight - FLOAT_GAP;
-  const belowTop = tagRect.top + tagRect.height + FLOAT_GAP;
-  const sideTop = clamp(tagRect.top, visibleTop, maxTop);
-  const leftSide = tagRect.left - floatWidth - FLOAT_GAP;
-  const rightSide = tagRect.left + tagRect.width + FLOAT_GAP;
-
-  const candidates: Array<FloatPlacement & { score: number }> = [];
-
-  const pushIfValid = (left: number, top: number, score: number) => {
-    if (left < FLOAT_GAP - 0.5 || left + floatWidth > canvasSize.width - FLOAT_GAP + 0.5) {
-      return;
-    }
-
-    if (top < visibleTop - 0.5 || top + floatHeight > visibleBottom + 0.5) {
-      return;
-    }
-
-    const floatRect = { left, top, width: floatWidth, height: floatHeight };
-    if (rectsOverlap(floatRect, tagRect)) {
-      return;
-    }
-
-    candidates.push({ left, top, score });
-  };
-
-  pushIfValid(centeredLeft, aboveTop, 300 + (aboveTop - visibleTop));
-  pushIfValid(centeredLeft, belowTop, 200 + (visibleBottom - (belowTop + floatHeight)));
-  pushIfValid(leftSide, sideTop, 100);
-  pushIfValid(rightSide, sideTop, 100);
-  pushIfValid(leftSide, clamp(tagRect.top - floatHeight / 2, visibleTop, maxTop), 80);
-  pushIfValid(rightSide, clamp(tagRect.top - floatHeight / 2, visibleTop, maxTop), 80);
-
-  if (candidates.length > 0) {
-    candidates.sort((a, b) => b.score - a.score);
-    return { left: candidates[0].left, top: candidates[0].top };
+/** Never poke native focus while the IME is already up (avoids restart flicker). */
+function focusInlineInputIfNeeded(input: TextInput | null | undefined) {
+  if (!input) {
+    return;
   }
 
-  // Last resort: keep clear of the tag even if partially tight against keyboard/edges.
-  if (rightSide + floatWidth <= canvasSize.width - FLOAT_GAP) {
-    return { left: rightSide, top: sideTop };
+  if ((Keyboard.metrics()?.height ?? 0) > 0) {
+    return;
   }
 
-  if (leftSide >= FLOAT_GAP) {
-    return { left: leftSide, top: sideTop };
-  }
-
-  if (tagRect.top > canvasSize.height / 2) {
-    return {
-      left: centeredLeft,
-      top: Math.min(maxTop, Math.max(visibleTop, tagRect.top - floatHeight - FLOAT_GAP)),
-    };
-  }
-
-  return {
-    left: centeredLeft,
-    top: Math.min(maxTop, Math.max(visibleTop, tagRect.top + tagRect.height + FLOAT_GAP)),
-  };
+  input.focus();
 }
 
 function buildDisplayText({
@@ -258,13 +263,23 @@ function buildDisplayText({
   }
 }
 
-function OptionChip({ label, isActive, onPress }: { label: string; isActive: boolean; onPress: () => void }) {
+function OptionChip({
+  label,
+  isActive,
+  onPress,
+  style,
+}: {
+  label: string;
+  isActive: boolean;
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={isActive ? { selected: true } : undefined}
       onPress={onPress}
-      style={[styles.optionChip, isActive && styles.activeOptionChip]}>
+      style={[styles.optionChip, isActive && styles.activeOptionChip, style]}>
       <Text style={[styles.optionChipText, isActive && styles.activeOptionChipText]} numberOfLines={1}>
         {label}
       </Text>
@@ -339,6 +354,9 @@ function ColorPresetRow({
   activeStylePresetId: TagStylePresetId;
   onSelect: (stylePresetId: TagStylePresetId) => void;
 }) {
+  const isPriceStyleRow = type === 'price';
+  const priceSampleLabel = '฿';
+
   return (
     <ScrollView
       horizontal
@@ -349,6 +367,53 @@ function ColorPresetRow({
       {getStylePresetIdsForType(type).map((stylePresetId) => {
         const preset = TAG_STYLE_PRESETS[stylePresetId];
         const isActive = stylePresetId === activeStylePresetId;
+        const isFlat = isTransparentTagBackground(preset.backgroundColor);
+        const borderRadius = preset.borderRadius ?? theme.radius.sm - 2;
+        const borderWidth =
+          preset.borderWidth ?? (isFlat && preset.borderColor === 'transparent' ? 0 : 1);
+
+        if (isPriceStyleRow) {
+          return (
+            <Pressable
+              accessibilityLabel={preset.label}
+              accessibilityRole="button"
+              accessibilityState={isActive ? { selected: true } : undefined}
+              key={stylePresetId}
+              onPress={() => onSelect(stylePresetId)}
+              style={[styles.textStyleChipOuter, isActive && styles.colorSwatchOuterActive]}>
+              <View
+                style={[
+                  styles.priceStylePreview,
+                  {
+                    backgroundColor: isFlat ? 'transparent' : preset.backgroundColor,
+                    borderColor:
+                      preset.borderColor === 'transparent' ? 'transparent' : preset.borderColor,
+                    borderWidth,
+                    borderRadius: Math.min(borderRadius, 16),
+                    ...(preset.viewShadow
+                      ? {
+                          shadowColor: preset.viewShadow.shadowColor,
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.18,
+                          shadowRadius: 2,
+                          elevation: 1,
+                        }
+                      : null),
+                  },
+                ]}>
+                <Text
+                  style={[
+                    styles.priceStylePreviewText,
+                    getTagTextShadowStyle(preset.textShadow ?? null),
+                    { color: preset.color, fontWeight: preset.fontWeight ?? '800' },
+                  ]}
+                  numberOfLines={1}>
+                  {priceSampleLabel}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        }
 
         return (
           <Pressable
@@ -393,6 +458,9 @@ function TextStylePresetRow({
         const preset = TAG_STYLE_PRESETS[stylePresetId];
         const isActive = stylePresetId === activeStylePresetId;
         const isFlat = isTransparentTagBackground(preset.backgroundColor);
+        const borderRadius = preset.borderRadius ?? theme.radius.sm - 2;
+        const borderWidth =
+          preset.borderWidth ?? (isFlat && preset.borderColor === 'transparent' ? 0 : 1);
 
         return (
           <Pressable
@@ -402,26 +470,36 @@ function TextStylePresetRow({
             key={stylePresetId}
             onPress={() => onSelect(stylePresetId)}
             style={[styles.textStyleChipOuter, isActive && styles.colorSwatchOuterActive]}>
-            <View style={styles.textStyleStage}>
-              <View
+            <View
+              style={[
+                styles.textStylePreview,
+                isFlat && preset.borderColor === 'transparent' && styles.textStylePreviewPlain,
+                {
+                  backgroundColor: isFlat ? 'transparent' : preset.backgroundColor,
+                  borderColor:
+                    preset.borderColor === 'transparent' ? 'transparent' : preset.borderColor,
+                  borderWidth,
+                  borderRadius: Math.min(borderRadius, 14),
+                  ...(preset.viewShadow
+                    ? {
+                        shadowColor: preset.viewShadow.shadowColor,
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.18,
+                        shadowRadius: 2,
+                        elevation: 1,
+                      }
+                    : null),
+                },
+              ]}>
+              <Text
                 style={[
-                  styles.textStylePreview,
-                  isFlat && styles.textStylePreviewPlain,
-                  {
-                    backgroundColor: isFlat ? 'transparent' : preset.backgroundColor,
-                    borderColor: isFlat ? 'transparent' : preset.borderColor,
-                  },
-                ]}>
-                <Text
-                  style={[
-                    styles.textStylePreviewText,
-                    getTagTextShadowStyle(preset.textShadow ?? null),
-                    { color: preset.color, fontWeight: preset.fontWeight ?? '700' },
-                  ]}
-                  numberOfLines={1}>
-                  {sampleLabel}
-                </Text>
-              </View>
+                  styles.textStylePreviewText,
+                  getTagTextShadowStyle(preset.textShadow ?? null),
+                  { color: preset.color, fontWeight: preset.fontWeight ?? '700' },
+                ]}
+                numberOfLines={1}>
+                {sampleLabel}
+              </Text>
             </View>
           </Pressable>
         );
@@ -447,6 +525,7 @@ function SizePresetChips({
           label={SIZE_CHIP_LABELS[sizePresetId]}
           isActive={sizePresetId === pickerActiveId}
           onPress={() => onSelect(sizePresetId)}
+          style={styles.dockRingOptionChip}
         />
       ))}
     </View>
@@ -456,17 +535,29 @@ function SizePresetChips({
 export function TagEditor({
   canvasSize,
   imageRect,
+  inputRef,
   tag,
   visible,
   onCancel,
+  onCanvasLiftChange,
   onDraftChange,
+  onInlineEditChange,
   onSave,
 }: TagEditorProps) {
   const { language, t } = useTranslation();
   const { currency } = useCurrency();
   const hostRef = useRef<View>(null);
-  const inputRef = useRef<TextInput>(null);
   const ignoreKeyboardHideRef = useRef(false);
+  const onCanvasLiftChangeRef = useRef(onCanvasLiftChange);
+  onCanvasLiftChangeRef.current = onCanvasLiftChange;
+  const onInlineEditChangeRef = useRef(onInlineEditChange);
+  onInlineEditChangeRef.current = onInlineEditChange;
+  const onDraftChangeRef = useRef(onDraftChange);
+  onDraftChangeRef.current = onDraftChange;
+  const scheduleKeyboardSyncRef = useRef<() => void>(() => {});
+  const keyboardSettleTimersRef = useRef<KeyboardSettleTimers>({ a: null, b: null, c: null });
+  /** Last measured IME overlap — reused to pre-lift the canvas before autoFocus. */
+  const lastKeyboardOverlapRef = useRef(0);
   const [priceAmount, setPriceAmount] = useState('');
   const [priceTextFormat, setPriceTextFormat] = useState<PriceTextFormat>('symbol');
   const [soldTextFormat, setSoldTextFormat] = useState<SoldTextFormat>('text');
@@ -478,8 +569,30 @@ export function TagEditor({
   const [sizePresetId, setSizePresetId] = useState<TagSizePresetId>(DEFAULT_TAG_SIZE_PRESET_ID);
   const [keyboardOverlap, setKeyboardOverlap] = useState(0);
   const [activeDockMenu, setActiveDockMenu] = useState<DockMenu>('main');
+  /** Hide dock until keyboard is up (inline types) so it does not pop at bottom then jump. */
+  const [isDockReady, setIsDockReady] = useState(false);
   const soldLabel = t('tag.sold');
   const priceFormats = getPriceTextFormatsForCurrency(currency);
+  // Refs so inline onChangeText can update without re-publishing config every keystroke.
+  const freeTextRef = useRef(freeText);
+  const priceAmountRef = useRef(priceAmount);
+  const quantityRef = useRef(quantity);
+  const priceTextFormatRef = useRef(priceTextFormat);
+  const currencyRef = useRef(currency);
+  const languageRef = useRef(language);
+  freeTextRef.current = freeText;
+  priceAmountRef.current = priceAmount;
+  quantityRef.current = quantity;
+  priceTextFormatRef.current = priceTextFormat;
+  currencyRef.current = currency;
+  languageRef.current = language;
+
+  const setTrackedKeyboardOverlap = (overlap: number) => {
+    if (overlap > 0) {
+      lastKeyboardOverlapRef.current = overlap;
+    }
+    setKeyboardOverlap(overlap);
+  };
 
   useEffect(() => {
     if (!visible || !tag) {
@@ -491,19 +604,26 @@ export function TagEditor({
     setSizePresetId(tag.sizePresetId ?? DEFAULT_TAG_SIZE_PRESET_ID);
 
     switch (tag.type) {
-      case 'price':
-        setPriceAmount(extractPriceDigits(tag.text));
+      case 'price': {
+        const digits = extractPriceDigits(tag.text);
+        priceAmountRef.current = digits;
+        setPriceAmount(digits);
         setPriceTextFormat(clampPriceTextFormat(currency, tag.priceTextFormat));
         break;
+      }
       case 'sold':
         setSoldTextFormat(tag.soldTextFormat ?? (tag.text === SOLD_ICON_TEXT ? 'icon' : 'text'));
         break;
       case 'text':
+        freeTextRef.current = tag.text;
         setFreeText(tag.text);
         break;
-      case 'quantity':
-        setQuantity(String(tag.quantity ?? (extractPriceDigits(tag.text) || DEFAULT_QUANTITY)));
+      case 'quantity': {
+        const qty = String(tag.quantity ?? (extractPriceDigits(tag.text) || DEFAULT_QUANTITY));
+        quantityRef.current = qty;
+        setQuantity(qty);
         break;
+      }
       case 'language':
         setLanguageCode(tag.languageCode ?? (LANGUAGE_CODES.includes(tag.text as TagLanguageCode) ? (tag.text as TagLanguageCode) : 'TH'));
         break;
@@ -525,54 +645,60 @@ export function TagEditor({
     if (!visible) {
       setKeyboardOverlap(0);
       setActiveDockMenu('main');
+      setIsDockReady(false);
+      onCanvasLiftChangeRef.current?.(0);
     }
   }, [visible]);
+
+  // Show dock after keyboard (inline types), or immediately for types without a soft keyboard.
+  useEffect(() => {
+    if (!visible || !tag) {
+      setIsDockReady(false);
+      return;
+    }
+
+    if (!TYPES_WITH_INLINE_INPUT.includes(tag.type)) {
+      setIsDockReady(true);
+      return;
+    }
+
+    setIsDockReady(false);
+    // Fallback if IME never reports (hardware keyboard / rare Android cases).
+    const fallback = setTimeout(() => setIsDockReady(true), 480);
+    return () => clearTimeout(fallback);
+  }, [tag?.id, tag?.type, visible]);
+
+  // Pre-lift on first inline-edit render (before autoFocus) so parent translateY is not applied mid-focus.
+  const effectiveKeyboardOverlap = useMemo(() => {
+    if (keyboardOverlap > 0) {
+      return keyboardOverlap;
+    }
+
+    if (visible && tag && TYPES_WITH_INLINE_INPUT.includes(tag.type)) {
+      return lastKeyboardOverlapRef.current > 0 ? lastKeyboardOverlapRef.current : PROVISIONAL_KEYBOARD_OVERLAP;
+    }
+
+    return 0;
+  }, [keyboardOverlap, tag, visible]);
+
+  useEffect(() => {
+    if (effectiveKeyboardOverlap > 0) {
+      setIsDockReady(true);
+    }
+  }, [effectiveKeyboardOverlap]);
+
+  const getEditorHost = () => hostRef.current;
+  const syncKeyboardOverlap = () => {
+    syncHostKeyboardOverlapFromMetrics(getEditorHost, keyboardSettleTimersRef.current, setTrackedKeyboardOverlap);
+  };
+  scheduleKeyboardSyncRef.current = syncKeyboardOverlap;
 
   useEffect(() => {
     if (!visible) {
       return;
     }
 
-    let settleTimerA: ReturnType<typeof setTimeout> | null = null;
-    let settleTimerB: ReturnType<typeof setTimeout> | null = null;
-    let settleTimerC: ReturnType<typeof setTimeout> | null = null;
-
-    const clearSettleTimers = () => {
-      if (settleTimerA) {
-        clearTimeout(settleTimerA);
-      }
-      if (settleTimerB) {
-        clearTimeout(settleTimerB);
-      }
-      if (settleTimerC) {
-        clearTimeout(settleTimerC);
-      }
-      settleTimerA = null;
-      settleTimerB = null;
-      settleTimerC = null;
-    };
-
-    const applyOverlap = (keyboardTop: number, keyboardHeight: number) => {
-      hostRef.current?.measure((_x, _y, _width, height, _pageX, pageY) => {
-        if (height <= 0) {
-          setKeyboardOverlap(Math.max(0, Math.round(keyboardHeight)));
-          return;
-        }
-
-        // pageY matches endCoordinates.screenY space (same pattern as drag/delete hit-testing).
-        const hostBottom = pageY + height;
-        setKeyboardOverlap(Math.max(0, Math.round(hostBottom - keyboardTop)));
-      });
-    };
-
-    const scheduleOverlapUpdate = (keyboardTop: number, keyboardHeight: number) => {
-      clearSettleTimers();
-      applyOverlap(keyboardTop, keyboardHeight);
-      requestAnimationFrame(() => applyOverlap(keyboardTop, keyboardHeight));
-      settleTimerA = setTimeout(() => applyOverlap(keyboardTop, keyboardHeight), 50);
-      settleTimerB = setTimeout(() => applyOverlap(keyboardTop, keyboardHeight), 120);
-      settleTimerC = setTimeout(() => applyOverlap(keyboardTop, keyboardHeight), 280);
-    };
+    const timers = keyboardSettleTimersRef.current;
 
     const updateOverlapFromKeyboard = (event: KeyboardEvent) => {
       const keyboardHeight = getKeyboardHeight(event.endCoordinates);
@@ -581,16 +707,13 @@ export function TagEditor({
         return;
       }
 
-      scheduleOverlapUpdate(event.endCoordinates.screenY, keyboardHeight);
-    };
-
-    const syncFromKeyboardMetrics = () => {
-      const metrics = Keyboard.metrics();
-      if (!metrics || metrics.height <= 0) {
-        return;
-      }
-
-      scheduleOverlapUpdate(metrics.screenY, getKeyboardHeight(metrics));
+      scheduleHostKeyboardOverlapUpdate(
+        getEditorHost,
+        timers,
+        event.endCoordinates.screenY,
+        keyboardHeight,
+        setTrackedKeyboardOverlap,
+      );
     };
 
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -603,16 +726,17 @@ export function TagEditor({
         return;
       }
 
-      clearSettleTimers();
+      clearKeyboardSettleTimers(timers);
       setKeyboardOverlap(0);
     });
 
     // autoFocus can open the keyboard before listeners attach — sync current frame.
-    syncFromKeyboardMetrics();
-    settleTimerC = setTimeout(syncFromKeyboardMetrics, 100);
+    syncKeyboardOverlap();
+    const initialSyncTimer = setTimeout(syncKeyboardOverlap, 100);
 
     return () => {
-      clearSettleTimers();
+      clearTimeout(initialSyncTimer);
+      clearKeyboardSettleTimers(timers);
       showSubscription.remove();
       didShowSubscription?.remove();
       hideSubscription.remove();
@@ -639,6 +763,7 @@ export function TagEditor({
     });
   }, [tag, priceAmount, priceTextFormat, soldTextFormat, quantity, languageCode, conditionValue, freeText, soldLabel, currency, language]);
 
+  // Full draft preview for style/size/format — exclude keystroke-driven displayText for inline types.
   useEffect(() => {
     if (!visible || !tag) {
       return;
@@ -654,8 +779,196 @@ export function TagEditor({
       languageCode: tag.type === 'language' ? languageCode : undefined,
     };
 
-    onDraftChange(preview);
-  }, [conditionValue, displayText, languageCode, onDraftChange, priceTextFormat, sizePresetId, soldTextFormat, stylePresetId, tag, visible]);
+    onDraftChangeRef.current(preview);
+    // displayText omitted on purpose for price/text/quantity keystrokes — syncOnly handles those.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keystroke text must not full-render the editor
+  }, [
+    conditionValue,
+    languageCode,
+    priceTextFormat,
+    sizePresetId,
+    soldTextFormat,
+    stylePresetId,
+    tag,
+    visible,
+    soldLabel,
+    currency,
+    language,
+  ]);
+
+  // Keystroke path for inline types: sync live draft text without full editor setState.
+  useEffect(() => {
+    if (!visible || !tag || !TYPES_WITH_INLINE_INPUT.includes(tag.type)) {
+      return;
+    }
+
+    const preview: TagEditorDraftPreview = {
+      text: displayText,
+      stylePresetId: tag.type === 'sold' && soldTextFormat === 'icon_plain' ? 'sold-icon-plain' : stylePresetId,
+      sizePresetId: TYPES_WITH_SIZE_PICKER.includes(tag.type) ? sizePresetId : tag.sizePresetId,
+      priceTextFormat: tag.type === 'price' ? priceTextFormat : undefined,
+      soldTextFormat: tag.type === 'sold' ? soldTextFormat : undefined,
+      condition: tag.type === 'condition' ? conditionValue : undefined,
+      languageCode: tag.type === 'language' ? languageCode : undefined,
+    };
+
+    onDraftChangeRef.current(preview, { syncOnly: true });
+  }, [displayText, tag, visible, stylePresetId, sizePresetId, priceTextFormat, soldTextFormat, conditionValue, languageCode]);
+
+  const canvasLift = useMemo(() => {
+    if (!visible || !tag || effectiveKeyboardOverlap <= 0) {
+      return 0;
+    }
+
+    const clearance = estimateTagClearance({ ...tag, sizePresetId });
+    const tagTop = imageRect.y + tag.y * imageRect.height;
+    const tagBottom = tagTop + clearance.height;
+
+    return getKeyboardCanvasLift({
+      imageRect,
+      canvasHeight: canvasSize.height,
+      keyboardOverlap: effectiveKeyboardOverlap,
+      dockHeight: DOCK_HEIGHT_ESTIMATE,
+      focusBottom: tagBottom,
+      focusTop: tagTop,
+      gap: KEYBOARD_LIFT_GAP,
+    });
+  }, [canvasSize.height, effectiveKeyboardOverlap, imageRect, sizePresetId, tag, visible]);
+
+  useLayoutEffect(() => {
+    onCanvasLiftChangeRef.current?.(canvasLift);
+  }, [canvasLift]);
+
+  useEffect(() => {
+    return () => {
+      onCanvasLiftChangeRef.current?.(0);
+    };
+  }, []);
+
+  // Publish inline-edit config when the edit session / format context changes — NOT on every keystroke.
+  // Handlers read live values from refs; TagOverlay keeps local value for instant typing.
+  useEffect(() => {
+    const publish = onInlineEditChangeRef.current;
+    if (!visible || !tag || !TYPES_WITH_INLINE_INPUT.includes(tag.type)) {
+      publish?.(null);
+      return;
+    }
+
+    if (tag.type === 'price') {
+      const digits = priceAmountRef.current;
+      const formattedAmount = formatPriceDisplay(digits, priceTextFormat, currency, language);
+      const formattedPlaceholder = formatPriceDisplay(PREVIEW_AMOUNT, priceTextFormat, currency, language);
+      const atDigitCap = digits.length >= PRICE_AMOUNT_MAX_DIGITS;
+      publish?.({
+        value: formattedAmount,
+        keyboardType: 'number-pad',
+        maxLength: atDigitCap ? Math.max(formattedAmount.length, 1) : undefined,
+        placeholder: formattedPlaceholder,
+        autoFocus: true,
+        onChangeText: (nextText) => {
+          const currentDigits = priceAmountRef.current;
+          const nextDigits = acceptPriceDigits(nextText, currentDigits);
+          const formatted = formatPriceDisplay(
+            nextDigits,
+            priceTextFormatRef.current,
+            currencyRef.current,
+            languageRef.current,
+          );
+          if (nextDigits === currentDigits) {
+            return formatted;
+          }
+
+          priceAmountRef.current = nextDigits;
+          setPriceAmount(nextDigits);
+          return formatted;
+        },
+        onFocus: () => scheduleKeyboardSyncRef.current(),
+      });
+      return;
+    }
+
+    if (tag.type === 'text') {
+      publish?.({
+        value: freeTextRef.current,
+        multiline: true,
+        placeholder: language === 'th' ? 'ข้อความ' : 'Text',
+        autoFocus: true,
+        onChangeText: (nextText) => {
+          freeTextRef.current = nextText;
+          setFreeText(nextText);
+          return nextText;
+        },
+        onFocus: () => scheduleKeyboardSyncRef.current(),
+      });
+      return;
+    }
+
+    if (tag.type === 'quantity') {
+      publish?.({
+        value: quantityRef.current,
+        keyboardType: 'number-pad',
+        maxLength: QUANTITY_MAX_DIGITS,
+        placeholder: String(DEFAULT_QUANTITY),
+        prefix: 'x',
+        autoFocus: true,
+        onChangeText: (nextText) => {
+          const currentDigits = quantityRef.current;
+          const nextDigits = acceptQuantityDigits(nextText, currentDigits);
+          if (nextDigits === currentDigits) {
+            return currentDigits;
+          }
+
+          quantityRef.current = nextDigits;
+          setQuantity(nextDigits);
+          return nextDigits;
+        },
+        onFocus: () => scheduleKeyboardSyncRef.current(),
+      });
+    }
+    // Intentionally omit freeText / priceAmount / quantity — keystrokes must not re-publish.
+  }, [currency, inputRef, language, priceTextFormat, tag, visible]);
+
+  // Clear inline edit only when the editor session ends.
+  useEffect(() => {
+    return () => {
+      onInlineEditChangeRef.current?.(null);
+    };
+  }, []);
+
+  // Open session: rely on TextInput autoFocus only. One late fallback if IME never appeared.
+  // Do not cascade focus() during IME animation — that restarts the keyboard (flicker).
+  useEffect(() => {
+    if (!visible || !tag || !TYPES_WITH_INLINE_INPUT.includes(tag.type)) {
+      return;
+    }
+
+    const fallback = setTimeout(() => {
+      focusInlineInputIfNeeded(inputRef?.current);
+      scheduleKeyboardSyncRef.current();
+    }, INLINE_FOCUS_FALLBACK_MS);
+
+    return () => clearTimeout(fallback);
+  }, [inputRef, tag?.id, tag?.type, visible]);
+
+  // After canvas lifts, recover only if input is already focused and the IME dropped.
+  // Skip when the input is not focused yet so we do not race TextInput autoFocus.
+  useEffect(() => {
+    if (!visible || !tag || !TYPES_WITH_INLINE_INPUT.includes(tag.type) || canvasLift <= 0) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const input = inputRef?.current;
+      if (!input?.isFocused()) {
+        return;
+      }
+
+      focusInlineInputIfNeeded(input);
+      scheduleKeyboardSyncRef.current();
+    }, 60);
+
+    return () => clearTimeout(timer);
+  }, [canvasLift, inputRef, tag?.id, tag?.type, visible]);
 
   if (!visible || !tag) {
     return null;
@@ -698,42 +1011,7 @@ export function TagEditor({
     }
   };
 
-  const scheduleKeyboardSync = () => {
-    const metrics = Keyboard.metrics();
-    if (!metrics || metrics.height <= 0) {
-      return;
-    }
-
-    const keyboardHeight = Math.max(
-      0,
-      metrics.height,
-      Dimensions.get('screen').height - metrics.screenY,
-      Dimensions.get('window').height - metrics.screenY
-    );
-
-    const apply = () => {
-      hostRef.current?.measure((_x, _y, _width, height, _pageX, pageY) => {
-        if (height <= 0) {
-          setKeyboardOverlap(Math.round(keyboardHeight));
-          return;
-        }
-
-        setKeyboardOverlap(Math.max(0, Math.round(pageY + height - metrics.screenY)));
-      });
-    };
-
-    apply();
-    requestAnimationFrame(apply);
-    setTimeout(apply, 80);
-  };
-
-  const showFloatInput = TYPES_WITH_FLOAT_INPUT.includes(tag.type);
-  const floatWidth = showFloatInput
-    ? Math.min(FLOAT_MAX_WIDTH, Math.max(FLOAT_MIN_WIDTH, canvasSize.width - theme.spacing.lg * 2))
-    : FLOAT_CLOSE_ONLY_HEIGHT;
-  const floatHeight = estimateFloatHeight(tag.type);
-  const floatPlacementTag = { ...tag, sizePresetId };
-  const floatPosition = getFloatPosition(floatPlacementTag, imageRect, canvasSize, floatWidth, floatHeight, keyboardOverlap);
+  const showInlineInput = TYPES_WITH_INLINE_INPUT.includes(tag.type);
   const showColorMenu =
     (tag.type === 'price' || tag.type === 'sold' || tag.type === 'quantity') &&
     !(tag.type === 'sold' && soldTextFormat === 'icon_plain');
@@ -746,21 +1024,18 @@ export function TagEditor({
   const textStyleSample = language === 'th' ? 'ก' : 'Aa';
 
   const keepInputFocused = () => {
-    if (!showFloatInput) {
+    if (!visible || !showInlineInput) {
       return;
     }
 
     ignoreKeyboardHideRef.current = true;
     requestAnimationFrame(() => {
-      inputRef.current?.focus();
+      focusInlineInputIfNeeded(inputRef?.current);
     });
     setTimeout(() => {
       ignoreKeyboardHideRef.current = false;
       // Re-sync in case a hide was skipped while we held focus.
-      const metrics = Keyboard.metrics();
-      if (metrics && metrics.height > 0) {
-        scheduleKeyboardSync();
-      }
+      syncKeyboardOverlap();
     }, 450);
   };
 
@@ -776,17 +1051,6 @@ export function TagEditor({
     };
   };
 
-  const renderCloseButton = () => (
-    <Pressable
-      accessibilityLabel={t('tag.cancel')}
-      accessibilityRole="button"
-      hitSlop={8}
-      onPress={onCancel}
-      style={styles.closeButton}>
-      <MaterialIcons color={theme.colors.textSecondary} name="close" size={18} />
-    </Pressable>
-  );
-
   const renderMainDock = () => (
     <View style={styles.dockContent}>
       {showSoldFormatMenu ? <DockMenuButton label={t('tag.dock.format')} onPress={() => openDockMenu('format')} /> : null}
@@ -796,9 +1060,14 @@ export function TagEditor({
       {showPriceFormatMenu ? <DockMenuButton label={t('tag.dock.format')} onPress={() => openDockMenu('format')} /> : null}
       {showStyleMenu ? <DockMenuButton label={t('tag.dock.style')} onPress={() => openDockMenu('style')} /> : null}
       {showSizeMenu ? <DockMenuButton label={t('tag.dock.size')} onPress={() => openDockMenu('size')} /> : null}
-      <Pressable accessibilityRole="button" onPress={saveTag} style={styles.saveButton}>
-        <Text style={styles.saveButtonText}>{t('tag.save')}</Text>
-      </Pressable>
+      <View style={styles.dockActions}>
+        <Pressable accessibilityRole="button" onPress={onCancel} style={styles.cancelButton}>
+          <Text style={styles.cancelButtonText}>{t('tag.cancel')}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={saveTag} style={styles.saveButton}>
+          <Text style={styles.saveButtonText}>{t('tag.save')}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -839,6 +1108,7 @@ export function TagEditor({
                 label={sample}
                 isActive={priceTextFormat === format}
                 onPress={() => withKeepFocus(setPriceTextFormat)(format)}
+                style={styles.dockRingOptionChip}
               />
             );
           })}
@@ -881,6 +1151,7 @@ export function TagEditor({
               label={code}
               isActive={languageCode === code}
               onPress={() => withKeepFocus(setLanguageCode)(code)}
+              style={styles.dockRingOptionChip}
             />
           ))}
         </View>
@@ -890,88 +1161,18 @@ export function TagEditor({
 
   return (
     <View pointerEvents="box-none" ref={hostRef} style={styles.host}>
-      <View style={[styles.float, floatPosition, { width: floatWidth }]}>
-        {tag.type === 'price' ? (
-          <View style={styles.inputRow}>
-            <TextInput
-              ref={inputRef}
-              autoCorrect={false}
-              autoFocus
-              blurOnSubmit={false}
-              keyboardType="number-pad"
-              onChangeText={(nextText) => setPriceAmount(extractPriceDigits(nextText))}
-              onFocus={scheduleKeyboardSync}
-              placeholder={PREVIEW_AMOUNT}
-              placeholderTextColor={theme.colors.textMuted}
-              returnKeyType="done"
-              style={styles.input}
-              value={priceAmount}
-            />
-            {renderCloseButton()}
-          </View>
-        ) : null}
-
-        {tag.type === 'text' ? (
-          <View style={styles.inputRow}>
-            <TextInput
-              ref={inputRef}
-              autoCorrect={false}
-              autoFocus
-              blurOnSubmit={false}
-              onChangeText={setFreeText}
-              onFocus={scheduleKeyboardSync}
-              placeholder={language === 'th' ? 'ข้อความ' : 'Text'}
-              placeholderTextColor={theme.colors.textMuted}
-              returnKeyType="done"
-              style={styles.input}
-              value={freeText}
-            />
-            {renderCloseButton()}
-          </View>
-        ) : null}
-
-        {tag.type === 'quantity' ? (
-          <View style={styles.inputRow}>
-            <TextInput
-              ref={inputRef}
-              autoCorrect={false}
-              autoFocus
-              blurOnSubmit={false}
-              keyboardType="number-pad"
-              onChangeText={(nextText) => setQuantity(extractPriceDigits(nextText))}
-              onFocus={scheduleKeyboardSync}
-              placeholder={String(DEFAULT_QUANTITY)}
-              placeholderTextColor={theme.colors.textMuted}
-              returnKeyType="done"
-              style={styles.input}
-              value={quantity}
-            />
-            {renderCloseButton()}
-          </View>
-        ) : null}
-
-        {!showFloatInput ? (
-          <Pressable
-            accessibilityLabel={t('tag.cancel')}
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onCancel}
-            style={styles.closeOnlyButton}>
-            <MaterialIcons color={theme.colors.textSecondary} name="close" size={18} />
-          </Pressable>
-        ) : null}
-      </View>
-
-      <View style={[styles.dock, { bottom: keyboardOverlap }]}>
-        <ScrollView
-          bounces={false}
-          horizontal={false}
-          keyboardShouldPersistTaps="always"
-          scrollEnabled={false}
-          showsVerticalScrollIndicator={false}>
-          {activeDockMenu === 'main' ? renderMainDock() : renderSubDock()}
-        </ScrollView>
-      </View>
+      {isDockReady ? (
+        <View style={[styles.dock, { bottom: effectiveKeyboardOverlap }]}>
+          <ScrollView
+            bounces={false}
+            horizontal={false}
+            keyboardShouldPersistTaps="always"
+            scrollEnabled={false}
+            showsVerticalScrollIndicator={false}>
+            {activeDockMenu === 'main' ? renderMainDock() : renderSubDock()}
+          </ScrollView>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -980,46 +1181,6 @@ const styles = StyleSheet.create({
   host: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 4,
-  },
-  float: {
-    position: 'absolute',
-    zIndex: 5,
-    gap: theme.spacing.xs,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.sm,
-    ...theme.shadows.card,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-  },
-  input: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.white,
-    color: theme.colors.textPrimary,
-    paddingHorizontal: theme.spacing.sm,
-    ...theme.typography.body,
-  },
-  closeButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeOnlyButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
   },
   dock: {
     position: 'absolute',
@@ -1031,9 +1192,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.colors.photoMockItemBorder,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.sm,
-    paddingBottom: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    paddingTop: theme.spacing.xs,
+    paddingBottom: theme.spacing.xs,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.12,
@@ -1045,7 +1206,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'nowrap',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xs,
   },
   dockMenuButton: {
     minHeight: 44,
@@ -1056,7 +1217,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
   },
   dockMenuButtonText: {
     ...theme.typography.caption,
@@ -1073,7 +1234,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xs,
   },
   optionChip: {
     minHeight: 44,
@@ -1084,7 +1245,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.xs,
   },
   plainSoldChip: {
     backgroundColor: 'transparent',
@@ -1103,8 +1264,12 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   activeOptionChip: {
-    borderColor: theme.buttons.primary.borderColor,
+    borderColor: theme.colors.accent,
     backgroundColor: theme.colors.photoMockBackground,
+  },
+  dockRingOptionChip: {
+    // Match Color/Style sub-menu focus ring thickness (colorSwatchOuter / textStyleChipOuter).
+    borderWidth: 2,
   },
   optionChipText: {
     ...theme.typography.caption,
@@ -1124,7 +1289,7 @@ const styles = StyleSheet.create({
   colorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xs,
     paddingRight: theme.spacing.xs,
   },
   colorSwatchOuter: {
@@ -1138,7 +1303,7 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   colorSwatchOuterActive: {
-    borderColor: theme.colors.primary,
+    borderColor: theme.colors.accent,
   },
   colorSwatchInner: {
     width: '100%',
@@ -1156,15 +1321,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 2,
   },
-  textStyleStage: {
-    minWidth: 40,
-    minHeight: 32,
-    borderRadius: theme.radius.sm - 2,
-    backgroundColor: theme.colors.photoMockBackground,
+  priceStylePreview: {
+    minHeight: 22,
+    minWidth: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.xs,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  priceStylePreviewText: {
+    fontSize: 12,
+    lineHeight: 14,
   },
   textStylePreview: {
     minHeight: 22,
@@ -1191,17 +1358,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.xs,
   },
+  dockActions: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  cancelButton: {
+    minHeight: 44,
+    minWidth: 72,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    backgroundColor: theme.buttons.secondary.backgroundColor,
+    borderColor: theme.buttons.secondary.borderColor,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.sm,
+  },
+  cancelButtonText: {
+    ...theme.typography.caption,
+    color: theme.buttons.secondary.color,
+  },
   saveButton: {
     minHeight: 44,
     minWidth: 72,
-    marginLeft: 'auto',
     borderRadius: theme.radius.sm,
     borderWidth: 1,
     backgroundColor: theme.buttons.primary.backgroundColor,
     borderColor: theme.buttons.primary.borderColor,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
   },
   saveButtonText: {
     ...theme.typography.caption,

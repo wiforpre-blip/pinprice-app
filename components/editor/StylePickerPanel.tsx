@@ -119,7 +119,8 @@ function ToolPreviewChip({
       : DEFAULT_TAG_STYLE_BY_TYPE[type];
   const preset = TAG_STYLE_PRESETS[isPlainSoldIcon ? 'sold-icon-plain' : resolvedStylePresetId];
   const conditionColors = CONDITION_GRADE_STYLES[conditionValue ?? 'NM'];
-  const isPlainText = type === 'text' && isTransparentTagBackground(preset.backgroundColor);
+  const isTransparentText = type === 'text' && isTransparentTagBackground(preset.backgroundColor);
+  const isPlainText = isTransparentText && preset.borderColor === 'transparent';
   const backgroundColor = isCondition
     ? conditionColors.backgroundColor
     : isPlainSoldIcon || isPlainText
@@ -137,6 +138,23 @@ function ToolPreviewChip({
         ? theme.colors.textPrimary
         : preset.borderColor;
   const textColor = isCondition ? conditionColors.color : preset.color;
+  const isLightText =
+    textColor === '#FFFFFF' || textColor === theme.colors.white || textColor.toLowerCase() === '#fff';
+  const previewBackgroundColor =
+    isTransparentText && isLightText ? '#3A3F46' : backgroundColor;
+  const previewBorderRadius =
+    type === 'price' || type === 'text'
+      ? (preset.borderRadius ?? theme.radius.sm)
+      : type === 'condition'
+        ? 16
+        : theme.radius.sm;
+  const previewBorderWidth = isCondition
+    ? 2
+    : type === 'price' || type === 'text'
+      ? (preset.borderWidth ?? (isPlainText ? 0 : 1))
+      : undefined;
+  const previewFontWeight =
+    type === 'text' || type === 'price' ? (preset.fontWeight ?? '700') : undefined;
 
   const preview = (
     <View
@@ -147,9 +165,10 @@ function ToolPreviewChip({
         isPlainText && styles.plainTextPreview,
         isCondition && styles.conditionPreview,
         {
-          backgroundColor,
+          backgroundColor: previewBackgroundColor,
           borderColor,
-          borderWidth: isCondition ? 2 : undefined,
+          borderWidth: previewBorderWidth,
+          borderRadius: Math.min(previewBorderRadius, 20),
         },
       ]}>
       {isPlainSoldIcon || isBadgeSoldIcon ? (
@@ -164,7 +183,7 @@ function ToolPreviewChip({
             styles.toolChipPreviewText,
             type === 'text' ? getTagTextShadowStyle(preset.textShadow ?? null) : null,
             isCondition && styles.conditionPreviewText,
-            { color: textColor, fontWeight: type === 'text' ? (preset.fontWeight ?? '700') : undefined },
+            { color: textColor, fontWeight: previewFontWeight },
           ]}
           numberOfLines={1}>
           {label}
@@ -480,13 +499,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.sm,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.background,
     paddingHorizontal: theme.spacing.xs,
   },
   activeSizeOption: {
-    borderColor: theme.buttons.primary.borderColor,
+    borderColor: theme.colors.accent,
     backgroundColor: theme.colors.photoMockBackground,
   },
   sizeOptionText: {

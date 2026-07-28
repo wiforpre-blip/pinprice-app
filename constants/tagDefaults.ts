@@ -27,10 +27,12 @@ export const TEXT_STYLE_PRESET_CYCLE: TagStylePresetId[] = [
   'text-white-border',
   'text-plain',
   'text-accent',
-  'text-soft-pastel',
-  'text-marker',
-  'text-dark',
-  'text-caption',
+  'text-marketplace-white',
+  'text-facebook-blue',
+  'text-ebay-yellow',
+  'text-outline-white',
+  'text-soft-note',
+  'text-dark-caption',
 ];
 
 export const MAIN_TAG_TYPES: TagType[] = ['price', 'sold', 'text'];
