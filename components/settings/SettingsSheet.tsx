@@ -1,18 +1,18 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Switch, Text, View } from 'react-native';
 
 import { CurrencySelectorSheet } from '@/components/settings/CurrencySelectorSheet';
 import { FeedbackSheet } from '@/components/settings/FeedbackSheet';
 import { HelpSheet } from '@/components/settings/HelpSheet';
-import { UnlockPaywallSheet } from '@/components/settings/UnlockPaywallSheet';
 import { settingsStyles as styles } from '@/components/settings/settings.styles';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { APP_VERSION } from '@/constants/app';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation, type Language } from '@/contexts/LanguageContext';
-import { getUnlockStatus } from '@/services/purchase.service';
+import { loadIsUnlocked, saveIsUnlocked } from '@/services/tier.service';
+import { shouldRenderWatermark } from '@/utils/watermark';
 
 type SettingsSheetProps = {
   visible: boolean;
@@ -27,8 +27,8 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const [isCurrencySelectorOpen, setIsCurrencySelectorOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
-  const [isUnlockPaywallOpen, setIsUnlockPaywallOpen] = useState(false);
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  /** Free-tier default: watermark on. Mirrors export gating via local unlock flag. */
+  const [showWatermark, setShowWatermark] = useState(true);
 
   useEffect(() => {
     if (!visible) {
@@ -37,9 +37,9 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
 
     let isMounted = true;
 
-    void getUnlockStatus().then((status) => {
+    void loadIsUnlocked().then((isUnlocked) => {
       if (isMounted) {
-        setIsUnlocked(status.isUnlocked);
+        setShowWatermark(shouldRenderWatermark(isUnlocked));
       }
     });
 
@@ -48,11 +48,16 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
     };
   }, [visible]);
 
+  const handleWatermarkToggle = (enabled: boolean) => {
+    setShowWatermark(enabled);
+    // Unlocked = no watermark on export (same flag preview/export already check).
+    void saveIsUnlocked(!enabled);
+  };
+
   const handleClose = () => {
     setIsCurrencySelectorOpen(false);
     setIsHelpOpen(false);
     setIsFeedbackOpen(false);
-    setIsUnlockPaywallOpen(false);
     onClose();
   };
 
@@ -112,25 +117,23 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
             <Text style={styles.rowLabel}>{t('settings.contact')}</Text>
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setIsUnlockPaywallOpen(true)}
-            style={styles.row}>
-            <Text style={styles.rowLabel}>{t('settings.removeWatermark')}</Text>
-            <View style={styles.rowTrailing}>
-              {isUnlocked ? (
-                <Text style={styles.rowValueUnlocked}>{t('settings.unlocked')}</Text>
-              ) : (
-                <MaterialIcons color={theme.colors.textMuted} name="chevron-right" size={22} />
-              )}
-            </View>
-          </Pressable>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>{t('settings.exportWatermark')}</Text>
+            <Switch
+              accessibilityLabel={t('settings.exportWatermark')}
+              accessibilityRole="switch"
+              onValueChange={handleWatermarkToggle}
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+              thumbColor={theme.colors.white}
+              value={showWatermark}
+            />
+          </View>
 
           <View style={styles.divider} />
 
           <View style={styles.row}>
             <Text style={[styles.rowLabel, styles.rowLabelDisabled]}>{t('settings.version')}</Text>
-            <Text style={styles.rowValueMuted}>{APP_VERSION}</Text>
+            <Text style={styles.rowValueMuted}>{`PinPrice ${APP_VERSION}`}</Text>
           </View>
         </View>
       </BottomSheetOverlay>
@@ -143,12 +146,6 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
       <HelpSheet onClose={() => setIsHelpOpen(false)} visible={visible && isHelpOpen} />
 
       <FeedbackSheet onClose={() => setIsFeedbackOpen(false)} visible={visible && isFeedbackOpen} />
-
-      <UnlockPaywallSheet
-        onClose={() => setIsUnlockPaywallOpen(false)}
-        onUnlockChange={setIsUnlocked}
-        visible={visible && isUnlockPaywallOpen}
-      />
     </>
   );
 }

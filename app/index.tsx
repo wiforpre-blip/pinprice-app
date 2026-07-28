@@ -169,7 +169,11 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <View style={styles.hero}>
-            <Text style={[styles.headline, language === 'th' && styles.headlineThai]}>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+              numberOfLines={1}
+              style={[styles.headline, language === 'th' && styles.headlineThai]}>
               {t('home.headline')}
             </Text>
             <Text style={[styles.subtitle, language === 'th' && styles.subtitleThai]}>
@@ -274,34 +278,41 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
   },
   content: {
     width: '100%',
     maxWidth: 430,
     alignSelf: 'center',
-    gap: theme.spacing.lg,
+    gap: theme.spacing.xl,
   },
   hero: {
-    gap: theme.spacing.sm,
+    gap: theme.spacing.md,
+    alignItems: 'center',
   },
   headline: {
-    ...theme.typography.headline,
+    width: '100%',
+    fontSize: 30,
+    lineHeight: 38,
+    fontWeight: '800',
     color: theme.colors.textPrimary,
-    maxWidth: 360,
+    textAlign: 'center',
   },
   headlineThai: {
-    // Thai vowel/tone marks need extra vertical room vs Latin.
-    lineHeight: 48,
+    // Extra room for Thai vowel/tone marks on a single line.
+    lineHeight: 40,
   },
   subtitle: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-    maxWidth: 360,
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '400',
+    // Slightly darker than theme textSecondary for clearer contrast on white/light bg.
+    color: '#526070',
+    textAlign: 'center',
   },
   subtitleThai: {
-    lineHeight: 26,
+    lineHeight: 24,
   },
   actions: {
     gap: theme.spacing.md,
@@ -346,10 +357,10 @@ const styles = StyleSheet.create({
   },
   heroImageCard: {
     width: '100%',
-    opacity: 0.72,
+    opacity: 0.8,
   },
   heroImage: {
     width: '100%',
-    aspectRatio: 16 / 10,
+    aspectRatio: 16 / 11,
   },
 });

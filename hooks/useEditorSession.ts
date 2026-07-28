@@ -147,6 +147,15 @@ export function useEditorSession({
     goHome();
   }, [closePreview, goHome, hasUnsavedWork, isExporting, isPreviewing]);
 
+  /** Preview header: confirm before leaving to pick a new photo. */
+  const requestNewPhoto = useCallback(() => {
+    if (isExporting) {
+      return;
+    }
+
+    setIsLeaveModalVisible(true);
+  }, [isExporting]);
+
   const cancelLeaveEditor = () => {
     setIsLeaveModalVisible(false);
   };
@@ -202,6 +211,7 @@ export function useEditorSession({
     isEditingFilename,
     isLeaveModalVisible,
     requestLeaveEditor,
+    requestNewPhoto,
     setDraftFilename,
     setIsEditingFilename,
     startFilenameEdit,

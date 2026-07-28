@@ -6,6 +6,8 @@ export const DEFAULT_TEXT_TAG = '';
 export const DEFAULT_CONDITION_VALUE: TagConditionValue = 'NM';
 export const DEFAULT_CONDITION_TEXT = DEFAULT_CONDITION_VALUE;
 export const DEFAULT_QUANTITY = 1;
+/** Quantity tags accept 1–3 digits; chip width grows with digit count. */
+export const QUANTITY_MAX_DIGITS = 3;
 export const DEFAULT_LANGUAGE_CODE: TagLanguageCode = 'TH';
 export const SOLD_ICON_TEXT = '✕';
 

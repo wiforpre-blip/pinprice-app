@@ -4,8 +4,8 @@
     "ok": "OK"
   },
   "home": {
-    "headline": "Get product photos sale-ready in seconds",
-    "subtitle": "Add prices, Sold tags, and export images ready to use",
+    "headline": "Tag products for sale in seconds",
+    "subtitle": "Pick price and Sold tag styles,\nthen save ready to post",
     "takePhoto": "Take Photo",
     "choosePhoto": "Choose Photo",
     "recent": "Recent Projects",
@@ -47,13 +47,14 @@
       },
       "privacyPolicy": "Privacy Policy",
       "privacyPolicyComingSoon": "Coming soon",
-      "showTipsAgain": "Show tips again",
+      "showTipsAgain": "Show tutorial again",
       "resetTipsTitle": "Show tips again?",
       "resetTipsBody": "Editor tips and the style coach will show again. Language, currency, and other settings stay unchanged.",
       "resetTipsConfirm": "Show tips",
       "resetTipsDone": "Tips will show again next time you open the editor."
     },
     "removeWatermark": "Remove watermark forever",
+    "exportWatermark": "Show watermark on images",
     "unlocked": "Unlocked",
     "comingSoon": "Coming soon",
     "feedbackSend": "Send",
@@ -96,6 +97,7 @@
   "editor": {
     "back": "Back",
     "edit": "Edit",
+    "newPhoto": "New",
     "save": "Save",
     "saving": "Saving...",
     "sharing": "Sharing...",
@@ -135,10 +137,8 @@
     "addPriceTag": "Add price tag",
     "noImageSelected": "No image selected",
     "backHome": "Back Home",
-    "tapPhotoToAdd": "Tap the photo to add a price tag",
     "tapPhotoToAddMarker": "Tap the photo to add a number",
     "placingChip": "Placing:",
-    "placingHint": "Tap the photo to place",
     "cancelPlacing": "Cancel placing",
     "zoomHint": "Pinch to zoom · Drag to pan",
     "choosePhotoToStart": "Choose a photo to start tagging",
@@ -190,9 +190,9 @@
       "price": "Price tag",
       "sold": "Sold tag",
       "text": "Text tag",
-      "condition": "Card condition tag",
+      "condition": "Condition tag",
       "quantity": "Quantity tag",
-      "language": "Card language tag"
+      "language": "Language tag"
     },
     "save": "Save",
     "cancel": "Cancel",
@@ -205,7 +205,7 @@
       "style": "Style",
       "size": "Size",
       "format": "Format",
-      "grade": "Grade",
+      "grade": "Condition",
       "language": "Language"
     }
   },
@@ -229,8 +229,8 @@
     "saveImage": "Save Image",
     "share": "Share",
     "shareDialogTitle": "Share tagged photo",
-    "savedToGallery": "Saved to gallery.",
-    "watermark": "Tagged with PinPrice"
+    "saved": "Saved",
+    "watermark": "PinPrice"
   },
   "leave": {
     "title": "Leave editor?",

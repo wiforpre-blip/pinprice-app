@@ -17,7 +17,7 @@ import {
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
 import type { TagInlineEdit } from '@/components/editor/TagOverlay';
-import { DEFAULT_CONDITION_VALUE, DEFAULT_QUANTITY, SOLD_ICON_TEXT, SOLD_TEXT_FORMAT_CYCLE, TAG_CONDITION_VALUE_CYCLE, TAG_SIZE_ORDER, toPickerSizePreset, type TagPickerSizePresetId } from '@/constants/tagDefaults';
+import { DEFAULT_CONDITION_VALUE, DEFAULT_QUANTITY, QUANTITY_MAX_DIGITS, SOLD_ICON_TEXT, TAG_CONDITION_VALUE_CYCLE, TAG_SIZE_ORDER, toPickerSizePreset, type TagPickerSizePresetId } from '@/constants/tagDefaults';
 import {
   DEFAULT_TAG_SIZE_PRESET_ID,
   DEFAULT_TAG_STYLE_BY_TYPE,
@@ -73,7 +73,6 @@ type DockMenu = 'main' | 'color' | 'style' | 'size' | 'format' | 'grade' | 'lang
 
 const KEYBOARD_LIFT_GAP = theme.spacing.sm;
 const PRICE_AMOUNT_MAX_DIGITS = 6;
-const QUANTITY_MAX_DIGITS = 3;
 const DOCK_HEIGHT_ESTIMATE = 56;
 /** Extra pad beyond tag body so selection ring / long text stay clear of the keyboard dock. */
 const TAG_CLEARANCE_PAD = theme.spacing.md;
@@ -85,7 +84,7 @@ const SIZE_CHIP_LABELS: Record<TagPickerSizePresetId, string> = {
   xl: 'XL',
 };
 const PREVIEW_AMOUNT = '1000';
-const TYPES_WITH_SIZE_PICKER: TagType[] = ['price', 'sold', 'text', 'language'];
+const TYPES_WITH_SIZE_PICKER: TagType[] = ['price', 'sold', 'text', 'quantity', 'language'];
 export const TYPES_WITH_INLINE_INPUT: TagType[] = ['price', 'text', 'quantity'];
 /** Used only when we have never measured an IME yet — prefers lifting before autoFocus. */
 const PROVISIONAL_KEYBOARD_OVERLAP = Platform.OS === 'ios' ? 320 : 280;
@@ -301,60 +300,19 @@ function DockMenuButton({ label, onPress }: { label: string; onPress: () => void
   );
 }
 
-function SoldFormatChip({
-  format,
-  soldLabel,
-  stylePresetId,
-  isActive,
-  onPress,
-}: {
-  format: SoldTextFormat;
-  soldLabel: string;
-  stylePresetId: TagStylePresetId;
-  isActive: boolean;
-  onPress: () => void;
-}) {
-  if (format === 'text') {
-    return <OptionChip label={soldLabel} isActive={isActive} onPress={onPress} />;
-  }
-
-  const isPlain = format === 'icon_plain';
-  const badgeStyleId =
-    stylePresetId === 'sold-icon-plain' ? DEFAULT_TAG_STYLE_BY_TYPE.sold : getStylePresetForType('sold', stylePresetId);
-  const badgePreset = TAG_STYLE_PRESETS[badgeStyleId];
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={isActive ? { selected: true } : undefined}
-      onPress={onPress}
-      style={[styles.optionChip, isActive && styles.activeOptionChip, isPlain && styles.plainSoldChip]}>
-      <View
-        style={[
-          styles.soldFormatPreview,
-          isPlain
-            ? styles.soldFormatPreviewPlain
-            : {
-                backgroundColor: badgePreset.backgroundColor,
-                borderColor: badgePreset.borderColor,
-              },
-        ]}>
-        <SoldCrossIcon color={isPlain ? theme.colors.sold : badgePreset.color} size={isPlain ? 20 : 16} thicknessScale={2} />
-      </View>
-    </Pressable>
-  );
-}
-
 function ColorPresetRow({
   type,
   activeStylePresetId,
   onSelect,
+  soldSampleLabel = 'SOLD',
 }: {
   type: PriceTag['type'];
   activeStylePresetId: TagStylePresetId;
   onSelect: (stylePresetId: TagStylePresetId) => void;
+  soldSampleLabel?: string;
 }) {
   const isPriceStyleRow = type === 'price';
+  const isSoldStyleRow = type === 'sold';
   const priceSampleLabel = '฿';
 
   return (
@@ -371,8 +329,9 @@ function ColorPresetRow({
         const borderRadius = preset.borderRadius ?? theme.radius.sm - 2;
         const borderWidth =
           preset.borderWidth ?? (isFlat && preset.borderColor === 'transparent' ? 0 : 1);
+        const isPlainCross = stylePresetId === 'sold-icon-plain';
 
-        if (isPriceStyleRow) {
+        if (isPriceStyleRow || isSoldStyleRow) {
           return (
             <Pressable
               accessibilityLabel={preset.label}
@@ -384,13 +343,19 @@ function ColorPresetRow({
               <View
                 style={[
                   styles.priceStylePreview,
+                  isPlainCross && styles.soldPlainStylePreview,
                   {
-                    backgroundColor: isFlat ? 'transparent' : preset.backgroundColor,
+                    backgroundColor: isPlainCross || isFlat ? 'transparent' : preset.backgroundColor,
                     borderColor:
-                      preset.borderColor === 'transparent' ? 'transparent' : preset.borderColor,
-                    borderWidth,
-                    borderRadius: Math.min(borderRadius, 16),
-                    ...(preset.viewShadow
+                      isPlainCross || preset.borderColor === 'transparent'
+                        ? 'transparent'
+                        : preset.borderColor,
+                    borderWidth: isPlainCross ? 0 : borderWidth,
+                    borderRadius: isPlainCross ? 0 : Math.min(borderRadius, 16),
+                    ...(preset.rotateDeg
+                      ? { transform: [{ rotate: `${preset.rotateDeg}deg` as const }] }
+                      : null),
+                    ...(!isPlainCross && preset.viewShadow
                       ? {
                           shadowColor: preset.viewShadow.shadowColor,
                           shadowOffset: { width: 0, height: 1 },
@@ -401,15 +366,29 @@ function ColorPresetRow({
                       : null),
                   },
                 ]}>
-                <Text
-                  style={[
-                    styles.priceStylePreviewText,
-                    getTagTextShadowStyle(preset.textShadow ?? null),
-                    { color: preset.color, fontWeight: preset.fontWeight ?? '800' },
-                  ]}
-                  numberOfLines={1}>
-                  {priceSampleLabel}
-                </Text>
+                {isPlainCross ? (
+                  <SoldCrossIcon color={preset.color} size={18} thicknessScale={2} />
+                ) : isSoldStyleRow ? (
+                  <Text
+                    style={[
+                      styles.priceStylePreviewText,
+                      getTagTextShadowStyle(preset.textShadow ?? null),
+                      { color: preset.color, fontWeight: preset.fontWeight ?? '800' },
+                    ]}
+                    numberOfLines={1}>
+                    {soldSampleLabel}
+                  </Text>
+                ) : (
+                  <Text
+                    style={[
+                      styles.priceStylePreviewText,
+                      getTagTextShadowStyle(preset.textShadow ?? null),
+                      { color: preset.color, fontWeight: preset.fontWeight ?? '800' },
+                    ]}
+                    numberOfLines={1}>
+                    {priceSampleLabel}
+                  </Text>
+                )}
               </View>
             </Pressable>
           );
@@ -999,7 +978,7 @@ export function TagEditor({
         break;
       case 'quantity': {
         const digits = extractPriceDigits(quantity) || String(DEFAULT_QUANTITY);
-        onSave(tag.id, { text: displayText, stylePresetId, quantity: Number(digits) });
+        onSave(tag.id, { text: displayText, stylePresetId, quantity: Number(digits), ...sizeUpdate });
         break;
       }
       case 'condition':
@@ -1012,16 +991,29 @@ export function TagEditor({
   };
 
   const showInlineInput = TYPES_WITH_INLINE_INPUT.includes(tag.type);
-  const showColorMenu =
-    (tag.type === 'price' || tag.type === 'sold' || tag.type === 'quantity') &&
-    !(tag.type === 'sold' && soldTextFormat === 'icon_plain');
+  const showColorMenu = tag.type === 'price' || tag.type === 'sold' || tag.type === 'quantity';
   const showStyleMenu = tag.type === 'text';
   const showSizeMenu = TYPES_WITH_SIZE_PICKER.includes(tag.type);
   const showPriceFormatMenu = tag.type === 'price';
-  const showSoldFormatMenu = tag.type === 'sold';
   const showGradeMenu = tag.type === 'condition';
   const showLanguageMenu = tag.type === 'language';
   const textStyleSample = language === 'th' ? 'ก' : 'Aa';
+  const soldActiveStylePresetId =
+    soldTextFormat === 'icon_plain' ? 'sold-icon-plain' : getStylePresetForType('sold', stylePresetId);
+
+  const selectSoldStylePreset = (nextStylePresetId: TagStylePresetId) => {
+    if (nextStylePresetId === 'sold-icon-plain') {
+      setStylePresetId('sold-icon-plain');
+      setSoldTextFormat('icon_plain');
+      return;
+    }
+
+    setStylePresetId(nextStylePresetId);
+    if (soldTextFormat === 'icon_plain') {
+      // Leave plain cross — show SOLD text so the new badge theme is visible.
+      setSoldTextFormat('text');
+    }
+  };
 
   const keepInputFocused = () => {
     if (!visible || !showInlineInput) {
@@ -1053,10 +1045,14 @@ export function TagEditor({
 
   const renderMainDock = () => (
     <View style={styles.dockContent}>
-      {showSoldFormatMenu ? <DockMenuButton label={t('tag.dock.format')} onPress={() => openDockMenu('format')} /> : null}
       {showGradeMenu ? <DockMenuButton label={t('tag.dock.grade')} onPress={() => openDockMenu('grade')} /> : null}
       {showLanguageMenu ? <DockMenuButton label={t('tag.dock.language')} onPress={() => openDockMenu('language')} /> : null}
-      {showColorMenu ? <DockMenuButton label={t('tag.dock.color')} onPress={() => openDockMenu('color')} /> : null}
+      {showColorMenu ? (
+        <DockMenuButton
+          label={tag.type === 'sold' ? t('tag.dock.style') : t('tag.dock.color')}
+          onPress={() => openDockMenu('color')}
+        />
+      ) : null}
       {showPriceFormatMenu ? <DockMenuButton label={t('tag.dock.format')} onPress={() => openDockMenu('format')} /> : null}
       {showStyleMenu ? <DockMenuButton label={t('tag.dock.style')} onPress={() => openDockMenu('style')} /> : null}
       {showSizeMenu ? <DockMenuButton label={t('tag.dock.size')} onPress={() => openDockMenu('size')} /> : null}
@@ -1083,7 +1079,16 @@ export function TagEditor({
       </Pressable>
 
       {activeDockMenu === 'color' && showColorMenu ? (
-        <ColorPresetRow type={tag.type} activeStylePresetId={stylePresetId} onSelect={withKeepFocus(setStylePresetId)} />
+        <ColorPresetRow
+          type={tag.type}
+          activeStylePresetId={tag.type === 'sold' ? soldActiveStylePresetId : stylePresetId}
+          soldSampleLabel={soldLabel}
+          onSelect={
+            tag.type === 'sold'
+              ? withKeepFocus(selectSoldStylePreset)
+              : withKeepFocus(setStylePresetId)
+          }
+        />
       ) : null}
 
       {activeDockMenu === 'style' && showStyleMenu ? (
@@ -1112,21 +1117,6 @@ export function TagEditor({
               />
             );
           })}
-        </View>
-      ) : null}
-
-      {activeDockMenu === 'format' && showSoldFormatMenu ? (
-        <View style={styles.optionRow}>
-          {SOLD_TEXT_FORMAT_CYCLE.map((format) => (
-            <SoldFormatChip
-              key={format}
-              format={format}
-              soldLabel={soldLabel}
-              stylePresetId={stylePresetId}
-              isActive={soldTextFormat === format}
-              onPress={() => withKeepFocus(setSoldTextFormat)(format)}
-            />
-          ))}
         </View>
       ) : null}
 
@@ -1247,22 +1237,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     paddingHorizontal: theme.spacing.xs,
   },
-  plainSoldChip: {
-    backgroundColor: 'transparent',
-  },
-  soldFormatPreview: {
-    minWidth: 28,
-    minHeight: 28,
-    borderRadius: theme.radius.sm - 4,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  soldFormatPreviewPlain: {
-    backgroundColor: 'transparent',
-    borderColor: 'transparent',
-  },
   activeOptionChip: {
     borderColor: theme.colors.accent,
     backgroundColor: theme.colors.photoMockBackground,
@@ -1328,6 +1302,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 6,
     paddingVertical: 2,
+  },
+  soldPlainStylePreview: {
+    minWidth: 28,
+    paddingHorizontal: 2,
   },
   priceStylePreviewText: {
     fontSize: 12,

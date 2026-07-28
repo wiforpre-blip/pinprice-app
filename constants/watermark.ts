@@ -3,8 +3,8 @@
  * Sizes are resolved at render time from the export canvas dimensions.
  */
 export const WATERMARK_TEXT = {
-  en: 'Tagged with PinPrice',
-  th: 'ติดป้ายด้วย PinPrice',
+  en: 'PinPrice',
+  th: 'PinPrice',
 } as const;
 
 export const WATERMARK_STYLE = {

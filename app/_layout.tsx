@@ -1,14 +1,41 @@
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import * as SplashScreen from 'expo-splash-screen';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useCallback, useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { StyleSheet } from 'react-native';
 
+import { AppSplash } from '@/components/ui/AppSplash';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 
+void SplashScreen.preventAutoHideAsync().catch(() => {
+  // Native splash may already be hidden in some reload paths.
+});
+
 export default function RootLayout() {
+  const [showAppSplash, setShowAppSplash] = useState(true);
+
+  const handleNativeSplashReady = useCallback(() => {
+    void SplashScreen.hideAsync().catch(() => {
+      // Ignore if already hidden.
+    });
+  }, []);
+
+  useEffect(() => {
+    // Fallback if AppSplash onLayout never fires (should be rare).
+    const timer = setTimeout(() => {
+      void SplashScreen.hideAsync().catch(() => {});
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleSplashFinish = useCallback(() => {
+    setShowAppSplash(false);
+  }, []);
+
   return (
     <GestureHandlerRootView style={styles.root}>
       <ThemeProvider value={DefaultTheme}>
@@ -18,7 +45,10 @@ export default function RootLayout() {
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="editor" options={{ headerShown: false }} />
             </Stack>
-            <StatusBar style="auto" />
+            <StatusBar style={showAppSplash ? 'light' : 'auto'} />
+            {showAppSplash ? (
+              <AppSplash onFinish={handleSplashFinish} onReady={handleNativeSplashReady} />
+            ) : null}
           </CurrencyProvider>
         </LanguageProvider>
       </ThemeProvider>

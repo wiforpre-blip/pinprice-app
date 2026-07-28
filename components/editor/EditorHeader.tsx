@@ -87,16 +87,15 @@ export const EditorHeader = forwardRef<View, EditorHeaderProps>(function EditorH
 
 const styles = StyleSheet.create({
   header: {
-    minHeight: 60,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
   },
   backButton: {
     minHeight: 44,

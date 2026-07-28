@@ -4,8 +4,8 @@
     "ok": "ตกลง"
   },
   "home": {
-    "headline": "ทำรูปขายสินค้าให้เสร็จในไม่กี่วินาที",
-    "subtitle": "เพิ่มราคา ป้าย Sold และส่งออกรูปพร้อมใช้งาน",
+    "headline": "ติดป้ายขายสินค้า ในไม่กี่วินาที",
+    "subtitle": "เลือกแบบป้ายราคา ป้าย Sold\nบันทึกรูปพร้อมโพสต์",
     "takePhoto": "ถ่ายรูป",
     "choosePhoto": "เลือกรูป",
     "recent": "โปรเจกต์ล่าสุด",
@@ -47,13 +47,14 @@
       },
       "privacyPolicy": "นโยบายความเป็นส่วนตัว",
       "privacyPolicyComingSoon": "เร็วๆ นี้",
-      "showTipsAgain": "แสดงทิปส์อีกครั้ง",
+      "showTipsAgain": "แสดงบทแนะนำอีกครั้ง",
       "resetTipsTitle": "แสดงทิปส์อีกครั้ง?",
       "resetTipsBody": "ทิปส์ในตัวแก้ไขและ style coach จะแสดงอีกครั้ง ภาษา สกุลเงิน และการตั้งค่าอื่นไม่เปลี่ยน",
       "resetTipsConfirm": "แสดงทิปส์",
       "resetTipsDone": "ทิปส์จะแสดงอีกครั้งเมื่อเปิดตัวแก้ไขครั้งถัดไป"
     },
     "removeWatermark": "ลบลายน้ำถาวร",
+    "exportWatermark": "เปิด/ปิดลายน้ำบนภาพ",
     "unlocked": "ปลดล็อกแล้ว",
     "comingSoon": "เร็วๆ นี้",
     "feedbackSend": "ส่ง",
@@ -96,6 +97,7 @@
   "editor": {
     "back": "กลับ",
     "edit": "แก้ไข",
+    "newPhoto": "รูปใหม่",
     "save": "บันทึก",
     "saving": "กำลังบันทึก...",
     "sharing": "กำลังแชร์...",
@@ -135,10 +137,8 @@
     "addPriceTag": "เพิ่มป้ายราคา",
     "noImageSelected": "ยังไม่ได้เลือกรูป",
     "backHome": "กลับหน้าแรก",
-    "tapPhotoToAdd": "แตะรูปเพื่อเพิ่มป้ายราคา",
     "tapPhotoToAddMarker": "แตะรูปเพื่อเพิ่มหมายเลข",
     "placingChip": "กำลังวาง:",
-    "placingHint": "แตะรูปเพื่อวางป้าย",
     "cancelPlacing": "ยกเลิกการวางป้าย",
     "zoomHint": "บีบเพื่อซูม · ลากเพื่อเลื่อน",
     "choosePhotoToStart": "เลือกรูปเพื่อเริ่มติดป้าย",
@@ -190,9 +190,9 @@
       "price": "ป้ายราคา",
       "sold": "ป้ายขายแล้ว",
       "text": "ป้ายข้อความ",
-      "condition": "ป้ายสภาพการ์ด",
-      "quantity": "ป้ายจำนวนสินค้า",
-      "language": "ป้ายภาษาการ์ด"
+      "condition": "ป้ายสภาพ",
+      "quantity": "ป้ายจำนวน",
+      "language": "ป้ายภาษา"
     },
     "save": "บันทึก",
     "cancel": "ยกเลิก",
@@ -205,7 +205,7 @@
       "style": "สไตล์",
       "size": "ขนาด",
       "format": "รูปแบบ",
-      "grade": "เกรด",
+      "grade": "สภาพ",
       "language": "ภาษา"
     }
   },
@@ -229,8 +229,8 @@
     "saveImage": "บันทึกรูป",
     "share": "แชร์",
     "shareDialogTitle": "แชร์รูปที่ติดป้ายแล้ว",
-    "savedToGallery": "บันทึกลงแกลเลอรีแล้ว",
-    "watermark": "ติดป้ายด้วย PinPrice"
+    "saved": "บันทึกแล้ว",
+    "watermark": "PinPrice"
   },
   "leave": {
     "title": "ออกจากหน้าแก้ไข?",

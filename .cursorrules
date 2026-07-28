@@ -234,13 +234,15 @@ The editor is the core product.
 
 Tag edit chrome (`TagEditor`):
 
-* Split UI: input float near the tag + edit dock fixed to the bottom of the canvas
-* Float: text/number input only (when needed) + `×` cancel; never style/format chips or a tall all-in-one popup
-* Price float is `[amount] [×]` only; price format lives in the dock (`Format` sub-menu)
-* Dock: short main menu (`Color` / `Format` / `Style` / `Size` / type options + `Save`)
+* Split UI: inline text/number input on the selected tag preview + edit dock fixed to the bottom of the canvas
+* No separate float near the tag; never put style/format chips on the tag itself or use a tall all-in-one popup
+* Editable types (`price` / `text` / `quantity`): type directly on the real tag preview; price amount only on-tag, price format lives in the dock (`Format` sub-menu)
+* Non-editable types (`sold` / `condition` / `language`): dock menus only (no on-tag TextInput)
+* Dock: short main menu (`Color` / `Format` / `Style` / `Size` / type options + `Cancel` + `Save`)
+* Dock `Cancel` is secondary (left of `Save`); `Save` is primary — intentional cancel only (no auto-save on Cancel)
 * Sub-menus open in the same dock space; picking a value updates live preview but does **not** auto-return — user presses `←` to go back
 * Dock `bottom` uses canvas-relative keyboard overlap (host `measure` vs keyboard `screenY`), not raw keyboard height and never tag-based `top`
-* Outside tap on the image auto-commits a valid draft / existing edits; blank new price/text drafts cancel; `×` is always intentional cancel (no auto-save)
+* Outside tap on the image auto-commits a valid draft / existing edits; blank new price/text drafts cancel
 * Outside-tap dismiss must not also place a new tag on the same tap
 * Keep live `draftPreview`; do not merge this edit dock into `StylePickerPanel`
 

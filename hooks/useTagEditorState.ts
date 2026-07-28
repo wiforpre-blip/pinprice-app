@@ -4,7 +4,9 @@ import { View } from 'react-native';
 import {
   DEFAULT_TAG_SIZE_PRESET_ID,
   DEFAULT_TAG_STYLE_BY_TYPE,
+  estimatePlacementTagSize,
   getStylePresetForType,
+  SOLD_STYLE_PRESET_ORDER,
 } from '@/constants/tagPresets';
 import {
   DEFAULT_CONDITION_TEXT,
@@ -15,7 +17,6 @@ import {
   DEFAULT_SOLD_TEXT,
   DEFAULT_TEXT_TAG,
   SOLD_ICON_TEXT,
-  SOLD_TEXT_FORMAT_CYCLE,
   TAG_CONDITION_VALUE_CYCLE,
   TAG_LANGUAGE_CODE_CYCLE,
   TEXT_STYLE_PRESET_CYCLE,
@@ -46,8 +47,8 @@ import {
   clampNormalized,
   getNormalizedPointFromCanvasPoint,
   hasPositionChanged,
-  isPointInsideImageRect,
   isPointInsideRect,
+  isPointNearImageRect,
 } from '@/utils/editorGeometry';
 import { clampPriceTextFormat, extractPriceDigits, formatPriceDisplay, getPriceTextFormatsForCurrency } from '@/utils/priceText';
 
@@ -93,8 +94,13 @@ function getSafeTagText(text: string, type: TagType, soldLabel: string) {
 }
 
 /** New drafts that are still blank may be discarded on outside tap; typed tags stay. */
-function isNewDraftEmpty(tag: PriceTag, draftPreview: TagEditorDraftPreview | null, draftText: string) {
-  const text = (draftPreview?.text ?? draftText).trim();
+function isNewDraftEmpty(
+  tag: PriceTag,
+  draftPreview: TagEditorDraftPreview | null,
+  draftText: string,
+  liveText?: string,
+) {
+  const text = (liveText || draftPreview?.text || draftText).trim();
 
   switch (tag.type) {
     case 'price':
@@ -112,9 +118,10 @@ function isNewDraftEmpty(tag: PriceTag, draftPreview: TagEditorDraftPreview | nu
 function buildSaveUpdatesFromDraft(
   tag: PriceTag,
   draftPreview: TagEditorDraftPreview | null,
-  draftText: string
+  draftText: string,
+  liveText?: string,
 ): TagEditorSaveUpdates {
-  const text = draftPreview?.text ?? draftText;
+  const text = liveText || draftPreview?.text || draftText;
   const updates: TagEditorSaveUpdates = {
     text,
     stylePresetId: draftPreview?.stylePresetId ?? tag.stylePresetId,
@@ -265,6 +272,8 @@ export function useTagEditorState({
   const bottomDropAreaRef = useRef<View>(null);
   const groupDragOriginalTagsRef = useRef<PriceTag[] | null>(null);
   const alignFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Latest inline text without setState — used by dismiss/save when syncOnly draft updates. */
+  const liveDraftTextRef = useRef('');
 
   const [tags, setTags] = useState<PriceTag[]>([]);
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
@@ -327,6 +336,7 @@ export function useTagEditorState({
     setDraftText(DEFAULT_PRICE_TEXT);
     setDraftType('price');
     setDraftPreview(null);
+    liveDraftTextRef.current = '';
     setDraggingTagId(null);
     setDragOriginalTag(null);
     setDragPoint(null);
@@ -334,7 +344,14 @@ export function useTagEditorState({
     setIsPendingPlacement(false);
   };
 
-  const handleDraftChange = (preview: TagEditorDraftPreview) => {
+  const handleDraftChange = (preview: TagEditorDraftPreview, options?: { syncOnly?: boolean }) => {
+    liveDraftTextRef.current = preview.text;
+
+    // Keystroke path: keep dismiss/save text current without setState (avoids full editor re-render).
+    if (options?.syncOnly) {
+      return;
+    }
+
     setDraftText((current) => (current === preview.text ? current : preview.text));
     setDraftPreview((current) => {
       if (
@@ -382,7 +399,7 @@ export function useTagEditorState({
     }
 
     const soldLabel = t('tag.sold');
-    const safeText = getSafeTagText(draftText, selectedTag.type, soldLabel);
+    const safeText = getSafeTagText(liveDraftTextRef.current || draftText, selectedTag.type, soldLabel);
 
     setTags((currentTags) =>
       currentTags.map((tag) => (tag.id === selectedTag.id ? { ...tag, text: safeText } : tag)),
@@ -408,15 +425,18 @@ export function useTagEditorState({
       return;
     }
 
-    if (!isPointInsideImageRect(touchX, touchY, imageRect)) {
+    // Allow near-edge taps (incl. slight letterbox miss) then soft-clamp into the photo.
+    if (!isPointNearImageRect(touchX, touchY, imageRect)) {
       return;
     }
 
-    const { x, y } = getNormalizedPointFromCanvasPoint(touchX, touchY, imageRect);
     const soldLabel = t('tag.sold');
     const sizePresetId =
       sizePresetOverrideByType[currentToolType] ??
       (isInfoTagType(currentToolType) ? getSmallerSizePreset(currentSizePresetId) : currentSizePresetId);
+    // Clamp with a realistic chip size so wide tags do not hang past the right edge.
+    const placementSize = estimatePlacementTagSize(currentToolType, sizePresetId, imageRect.width);
+    const { x, y } = getNormalizedPointFromCanvasPoint(touchX, touchY, imageRect, placementSize);
     const newTag = createPriceTag(
       x,
       y,
@@ -701,7 +721,16 @@ export function useTagEditorState({
       }
 
       if (type === 'sold') {
-        setCurrentSoldTextFormat((current) => getNextCycleValue(SOLD_TEXT_FORMAT_CYCLE, current));
+        const currentId =
+          currentSoldTextFormat === 'icon_plain'
+            ? 'sold-icon-plain'
+            : getStylePresetForType('sold', currentStylePresetByType.sold);
+        const nextId = getNextCycleValue([...SOLD_STYLE_PRESET_ORDER], currentId);
+        setCurrentStylePresetByType((currentPresets) => ({
+          ...currentPresets,
+          sold: nextId,
+        }));
+        setCurrentSoldTextFormat(nextId === 'sold-icon-plain' ? 'icon_plain' : 'text');
         return;
       }
 
@@ -822,12 +851,15 @@ export function useTagEditorState({
 
     const isNewDraft = draftTagId === selectedTag.id;
 
-    if (isNewDraft && isNewDraftEmpty(selectedTag, draftPreview, draftText)) {
+    if (isNewDraft && isNewDraftEmpty(selectedTag, draftPreview, draftText, liveDraftTextRef.current)) {
       handleCancelTagEdit();
       return;
     }
 
-    handleSaveTag(selectedTag.id, buildSaveUpdatesFromDraft(selectedTag, draftPreview, draftText));
+    handleSaveTag(
+      selectedTag.id,
+      buildSaveUpdatesFromDraft(selectedTag, draftPreview, draftText, liveDraftTextRef.current),
+    );
   };
 
   const clearAlignFeedback = () => {
@@ -905,8 +937,7 @@ export function useTagEditorState({
       return currentTags.map((tag) => (selectedIdSet.has(tag.id) ? { ...tag, y: averageY } : tag));
     });
 
-    // Align done: leave multi-select so the next drag is single-tag (no group clamp).
-    exitMultiSelectMode();
+    // Stay in multi-select so the seller can keep group-dragging; exit only via empty canvas tap.
   };
 
   const deselectTagForMarkerSelect = () => {
@@ -980,15 +1011,19 @@ export function useTagEditorState({
     (selectedTag && selectedTag.type === stylePickerType ? selectedTag.sizePresetId : undefined) ??
     sizePresetOverrideByType[stylePickerType] ??
     (isInfoTagType(stylePickerType) ? getSmallerSizePreset(currentSizePresetId) : currentSizePresetId);
+  const soldStylePresetId =
+    currentSoldTextFormat === 'icon_plain'
+      ? 'sold-icon-plain'
+      : getStylePresetForType('sold', currentStylePresetByType.sold);
   const stylePreviewTag: PriceTag = {
     id: 'style-preview',
     type: stylePickerType,
     text: stylePreviewText,
     x: 0.5,
-    y: 0.18,
+    y: 0.5,
     stylePresetId:
-      stylePickerType === 'sold' && currentSoldTextFormat === 'icon_plain'
-        ? 'sold-icon-plain'
+      stylePickerType === 'sold'
+        ? soldStylePresetId
         : stylePickerType === 'text'
           ? getStylePresetForType('text', currentStylePresetByType.text)
           : activeStylePresetId,
@@ -1061,5 +1096,6 @@ export function useTagEditorState({
     tagSizeById,
     tags,
     textStylePresetId: getStylePresetForType('text', currentStylePresetByType.text),
+    soldStylePresetId,
   };
 }

@@ -74,6 +74,7 @@ export function StaticTag({ anchor = 'topLeft', imageRect, tag }: StaticTagProps
           top: clampedPoint.y,
           // Keep export elevation below free-tier watermark (elevation 100).
           ...getTagViewShadowStyle(isFlatTag ? null : tagStyle.viewShadow),
+          ...(tagStyle.rotateDeg !== 0 ? { transform: [{ rotate: `${tagStyle.rotateDeg}deg` as const }] } : null),
         },
       ]}>
       {isPlainSoldIcon || isBadgeSoldIcon ? (

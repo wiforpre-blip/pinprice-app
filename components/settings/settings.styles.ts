@@ -244,15 +244,36 @@ export const settingsStyles = StyleSheet.create({
     color: theme.colors.sold,
   },
   helpBody: {
-    gap: theme.spacing.sm,
+    gap: theme.spacing.md,
   },
-  helpSectionTitle: {
-    ...theme.typography.button,
+  helpMenuList: {
+    gap: 0,
+  },
+  helpMenuRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  helpMenuLabel: {
+    flex: 1,
+    ...theme.typography.body,
     color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.xs,
   },
-  helpSectionGap: {
-    height: theme.spacing.sm,
+  helpMenuLabelDisabled: {
+    color: theme.colors.textMuted,
+  },
+  helpMenuDivider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginVertical: theme.spacing.xs,
+  },
+  helpHowToPanel: {
+    gap: theme.spacing.sm,
+    paddingLeft: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
   },
   helpBulletRow: {
     flexDirection: 'row',
@@ -262,8 +283,9 @@ export const settingsStyles = StyleSheet.create({
   },
   helpBulletMark: {
     ...theme.typography.body,
-    color: theme.colors.textSecondary,
+    fontSize: 15,
     lineHeight: 22,
+    color: theme.colors.textMuted,
   },
   helpBulletText: {
     flex: 1,
@@ -271,40 +293,5 @@ export const settingsStyles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: theme.colors.textSecondary,
-  },
-  helpLinkRow: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-  },
-  helpLinkLabel: {
-    flex: 1,
-    ...theme.typography.body,
-    color: theme.colors.textPrimary,
-  },
-  helpLinkLabelDisabled: {
-    color: theme.colors.textMuted,
-  },
-  helpActionButton: {
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
-  },
-  helpActionButtonDisabled: {
-    opacity: 0.6,
-  },
-  helpActionButtonText: {
-    ...theme.typography.button,
-    color: theme.colors.textPrimary,
   },
 });

@@ -11,10 +11,21 @@ import {
 } from 'react-native';
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
-import { getResolvedTagPreset, getTagTextShadowStyle, getTagViewShadowStyle, resolveTagMaxWidth, resolveTextTagDefaultWidth, TAG_BODY_MAX_LINES } from '@/constants/tagPresets';
+import { QUANTITY_MAX_DIGITS } from '@/constants/tagDefaults';
+import {
+  getResolvedTagPreset,
+  getTagTextShadowStyle,
+  getTagViewShadowStyle,
+  resolveQuantityDigitsFieldWidth,
+  resolveQuantityTagWidth,
+  resolveTagMaxWidth,
+  resolveTextTagDefaultWidth,
+  TAG_BODY_MAX_LINES,
+} from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import type { ImageDisplayRect, PriceTag, TagType } from '@/types/tag';
 import { clampPointToImageRect, EDITOR_ZOOM_DEFAULT, FALLBACK_TAG_SIZE, screenDeltaToCanvasDelta } from '@/utils/editorGeometry';
+import { extractPriceDigits } from '@/utils/priceText';
 
 export type TagInlineEdit = {
   value: string;
@@ -147,6 +158,8 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
   const [localInputValue, setLocalInputValue] = useState(inlineEdit?.value ?? '');
   /** Live chip width while editing text — updated in the same frame as onChangeText (grow-before-wrap). */
   const [textContentWidth, setTextContentWidth] = useState<number | null>(null);
+  /** Live quantity chip width while editing — grows 1→3 digits with keystrokes. */
+  const [quantityContentWidth, setQuantityContentWidth] = useState<number | null>(null);
   const tagViewRef = useRef<View>(null);
   const startPointRef = useRef({ x: 0, y: 0 });
   const hasDraggedRef = useRef(false);
@@ -215,6 +228,38 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
     inlineEdit?.value,
     isInlineEditing,
     tagStyle.fontSize,
+    tagStyle.paddingHorizontal,
+  ]);
+
+  // Seed / clear quantity chip width (1-digit default; expands as digits are typed).
+  useEffect(() => {
+    if (!isInlineEditing || displayType !== 'quantity') {
+      setQuantityContentWidth(null);
+      return;
+    }
+
+    const maxAllowed = resolveQuantityTagWidth(
+      QUANTITY_MAX_DIGITS,
+      tagStyle.fontSize,
+      tagStyle.paddingHorizontal,
+      tagStyle.maxWidth,
+      tagStyle.minHeight,
+    );
+    const seeded = resolveQuantityTagWidth(
+      inlineEdit?.value ?? '1',
+      tagStyle.fontSize,
+      tagStyle.paddingHorizontal,
+      maxAllowed,
+      tagStyle.minHeight,
+    );
+    setQuantityContentWidth(seeded);
+  }, [
+    displayType,
+    inlineEdit?.value,
+    isInlineEditing,
+    tagStyle.fontSize,
+    tagStyle.maxWidth,
+    tagStyle.minHeight,
     tagStyle.paddingHorizontal,
   ]);
 
@@ -348,14 +393,40 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
     tagStyle.lineHeight,
   );
   const inlineHostMinHeight = tagStyle.minHeight;
-  // Digits-only width (prefix "x" is a sibling). Keep 3-digit capacity stable while editing.
-  const quantityDigitsWidth = isQuantity ? Math.ceil(tagStyle.fontSize * 3 * 0.72 + 4) : 0;
-  // "x" + 3 digits + padding — must fit inside the blue chip or the prefix paints outside the bg.
-  const quantityEditChipWidth = isQuantity
-    ? Math.ceil(tagStyle.fontSize * (0.72 + 3 * 0.72) + tagStyle.paddingHorizontal * 2 + 8)
+  // Quantity: start at 1 digit, expand to 2–3 as the user types (same grow-with-content idea as text).
+  const quantityDigitSource = isQuantity
+    ? localInputValue || extractPriceDigits(displayText) || '1'
+    : '1';
+  const quantityDigitsWidth = isQuantity
+    ? resolveQuantityDigitsFieldWidth(quantityDigitSource, tagStyle.fontSize)
     : 0;
-  const tagMaxWidth =
-    isInlineEditing && isQuantity ? Math.max(displayMaxWidth, quantityEditChipWidth) : displayMaxWidth;
+  const quantityMaxAllowed = isQuantity
+    ? Math.min(
+        resolveQuantityTagWidth(
+          QUANTITY_MAX_DIGITS,
+          tagStyle.fontSize,
+          tagStyle.paddingHorizontal,
+          tagStyle.maxWidth,
+          tagStyle.minHeight,
+        ),
+        roomToRight,
+      )
+    : 0;
+  const quantityEditWidth =
+    isQuantity && isInlineEditing
+      ? Math.min(
+          quantityMaxAllowed,
+          quantityContentWidth ??
+            resolveQuantityTagWidth(
+              quantityDigitSource,
+              tagStyle.fontSize,
+              tagStyle.paddingHorizontal,
+              quantityMaxAllowed,
+              tagStyle.minHeight,
+            ),
+        )
+      : undefined;
+  const tagMaxWidth = isInlineEditing && isQuantity ? quantityMaxAllowed : displayMaxWidth;
   // Text edit: chip + TextInput share the same width (center-aligned). Grow via sync estimate.
   const textEditWidth =
     isTextTag && isInlineEditing
@@ -411,6 +482,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
           minHeight: tagStyle.minHeight,
           maxWidth: tagMaxWidth,
           ...(textEditWidth != null ? { width: textEditWidth } : null),
+          ...(quantityEditWidth != null ? { width: quantityEditWidth } : null),
           ...(isTextTag ? { maxHeight: roomBelow, overflow: 'hidden' as const } : null),
           // Zero outer padding while editing so TextInput host fills the full tag hit area.
           paddingHorizontal: isInlineEditing ? 0 : tagStyle.paddingHorizontal,
@@ -418,7 +490,11 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
           alignItems: isQuantity ? 'flex-start' : 'center',
           left,
           top,
-          transform: [{ translateX: activeOffset.x }, { translateY: activeOffset.y }],
+          transform: [
+            { translateX: activeOffset.x },
+            { translateY: activeOffset.y },
+            ...(tagStyle.rotateDeg !== 0 ? [{ rotate: `${tagStyle.rotateDeg}deg` as const }] : []),
+          ],
           ...getTagViewShadowStyle(isFlatTag ? null : tagStyle.viewShadow),
         },
         isSelected && styles.selectedTag,
@@ -490,6 +566,17 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
                 );
                 tagViewRef.current?.setNativeProps({ style: { width: nextWidth } });
                 setTextContentWidth(nextWidth);
+              }
+              if (isQuantity) {
+                const nextWidth = resolveQuantityTagWidth(
+                  nextValue,
+                  tagStyle.fontSize,
+                  tagStyle.paddingHorizontal,
+                  quantityMaxAllowed,
+                  tagStyle.minHeight,
+                );
+                tagViewRef.current?.setNativeProps({ style: { width: nextWidth } });
+                setQuantityContentWidth(nextWidth);
               }
               setLocalInputValue(nextValue);
             }}

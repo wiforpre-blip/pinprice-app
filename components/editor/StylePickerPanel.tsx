@@ -32,6 +32,7 @@ type StylePickerPanelProps = {
   conditionValue: TagConditionValue;
   languageCode: TagLanguageCode;
   textStylePresetId: TagStylePresetId;
+  soldStylePresetId: TagStylePresetId;
   tagTypesSectionRef?: RefObject<View | null>;
   sizeSectionRef?: RefObject<View | null>;
   onCoachSectionsLayout?: () => void;
@@ -119,7 +120,8 @@ function ToolPreviewChip({
       : DEFAULT_TAG_STYLE_BY_TYPE[type];
   const preset = TAG_STYLE_PRESETS[isPlainSoldIcon ? 'sold-icon-plain' : resolvedStylePresetId];
   const conditionColors = CONDITION_GRADE_STYLES[conditionValue ?? 'NM'];
-  const isTransparentText = type === 'text' && isTransparentTagBackground(preset.backgroundColor);
+  const isTransparentChrome = isTransparentTagBackground(preset.backgroundColor);
+  const isTransparentText = type === 'text' && isTransparentChrome;
   const isPlainText = isTransparentText && preset.borderColor === 'transparent';
   const backgroundColor = isCondition
     ? conditionColors.backgroundColor
@@ -141,20 +143,22 @@ function ToolPreviewChip({
   const isLightText =
     textColor === '#FFFFFF' || textColor === theme.colors.white || textColor.toLowerCase() === '#fff';
   const previewBackgroundColor =
-    isTransparentText && isLightText ? '#3A3F46' : backgroundColor;
+    isTransparentChrome && isLightText && !isPlainSoldIcon ? '#3A3F46' : backgroundColor;
   const previewBorderRadius =
-    type === 'price' || type === 'text'
+    type === 'price' || type === 'text' || type === 'sold'
       ? (preset.borderRadius ?? theme.radius.sm)
       : type === 'condition'
         ? 16
         : theme.radius.sm;
   const previewBorderWidth = isCondition
     ? 2
-    : type === 'price' || type === 'text'
-      ? (preset.borderWidth ?? (isPlainText ? 0 : 1))
+    : type === 'price' || type === 'text' || type === 'sold'
+      ? isPlainSoldIcon
+        ? 0
+        : (preset.borderWidth ?? (isPlainText ? 0 : 1))
       : undefined;
   const previewFontWeight =
-    type === 'text' || type === 'price' ? (preset.fontWeight ?? '700') : undefined;
+    type === 'text' || type === 'price' || type === 'sold' ? (preset.fontWeight ?? '700') : undefined;
 
   const preview = (
     <View
@@ -169,6 +173,9 @@ function ToolPreviewChip({
           borderColor,
           borderWidth: previewBorderWidth,
           borderRadius: Math.min(previewBorderRadius, 20),
+          ...(type === 'sold' && preset.rotateDeg
+            ? { transform: [{ rotate: `${preset.rotateDeg}deg` as const }] }
+            : null),
         },
       ]}>
       {isPlainSoldIcon || isBadgeSoldIcon ? (
@@ -216,6 +223,7 @@ export function StylePickerPanel({
   conditionValue,
   languageCode,
   textStylePresetId,
+  soldStylePresetId,
   tagTypesSectionRef,
   sizeSectionRef,
   onCoachSectionsLayout,
@@ -267,7 +275,9 @@ export function StylePickerPanel({
                   caption={t(`tag.${type}`)}
                   isActive={stylePickerType === type}
                   soldTextFormat={type === 'sold' ? soldTextFormat : undefined}
-                  stylePresetId={type === 'text' ? textStylePresetId : undefined}
+                  stylePresetId={
+                    type === 'text' ? textStylePresetId : type === 'sold' ? soldStylePresetId : undefined
+                  }
                   onPress={() => onSelectToolType(type)}
                 />
               );

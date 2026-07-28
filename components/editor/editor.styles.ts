@@ -7,6 +7,9 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  workspace: {
+    flex: 1,
+  },
   content: {
     flex: 1,
     paddingHorizontal: theme.spacing.lg,
@@ -16,6 +19,23 @@ export const styles = StyleSheet.create({
   // Above floating delete drop zone (zIndex 20) so the dragged tag floats over it.
   contentDragging: {
     zIndex: 40,
+  },
+  // Floats over the canvas under the header without shifting imageRect layout.
+  placementChipOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 15,
+    alignItems: 'center',
+  },
+  // Style sheet floats over canvas — must not sit in flex flow or imageRect/tags desync.
+  stylePickerOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 25,
   },
   placeholder: {
     ...theme.typography.caption,

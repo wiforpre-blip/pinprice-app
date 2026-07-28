@@ -30,6 +30,16 @@ export function isPointInsideImageRect(x: number, y: number, imageRect: ImageDis
   return x >= imageRect.x && x <= imageRect.x + imageRect.width && y >= imageRect.y && y <= imageRect.y + imageRect.height;
 }
 
+/** True when the point is inside the image or within slack px of its bounds (near-edge taps). */
+export function isPointNearImageRect(x: number, y: number, imageRect: ImageDisplayRect, slack = 32) {
+  return (
+    x >= imageRect.x - slack &&
+    x <= imageRect.x + imageRect.width + slack &&
+    y >= imageRect.y - slack &&
+    y <= imageRect.y + imageRect.height + slack
+  );
+}
+
 export function clampPointToImageRect(x: number, y: number, imageRect: ImageDisplayRect, tagSize?: TagSize) {
   const safeTagSize = getSafeTagSize(tagSize);
   const minX = imageRect.x;
@@ -79,6 +89,56 @@ export function getContainedImageRect(canvasSize: Size, imageSize: Size | null):
     width,
     height: canvasSize.height,
   };
+}
+
+/**
+ * Temporary visual lift (px) so keyboard/dock do not cover the real image or draft focus.
+ * Letterbox-only overlap returns 0. Does not change normalized tag positions.
+ * When focusTop is set, lift is clamped so the focused tag does not leave the top of the canvas
+ * (portrait / full-height images can otherwise push a top tap off-screen).
+ */
+export function getKeyboardCanvasLift({
+  imageRect,
+  canvasHeight,
+  keyboardOverlap,
+  dockHeight,
+  focusBottom,
+  focusTop,
+  gap = 0,
+}: {
+  imageRect: ImageDisplayRect;
+  canvasHeight: number;
+  keyboardOverlap: number;
+  dockHeight: number;
+  /** Canvas Y of the bottom edge that must stay above the dock (e.g. draft tag). */
+  focusBottom?: number;
+  /** Canvas Y of the top edge that must stay on-screen after lift. */
+  focusTop?: number;
+  gap?: number;
+}): number {
+  if (keyboardOverlap <= 0 || canvasHeight <= 0 || dockHeight < 0) {
+    return 0;
+  }
+
+  const occlusionTop = canvasHeight - keyboardOverlap - dockHeight;
+  if (!Number.isFinite(occlusionTop)) {
+    return 0;
+  }
+
+  const imageBottom = imageRect.y + imageRect.height;
+  const imageLift = imageBottom - occlusionTop;
+  const focusLift =
+    focusBottom !== undefined && Number.isFinite(focusBottom) ? focusBottom + gap - occlusionTop : 0;
+
+  const lift = Math.max(0, Math.round(Math.max(imageLift, focusLift)));
+
+  if (focusTop === undefined || !Number.isFinite(focusTop)) {
+    return lift;
+  }
+
+  // Prefer keeping the draft tag visible over keeping the full image above the keyboard.
+  const maxLift = Math.max(0, Math.round(focusTop - gap));
+  return Math.min(lift, maxLift);
 }
 
 export function hasPositionChanged(previousTag: PriceTag, nextX: number, nextY: number) {

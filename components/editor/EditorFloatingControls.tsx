@@ -22,10 +22,10 @@ export type FloatingHistoryActionId = 'undo' | 'reset' | 'redo';
 
 type EditorFloatingControlsProps = {
   alignFeedbackMessage: string | null;
+  canExport: boolean;
   canSelect: boolean;
   isDraggingTag: boolean;
   isMultiSelectGroupDrag: boolean;
-  isPendingPlacement: boolean;
   isStylePickerVisible: boolean;
   isMultiSelectMode: boolean;
   isZoomMode: boolean;
@@ -43,10 +43,10 @@ type EditorFloatingControlsProps = {
 
 export function EditorFloatingControls({
   alignFeedbackMessage,
+  canExport,
   canSelect,
   isDraggingTag,
   isMultiSelectGroupDrag,
-  isPendingPlacement,
   isStylePickerVisible,
   isMultiSelectMode,
   isZoomMode,
@@ -107,11 +107,12 @@ export function EditorFloatingControls({
               const isAlignAction = isSelectAction && isMultiSelectMode;
               const isAlignInactive = isAlignAction && selectedTagIds.length < 2;
               const isDisabled =
-                (isStyleAction && (isMultiSelectMode || editorMode === 'priceList' || !selectedImageUri)) ||
-                (isSelectAction && (!selectedImageUri || !canSelect || isPendingPlacement)) ||
-                (isZoomAction && (!selectedImageUri || isPendingPlacement)) ||
+                (isStyleAction &&
+                  (isMultiSelectMode || editorMode === 'priceList' || !selectedImageUri || isZoomMode)) ||
+                (isSelectAction && (!selectedImageUri || !canSelect)) ||
+                (isZoomAction && !selectedImageUri) ||
                 isAlignInactive ||
-                (item.id === 'export' && (!selectedImageUri || isPendingPlacement));
+                (item.id === 'export' && (!selectedImageUri || !canExport));
               const actionIcon = isAlignAction ? 'vertical-align-center' : item.icon;
               const actionLabel = isAlignAction ? t('editor.align') : t(item.labelKey);
               const showZoomLevel = isZoomAction && Boolean(zoomScaleLabel);

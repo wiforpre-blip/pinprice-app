@@ -82,15 +82,19 @@ export function ExportWatermark({ imageRect }: ExportWatermarkProps) {
 const styles = StyleSheet.create({
   imageFrame: {
     position: 'absolute',
-    zIndex: 10,
+    zIndex: 100,
+    elevation: 100,
   },
   anchor: {
     position: 'absolute',
+    zIndex: 100,
+    elevation: 100,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
     maxWidth: '100%',
+    elevation: 100,
   },
   label: {
     fontWeight: '600',
