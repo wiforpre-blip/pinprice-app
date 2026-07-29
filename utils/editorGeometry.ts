@@ -159,7 +159,8 @@ export function clampGroupPixelOffset(
   let minDx = Number.NEGATIVE_INFINITY;
   let maxDx = Number.POSITIVE_INFINITY;
   let minDy = Number.NEGATIVE_INFINITY;
-  let maxDy = Number.POSITIVE_INFINITY;
+  // No maxDy clamp — allow dragging into the bottom delete drop zone (same as single-tag drag).
+  const maxDy = Number.POSITIVE_INFINITY;
 
   for (const tag of groupTags) {
     const size = getSafeTagSize(tagSizeById[tag.id]);
@@ -169,19 +170,12 @@ export function clampGroupPixelOffset(
     minDx = Math.max(minDx, imageRect.x - left);
     maxDx = Math.min(maxDx, imageRect.x + imageRect.width - size.width - left);
     minDy = Math.max(minDy, imageRect.y - top);
-    maxDy = Math.min(maxDy, imageRect.y + imageRect.height - size.height - top);
   }
 
   if (maxDx < minDx) {
     const pinnedX = (minDx + maxDx) / 2;
     minDx = pinnedX;
     maxDx = pinnedX;
-  }
-
-  if (maxDy < minDy) {
-    const pinnedY = (minDy + maxDy) / 2;
-    minDy = pinnedY;
-    maxDy = pinnedY;
   }
 
   return {

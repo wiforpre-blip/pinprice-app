@@ -8,6 +8,10 @@
     "subtitle": "เลือกแบบป้ายราคา ป้าย Sold\nบันทึกรูปพร้อมโพสต์",
     "takePhoto": "ถ่ายรูป",
     "choosePhoto": "เลือกรูป",
+    "photoSourceTitle": "\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e23\u0e39\u0e1b",
+    "gallery": "\u0e41\u0e01\u0e25\u0e25\u0e2d\u0e23\u0e35\u0e48",
+    "samplePortrait": "\u0e41\u0e15\u0e30\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e17\u0e14\u0e2a\u0e2d\u0e1a\u0e41\u0e01\u0e49\u0e44\u0e02\u0e23\u0e39\u0e1b",
+    "sampleLandscape": "\u0e41\u0e15\u0e30\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e17\u0e14\u0e2a\u0e2d\u0e1a\u0e41\u0e01\u0e49\u0e44\u0e02\u0e23\u0e39\u0e1b",
     "recent": "โปรเจกต์ล่าสุด",
     "viewAll": "ดูทั้งหมด",
     "menu": "เมนู",
@@ -25,6 +29,11 @@
     "currency": "สกุลเงิน",
     "version": "เวอร์ชันแอป",
     "contact": "ติดต่อผู้พัฒนา",
+    "showTipsAgain": "แสดงบทแนะนำอีกครั้ง",
+    "resetTipsTitle": "แสดงบทแนะนำอีกครั้ง?",
+    "resetTipsBody": "ทิปส์ในตัวแก้ไขและบทแนะนำครั้งแรกจะแสดงอีกครั้ง ภาษา สกุลเงิน และการตั้งค่าอื่นไม่เปลี่ยน",
+    "resetTipsConfirm": "แสดงอีกครั้ง",
+    "resetTipsDone": "บทแนะนำจะแสดงอีกครั้งเมื่อเปิดตัวแก้ไขครั้งถัดไป",
     "help": {
       "title": "ช่วยเหลือ",
       "howToTitle": "วิธีใช้งาน PinPrice",
@@ -46,12 +55,7 @@
         "permissions": "ขอสิทธิ์กล้อง/รูปภาพเพื่อถ่าย เลือก บันทึก และแชร์รูปเท่านั้น"
       },
       "privacyPolicy": "นโยบายความเป็นส่วนตัว",
-      "privacyPolicyComingSoon": "เร็วๆ นี้",
-      "showTipsAgain": "แสดงบทแนะนำอีกครั้ง",
-      "resetTipsTitle": "แสดงทิปส์อีกครั้ง?",
-      "resetTipsBody": "ทิปส์ในตัวแก้ไขและ style coach จะแสดงอีกครั้ง ภาษา สกุลเงิน และการตั้งค่าอื่นไม่เปลี่ยน",
-      "resetTipsConfirm": "แสดงทิปส์",
-      "resetTipsDone": "ทิปส์จะแสดงอีกครั้งเมื่อเปิดตัวแก้ไขครั้งถัดไป"
+      "privacyPolicyComingSoon": "เร็วๆ นี้"
     },
     "removeWatermark": "ลบลายน้ำถาวร",
     "exportWatermark": "เปิด/ปิดลายน้ำบนภาพ",
@@ -102,7 +106,7 @@
     "saving": "กำลังบันทึก...",
     "sharing": "กำลังแชร์...",
     "add": "เพิ่ม",
-    "style": "สไตล์",
+    "style": "ป้าย",
     "select": "เลือก",
     "zoom": "ซูม",
     "align": "จัดแนว",
@@ -159,13 +163,13 @@
       "back": "ย้อนกลับ",
       "next": "ถัดไป",
       "gotIt": "เข้าใจแล้ว",
-      "styleButtonTitle": "แตะเพื่อเลือกประเภทป้าย",
-      "styleButtonBody": "แตะ Style เพื่อเลือกว่าจะติดป้ายแบบไหน เช่น ราคา, ขายแล้ว, จำนวนคงเหลือ หรือภาษาการ์ด",
-      "styleTypesTitle": "เลือกประเภทป้ายที่ต้องการสร้าง",
-      "styleTypesBody": "เลือกจากป้ายหลักหรือป้ายข้อมูลสินค้า",
-      "styleSizeTitle": "เลือกขนาดป้าย",
-      "styleSizeBody": "เลือก S, M, L หรือ XL ให้เหมาะกับสินค้าในรูป",
-      "placeTagTitle": "แตะที่รูปเพื่อสร้างป้ายที่เลือกไว้"
+      "placeTagTitle": "แตะบนภาพเพื่อเพิ่มป้าย",
+      "editPriceTitle": "พิมพ์ราคา แล้วบันทึก",
+      "editPriceBody": "หรือแตะตรงพื้นที่ว่างเพื่อบันทึกได้เช่นกัน",
+      "dragTagTitle": "ลากไปวางบนจุดที่ต้องการ",
+      "styleButtonTitle": "แตะที่นี่เพื่อเลือกป้ายประเภทอื่น",
+      "exportTitle": "ส่งออกรูปเมื่อพร้อมใช้งาน",
+      "exportBody": "ใน Preview แตะชื่อไฟล์เพื่อแก้ได้"
     }
   },
 
@@ -200,6 +204,8 @@
     "dragToDelete": "ปล่อยตรงนี้เพื่อลบ",
     "confirmDeleteTitle": "ลบป้ายนี้?",
     "confirmDeleteBody": "ป้ายนี้จะถูกลบออกจากรูป",
+    "confirmDeleteManyTitle": "ลบป้ายที่เลือก?",
+    "confirmDeleteManyBody": "ป้ายที่เลือกจะถูกลบออกจากรูป",
     "dock": {
       "color": "สี",
       "style": "สไตล์",

@@ -40,6 +40,8 @@ type EditorCanvasProps = {
   isZoomMode: boolean;
   onCancelTagEdit: () => void;
   onCanvasLayout: (event: LayoutChangeEvent) => void;
+  /** Keyboard lift applied to canvas content — coach highlight must subtract this from tag Y. */
+  onKeyboardCanvasLiftChange?: (liftY: number) => void;
   onCanvasPress: (event: GestureResponderEvent) => void;
   onDeleteMarker: (markerId: string) => void;
   onDeleteTag: (tagId: string) => void;
@@ -48,6 +50,8 @@ type EditorCanvasProps = {
   onImageLoad: (event: ImageLoadEventData) => void;
   onLeaveEmpty: () => void;
   onSaveTag: (tagId: string, updates: TagEditorSaveUpdates) => void;
+  onSaveButtonLayout?: () => void;
+  saveButtonRef?: RefObject<View | null>;
   onSelectMarker: (markerId: string) => void;
   onTagDragCancel: () => void;
   onTagDragEnd: (tagId: string, canvasX: number, canvasY: number, tagSize: TagSize, releasePoint: ScreenPoint) => void;
@@ -90,6 +94,7 @@ export function EditorCanvas({
   isZoomMode,
   onCancelTagEdit,
   onCanvasLayout,
+  onKeyboardCanvasLiftChange,
   onCanvasPress,
   onDeleteMarker,
   onDeleteTag,
@@ -98,6 +103,8 @@ export function EditorCanvas({
   onImageLoad,
   onLeaveEmpty,
   onSaveTag,
+  onSaveButtonLayout,
+  saveButtonRef,
   onSelectMarker,
   onTagDragCancel,
   onTagDragEnd,
@@ -122,9 +129,20 @@ export function EditorCanvas({
   const tagInlineInputRef = useRef<TextInput>(null);
   const [inlineEdit, setInlineEdit] = useState<TagInlineEdit | null>(null);
   const [keyboardCanvasLift, setKeyboardCanvasLift] = useState(0);
-  const handleCanvasLiftChange = useCallback((liftY: number) => {
-    setKeyboardCanvasLift(liftY > 0 ? liftY : 0);
-  }, []);
+  const handleCanvasLiftChange = useCallback(
+    (liftY: number) => {
+      const nextLift = liftY > 0 ? liftY : 0;
+      setKeyboardCanvasLift(nextLift);
+      onKeyboardCanvasLiftChange?.(nextLift);
+    },
+    [onKeyboardCanvasLiftChange],
+  );
+
+  useEffect(() => {
+    return () => {
+      onKeyboardCanvasLiftChange?.(0);
+    };
+  }, [onKeyboardCanvasLiftChange]);
 
   const isTagEditorVisible =
     Boolean(selectedTag) && !isZoomMode && !isMultiSelectMode && draggingTagId !== selectedTagId && !isStylePickerVisible;
@@ -311,6 +329,8 @@ export function EditorCanvas({
             onDraftChange={onDraftChange}
             onInlineEditChange={setInlineEdit}
             onSave={onSaveTag}
+            onSaveButtonLayout={onSaveButtonLayout}
+            saveButtonRef={saveButtonRef}
             tag={selectedTag}
             visible={isTagEditorVisible}
           />

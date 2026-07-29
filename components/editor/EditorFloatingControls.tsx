@@ -8,7 +8,7 @@ import { useTranslation } from '@/contexts/LanguageContext';
 import type { EditorPricingMode } from '@/types/editor';
 
 /** Main bar footprint only (not history row) — keep canvas padding stable. */
-export const EDITOR_FLOATING_MAIN_BAR_HEIGHT = 62;
+export const EDITOR_FLOATING_MAIN_BAR_HEIGHT = 66;
 
 const FLOATING_MAIN_ACTIONS = [
   { id: 'style', labelKey: 'editor.style', icon: 'palette' },
@@ -25,7 +25,6 @@ type EditorFloatingControlsProps = {
   canExport: boolean;
   canSelect: boolean;
   isDraggingTag: boolean;
-  isMultiSelectGroupDrag: boolean;
   isStylePickerVisible: boolean;
   isMultiSelectMode: boolean;
   isZoomMode: boolean;
@@ -36,8 +35,10 @@ type EditorFloatingControlsProps = {
   zoomScaleLabel: string | null;
   bottomDropAreaRef: RefObject<View | null>;
   styleButtonRef?: RefObject<View | null>;
+  exportButtonRef?: RefObject<View | null>;
   onBottomDropAreaLayout: () => void;
   onStyleButtonLayout?: () => void;
+  onExportButtonLayout?: () => void;
   onFloatingMainAction: (actionId: FloatingMainActionId) => void;
 };
 
@@ -46,7 +47,6 @@ export function EditorFloatingControls({
   canExport,
   canSelect,
   isDraggingTag,
-  isMultiSelectGroupDrag,
   isStylePickerVisible,
   isMultiSelectMode,
   isZoomMode,
@@ -57,8 +57,10 @@ export function EditorFloatingControls({
   zoomScaleLabel,
   bottomDropAreaRef,
   styleButtonRef,
+  exportButtonRef,
   onBottomDropAreaLayout,
   onStyleButtonLayout,
+  onExportButtonLayout,
   onFloatingMainAction,
 }: EditorFloatingControlsProps) {
   const { t } = useTranslation();
@@ -76,7 +78,6 @@ export function EditorFloatingControls({
         { paddingBottom: floatingBottomPadding },
       ]}>
       {isDraggingTag ? (
-        isMultiSelectGroupDrag ? null : (
           <View
             ref={bottomDropAreaRef}
             onLayout={onBottomDropAreaLayout}
@@ -91,7 +92,6 @@ export function EditorFloatingControls({
             <MaterialIcons color={isDragOverDelete ? theme.buttons.primary.color : theme.colors.sold} name="delete-outline" size={28} />
             <Text style={[styles.deleteDropZoneText, isDragOverDelete && styles.activeDeleteDropZoneText]}>{t('tag.dragToDelete')}</Text>
           </View>
-        )
       ) : showFloatingBars ? (
         <View style={styles.floatingBarsColumn}>
           {alignFeedbackMessage ? (
@@ -103,6 +103,7 @@ export function EditorFloatingControls({
             {FLOATING_MAIN_ACTIONS.map((item) => {
               const isSelectAction = item.id === 'select';
               const isStyleAction = item.id === 'style';
+              const isExportAction = item.id === 'export';
               const isZoomAction = item.id === 'zoom';
               const isAlignAction = isSelectAction && isMultiSelectMode;
               const isAlignInactive = isAlignAction && selectedTagIds.length < 2;
@@ -112,18 +113,24 @@ export function EditorFloatingControls({
                 (isSelectAction && (!selectedImageUri || !canSelect)) ||
                 (isZoomAction && !selectedImageUri) ||
                 isAlignInactive ||
-                (item.id === 'export' && (!selectedImageUri || !canExport));
+                (isExportAction && (!selectedImageUri || !canExport));
               const actionIcon = isAlignAction ? 'vertical-align-center' : item.icon;
               const actionLabel = isAlignAction ? t('editor.align') : t(item.labelKey);
               const showZoomLevel = isZoomAction && Boolean(zoomScaleLabel);
+              const anchorOnLayout = isStyleAction
+                ? onStyleButtonLayout
+                : isExportAction
+                  ? onExportButtonLayout
+                  : undefined;
+              const anchorRef = isStyleAction ? styleButtonRef : isExportAction ? exportButtonRef : undefined;
 
               return (
                 <View
                   collapsable={false}
                   key={item.id}
-                  onLayout={isStyleAction ? onStyleButtonLayout : undefined}
-                  ref={isStyleAction ? styleButtonRef : undefined}
-                  style={isStyleAction ? styles.styleButtonAnchor : undefined}>
+                  onLayout={anchorOnLayout}
+                  ref={anchorRef}
+                  style={isStyleAction || isExportAction ? styles.styleButtonAnchor : undefined}>
                   <Pressable
                     accessibilityLabel={showZoomLevel ? `${actionLabel} ${zoomScaleLabel}` : actionLabel}
                     accessibilityRole="button"
@@ -213,14 +220,16 @@ const styles = StyleSheet.create({
     ...theme.shadows.card,
   },
   floatingMainAction: {
-    minHeight: 52,
+    minHeight: 56,
     minWidth: 60,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
     borderRadius: theme.radius.sm,
     paddingHorizontal: theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
+    paddingTop: theme.spacing.xs,
+    // Extra bottom padding so Thai vowel marks (e.g. สระอู in "ซูม") are not clipped.
+    paddingBottom: theme.spacing.sm,
   },
   styleButtonAnchor: {
     // Keep native host view for reliable measureInWindow on Android.
@@ -236,6 +245,8 @@ const styles = StyleSheet.create({
   },
   floatingMainActionText: {
     ...theme.typography.caption,
+    // Slightly taller than caption default so Thai under-marks render fully.
+    lineHeight: 18,
     color: theme.buttons.secondary.color,
   },
   floatingMainActionTextActive: {

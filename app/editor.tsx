@@ -1,19 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { GestureResponderEvent } from 'react-native';
+import { Keyboard, Text, View } from 'react-native';
 import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EditorCanvas } from '@/components/editor/EditorCanvas';
+import { EditorCoachMark } from '@/components/editor/EditorCoachMark';
 import {
   EDITOR_FLOATING_MAIN_BAR_HEIGHT,
   EditorFloatingControls,
   type FloatingHistoryActionId,
   type FloatingMainActionId,
 } from '@/components/editor/EditorFloatingControls';
-import { EditorCoachMark } from '@/components/editor/EditorCoachMark';
 import { EditorHeader } from '@/components/editor/EditorHeader';
 import { EditorPreviewScreen } from '@/components/editor/EditorPreviewScreen';
 import { PendingPlacementChip } from '@/components/editor/PendingPlacementChip';
@@ -41,8 +41,8 @@ import {
 } from '@/hooks/useTagEditorState';
 
 import type { EditorDraftSnapshot } from '@/types/draft';
+import { formatZoomPercent, getSafeTagSize } from '@/utils/editorGeometry';
 import { createCurrentHistorySnapshot } from '@/utils/editorHistory';
-import { formatZoomPercent } from '@/utils/editorGeometry';
 
 type EditorParams = {
   draftId?: string | string[];
@@ -66,11 +66,21 @@ export default function EditorScreen() {
     : theme.spacing.sm;
   const draftSnapshotRef = useRef<EditorDraftSnapshot | null>(null);
   const styleButtonRef = useRef<View | null>(null);
+  const exportButtonRef = useRef<View | null>(null);
+  const saveButtonRef = useRef<View | null>(null);
   const tagTypesSectionRef = useRef<View | null>(null);
   const sizeSectionRef = useRef<View | null>(null);
   const [coachMeasureToken, setCoachMeasureToken] = useState(0);
+  const [tipsResetToken, setTipsResetToken] = useState(0);
+  const [keyboardCanvasLift, setKeyboardCanvasLift] = useState(0);
   const bumpCoachMeasure = useCallback(() => {
     setCoachMeasureToken((current) => current + 1);
+  }, []);
+  const handleKeyboardCanvasLiftChange = useCallback((liftY: number) => {
+    setKeyboardCanvasLift(liftY);
+  }, []);
+  const handleEditorTipsReset = useCallback(() => {
+    setTipsResetToken((current) => current + 1);
   }, []);
   const getDraftSnapshot = useCallback(() => draftSnapshotRef.current, []);
   const {
@@ -139,6 +149,7 @@ export default function EditorScreen() {
     finishStylePicker,
     commitDraftTag,
     confirmDeleteTag,
+    deleteCandidateTagIds,
     currentLanguageCode,
     currentConditionValue,
     currentPriceTextFormat,
@@ -172,7 +183,6 @@ export default function EditorScreen() {
     isDeleteModalVisible,
     isDragOverDelete,
     isDraggingTag,
-    isMultiSelectGroupDrag,
     isMultiSelectMode,
     isPendingPlacement,
     isStylePickerVisible,
@@ -349,8 +359,10 @@ export default function EditorScreen() {
   const hasConfirmModal =
     isLeaveModalVisible || isDeleteModalVisible || isResetModalVisible || isMarkerDeleteModalVisible;
 
-  const { activeStepId, canGoBack, goBack, goNext, skip } = useEditorCoach({
-    closeStylePicker,
+  const tagIds = useMemo(() => tags.map((tag) => tag.id), [tags]);
+
+  const { activeStepId, canGoBack, canGoNext, focusTagId, goBack, goNext, skip } = useEditorCoach({
+    draftTagId,
     editorMode,
     finishStylePicker,
     hasConfirmModal,
@@ -360,8 +372,35 @@ export default function EditorScreen() {
     isPreviewing,
     isStylePickerVisible,
     openStylePicker,
+    selectedTagId,
     tagCount: tags.length,
+    tagIds,
+    tipsResetToken,
   });
+
+  const coachTagRect = useMemo(() => {
+    if (!imageRect || !focusTagId) {
+      return null;
+    }
+
+    if (activeStepId !== 'edit-price' && activeStepId !== 'drag-tag') {
+      return null;
+    }
+
+    const focusTag = tags.find((tag) => tag.id === focusTagId);
+    if (!focusTag) {
+      return null;
+    }
+
+    const size = getSafeTagSize(tagSizeById[focusTag.id]);
+    return {
+      x: imageRect.x + focusTag.x * imageRect.width,
+      // Canvas content shifts up under the keyboard; keep the coach ring on the visible tag.
+      y: imageRect.y + focusTag.y * imageRect.height - keyboardCanvasLift,
+      width: size.width,
+      height: size.height,
+    };
+  }, [activeStepId, focusTagId, imageRect, keyboardCanvasLift, tagSizeById, tags]);
 
   useEffect(() => {
     if (!activeStepId) {
@@ -369,7 +408,7 @@ export default function EditorScreen() {
     }
 
     bumpCoachMeasure();
-  }, [activeStepId, bumpCoachMeasure, isStylePickerVisible]);
+  }, [activeStepId, bumpCoachMeasure, coachTagRect, isStylePickerVisible, keyboardCanvasLift]);
 
   const handleCanvasPress = (event: GestureResponderEvent) => {
     if (!imageRect) {
@@ -533,13 +572,17 @@ export default function EditorScreen() {
 
   const deleteConfirmModal = (
     <ConfirmOverlay
-      body={t('tag.confirmDeleteBody')}
+      body={
+        deleteCandidateTagIds.length > 1 ? t('tag.confirmDeleteManyBody') : t('tag.confirmDeleteBody')
+      }
       cancelLabel={t('tag.cancel')}
       confirmLabel={t('tag.delete')}
       confirmVariant="destructive"
       onCancel={cancelDeleteTag}
       onConfirm={confirmDeleteTag}
-      title={t('tag.confirmDeleteTitle')}
+      title={
+        deleteCandidateTagIds.length > 1 ? t('tag.confirmDeleteManyTitle') : t('tag.confirmDeleteTitle')
+      }
       visible={isDeleteModalVisible}
     />
   );
@@ -706,6 +749,7 @@ export default function EditorScreen() {
             onCancelTagEdit={handleCancelTagEdit}
             onCanvasLayout={handleCanvasLayout}
             onCanvasPress={handleCanvasPress}
+            onKeyboardCanvasLiftChange={handleKeyboardCanvasLiftChange}
             onDeleteMarker={requestDeleteMarker}
             onDeleteTag={handleDeleteTag}
             onDraftChange={handleDraftChange}
@@ -713,6 +757,8 @@ export default function EditorScreen() {
             onImageLoad={handleImageLoad}
             onLeaveEmpty={requestLeaveEditor}
             onSaveTag={handleSaveTag}
+            onSaveButtonLayout={bumpCoachMeasure}
+            saveButtonRef={saveButtonRef}
             onSelectMarker={handleSelectMarker}
             onTagDragCancel={handleTagDragCancel}
             onTagDragEnd={handleTagDragEnd}
@@ -758,21 +804,23 @@ export default function EditorScreen() {
         <Text style={styles.moreMenuPlaceholder}>{t('editor.moreMenuPlaceholder')}</Text>
       </BottomSheetOverlay>
 
-      <SettingsSheet onClose={closeSettings} visible={isSettingsOpen} />
+      <SettingsSheet onClose={closeSettings} onEditorTipsReset={handleEditorTipsReset} visible={isSettingsOpen} />
 
       {activeStepId ? (
         <EditorCoachMark
           canGoBack={canGoBack}
+          canGoNext={canGoNext}
           canvasRef={canvasRef}
+          exportButtonRef={exportButtonRef}
           imageRect={imageRect}
           measureToken={coachMeasureToken}
           onBack={goBack}
           onNext={goNext}
           onSkip={skip}
-          sizeSectionRef={sizeSectionRef}
+          saveButtonRef={saveButtonRef}
           stepId={activeStepId}
           styleButtonRef={styleButtonRef}
-          tagTypesSectionRef={tagTypesSectionRef}
+          tagRect={coachTagRect}
         />
       ) : null}
 
@@ -782,13 +830,14 @@ export default function EditorScreen() {
         canExport={canExport}
         canSelect={canSelect}
         editorMode={editorMode}
+        exportButtonRef={exportButtonRef}
         isDragOverDelete={isDragOverDelete}
         isDraggingTag={isDraggingTag}
-        isMultiSelectGroupDrag={isMultiSelectGroupDrag}
         isMultiSelectMode={isMultiSelectMode}
         isStylePickerVisible={isStylePickerVisible}
         isZoomMode={isZoomMode}
         onBottomDropAreaLayout={handleBottomDropAreaLayout}
+        onExportButtonLayout={bumpCoachMeasure}
         onFloatingMainAction={handleFloatingMainAction}
         onStyleButtonLayout={bumpCoachMeasure}
         selectedImageUri={selectedImageUri}

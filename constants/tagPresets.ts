@@ -139,7 +139,7 @@ export function resolveConditionValueFromTag(tag: Pick<PriceTag, 'condition' | '
 
 export const DEFAULT_TAG_STYLE_BY_TYPE: Record<TagType, TagStylePresetId> = {
   price: 'price-white-black',
-  sold: 'sold-red',
+  sold: 'sold-icon-plain',
   text: 'text-default',
   quantity: 'quantity-blue',
   condition: 'condition-default',

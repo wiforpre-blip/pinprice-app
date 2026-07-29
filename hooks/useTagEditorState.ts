@@ -15,6 +15,7 @@ import {
   DEFAULT_PRICE_TEXT,
   DEFAULT_QUANTITY,
   DEFAULT_SOLD_TEXT,
+  DEFAULT_SOLD_TEXT_FORMAT,
   DEFAULT_TEXT_TAG,
   SOLD_ICON_TEXT,
   TAG_CONDITION_VALUE_CYCLE,
@@ -290,7 +291,7 @@ export function useTagEditorState({
   const [dragOriginalTag, setDragOriginalTag] = useState<PriceTag | null>(null);
   const [dragPoint, setDragPoint] = useState<ScreenPoint | null>(null);
   const [deleteDropZoneRect, setDeleteDropZoneRect] = useState<ScreenRect | null>(null);
-  const [deleteCandidateTagId, setDeleteCandidateTagId] = useState<string | null>(null);
+  const [deleteCandidateTagIds, setDeleteCandidateTagIds] = useState<string[]>([]);
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [isStylePickerVisible, setIsStylePickerVisible] = useState(false);
   const [isPendingPlacement, setIsPendingPlacement] = useState(false);
@@ -301,7 +302,7 @@ export function useTagEditorState({
   const [sizePresetOverrideByType, setSizePresetOverrideByType] = useState<Partial<Record<TagType, TagSizePresetId>>>({});
   const [currentSizePresetId, setCurrentSizePresetId] = useState<TagSizePresetId>(DEFAULT_TAG_SIZE_PRESET_ID);
   const [currentPriceTextFormat, setCurrentPriceTextFormat] = useState<PriceTextFormat>('symbol');
-  const [currentSoldTextFormat, setCurrentSoldTextFormat] = useState<SoldTextFormat>('text');
+  const [currentSoldTextFormat, setCurrentSoldTextFormat] = useState<SoldTextFormat>(DEFAULT_SOLD_TEXT_FORMAT);
   const [currentLanguageCode, setCurrentLanguageCode] = useState<TagLanguageCode>(DEFAULT_LANGUAGE_CODE);
   const [currentConditionValue, setCurrentConditionValue] = useState<TagConditionValue>(DEFAULT_CONDITION_VALUE);
 
@@ -309,7 +310,7 @@ export function useTagEditorState({
   const isDraggingTag = draggingTagId !== null;
   const isMultiSelectGroupDrag =
     isMultiSelectMode && draggingTagId !== null && selectedTagIds.length >= 2 && selectedTagIds.includes(draggingTagId);
-  const isDragOverDelete = !isMultiSelectGroupDrag && dragPoint ? isPointInsideRect(dragPoint, deleteDropZoneRect) : false;
+  const isDragOverDelete = dragPoint ? isPointInsideRect(dragPoint, deleteDropZoneRect) : false;
 
   useEffect(() => {
     return () => {
@@ -461,6 +462,7 @@ export function useTagEditorState({
     setDraftText(newTag.text);
     setDraftType(newTag.type);
     setDraftPreview(null);
+    liveDraftTextRef.current = newTag.text;
     setIsStylePickerVisible(false);
     setIsPendingPlacement(false);
   };
@@ -531,8 +533,10 @@ export function useTagEditorState({
     const isGroupMove =
       isMultiSelectMode && groupOriginals !== null && groupOriginals.length >= 2 && selectedTagIds.includes(tagId);
 
-    if (!isGroupMove && isPointInsideRect(releasePoint, deleteDropZoneRect)) {
-      setDeleteCandidateTagId(tagId);
+    if (isPointInsideRect(releasePoint, deleteDropZoneRect)) {
+      const idsToDelete =
+        isGroupMove && groupOriginals ? groupOriginals.map((tag) => tag.id) : [tagId];
+      setDeleteCandidateTagIds(idsToDelete);
       setIsDeleteModalVisible(true);
       setDraggingTagId(null);
       setDragPoint(null);
@@ -787,35 +791,54 @@ export function useTagEditorState({
     });
   };
 
-  const handleDeleteTag = (tagId: string) => {
+  const handleDeleteTags = (tagIds: string[]) => {
+    const idSet = new Set(tagIds);
+
+    if (idSet.size === 0) {
+      return;
+    }
+
     setTags((currentTags) => {
-      if (!currentTags.some((tag) => tag.id === tagId)) {
+      if (!currentTags.some((tag) => idSet.has(tag.id))) {
         return currentTags;
       }
 
       pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
-      return currentTags.filter((tag) => tag.id !== tagId);
+      return currentTags.filter((tag) => !idSet.has(tag.id));
+    });
+    setSelectedTagIds((currentIds) => {
+      const nextIds = currentIds.filter((id) => !idSet.has(id));
+
+      if (nextIds.length === 0) {
+        setIsMultiSelectMode(false);
+      }
+
+      return nextIds;
     });
     clearTagEditorState();
   };
 
+  const handleDeleteTag = (tagId: string) => {
+    handleDeleteTags([tagId]);
+  };
+
   const cancelDeleteTag = () => {
-    if (dragOriginalTag) {
+    if (dragOriginalTag && deleteCandidateTagIds.length <= 1) {
       setTags((currentTags) => currentTags.map((tag) => (tag.id === dragOriginalTag.id ? { ...dragOriginalTag } : tag)));
     }
 
     setIsDeleteModalVisible(false);
-    setDeleteCandidateTagId(null);
+    setDeleteCandidateTagIds([]);
     setDragOriginalTag(null);
   };
 
   const confirmDeleteTag = () => {
-    if (deleteCandidateTagId) {
-      handleDeleteTag(deleteCandidateTagId);
+    if (deleteCandidateTagIds.length > 0) {
+      handleDeleteTags(deleteCandidateTagIds);
     }
 
     setIsDeleteModalVisible(false);
-    setDeleteCandidateTagId(null);
+    setDeleteCandidateTagIds([]);
     setDragOriginalTag(null);
   };
 
@@ -966,7 +989,7 @@ export function useTagEditorState({
     setIsStylePickerVisible(false);
     setIsPendingPlacement(false);
     setIsDeleteModalVisible(false);
-    setDeleteCandidateTagId(null);
+    setDeleteCandidateTagIds([]);
     setTagSizeById({});
     setIsMultiSelectMode(false);
     setSelectedTagIds([]);
@@ -1046,6 +1069,7 @@ export function useTagEditorState({
     finishStylePicker,
     commitDraftTag,
     confirmDeleteTag,
+    deleteCandidateTagIds,
     currentLanguageCode,
     currentConditionValue,
     currentPriceTextFormat,

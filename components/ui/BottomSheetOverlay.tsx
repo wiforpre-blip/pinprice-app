@@ -168,6 +168,8 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     ...theme.typography.button,
+    lineHeight: 24,
+    paddingVertical: 2,
     color: theme.colors.textPrimary,
   },
   closeButton: {

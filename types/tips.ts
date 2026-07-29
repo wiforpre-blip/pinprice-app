@@ -1,8 +1,9 @@
 export const EDITOR_COACH_STEPS = [
-  'style-button',
-  'style-types',
-  'style-size',
   'place-tag',
+  'edit-price',
+  'drag-tag',
+  'style-button',
+  'export',
 ] as const;
 
 export type EditorCoachStepId = (typeof EDITOR_COACH_STEPS)[number];
@@ -38,6 +39,11 @@ export function getPreviousCoachStep(stepId: EditorCoachStepId): EditorCoachStep
     return null;
   }
   return EDITOR_COACH_STEPS[index - 1]!;
+}
+
+/** Steps that require a real action — Next must not skip them. */
+export function isCoachActionRequiredStep(stepId: EditorCoachStepId): boolean {
+  return stepId === 'place-tag' || stepId === 'edit-price';
 }
 
 /** @deprecated Legacy tip ids retained for AsyncStorage parse safety. */

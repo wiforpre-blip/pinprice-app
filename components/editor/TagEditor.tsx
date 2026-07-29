@@ -17,7 +17,7 @@ import {
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
 import type { TagInlineEdit } from '@/components/editor/TagOverlay';
-import { DEFAULT_CONDITION_VALUE, DEFAULT_QUANTITY, QUANTITY_MAX_DIGITS, SOLD_ICON_TEXT, TAG_CONDITION_VALUE_CYCLE, TAG_SIZE_ORDER, toPickerSizePreset, type TagPickerSizePresetId } from '@/constants/tagDefaults';
+import { DEFAULT_CONDITION_VALUE, DEFAULT_QUANTITY, DEFAULT_SOLD_TEXT_FORMAT, QUANTITY_MAX_DIGITS, SOLD_ICON_TEXT, TAG_CONDITION_VALUE_CYCLE, TAG_SIZE_ORDER, toPickerSizePreset, type TagPickerSizePresetId } from '@/constants/tagDefaults';
 import {
   DEFAULT_TAG_SIZE_PRESET_ID,
   DEFAULT_TAG_STYLE_BY_TYPE,
@@ -59,6 +59,8 @@ type TagEditorProps = {
   /** Forwarded TextInput ref from the selected TagOverlay (inline edit). */
   inputRef?: RefObject<TextInput | null>;
   isNewTag: boolean;
+  /** Coach spotlight target for the dock Save action. */
+  saveButtonRef?: RefObject<View | null>;
   tag: PriceTag | null;
   visible: boolean;
   onCancel: () => void;
@@ -67,6 +69,7 @@ type TagEditorProps = {
   onDraftChange: (preview: TagEditorDraftPreview, options?: { syncOnly?: boolean }) => void;
   onInlineEditChange?: (edit: TagInlineEdit | null) => void;
   onSave: (tagId: string, updates: TagEditorSaveUpdates) => void;
+  onSaveButtonLayout?: () => void;
 };
 
 type DockMenu = 'main' | 'color' | 'style' | 'size' | 'format' | 'grade' | 'language';
@@ -522,6 +525,8 @@ export function TagEditor({
   onDraftChange,
   onInlineEditChange,
   onSave,
+  onSaveButtonLayout,
+  saveButtonRef,
 }: TagEditorProps) {
   const { language, t } = useTranslation();
   const { currency } = useCurrency();
@@ -539,7 +544,7 @@ export function TagEditor({
   const lastKeyboardOverlapRef = useRef(0);
   const [priceAmount, setPriceAmount] = useState('');
   const [priceTextFormat, setPriceTextFormat] = useState<PriceTextFormat>('symbol');
-  const [soldTextFormat, setSoldTextFormat] = useState<SoldTextFormat>('text');
+  const [soldTextFormat, setSoldTextFormat] = useState<SoldTextFormat>(DEFAULT_SOLD_TEXT_FORMAT);
   const [quantity, setQuantity] = useState(String(DEFAULT_QUANTITY));
   const [languageCode, setLanguageCode] = useState<TagLanguageCode>('TH');
   const [conditionValue, setConditionValue] = useState<TagConditionValue>(DEFAULT_CONDITION_VALUE);
@@ -622,6 +627,13 @@ export function TagEditor({
 
   useEffect(() => {
     if (!visible) {
+      // Clear inline fields on close so the next open cannot leak the previous amount/text.
+      priceAmountRef.current = '';
+      freeTextRef.current = '';
+      quantityRef.current = String(DEFAULT_QUANTITY);
+      setPriceAmount('');
+      setFreeText('');
+      setQuantity(String(DEFAULT_QUANTITY));
       setKeyboardOverlap(0);
       setActiveDockMenu('main');
       setIsDockReady(false);
@@ -748,8 +760,13 @@ export function TagEditor({
       return;
     }
 
+    // Inline types: use tag.text only. displayText can still hold the previous session's
+    // priceAmount/freeText for one frame before init resets — that leaked into draftPreview
+    // and made outside-tap auto-save the old price instead of cancelling a blank draft.
+    const previewText = TYPES_WITH_INLINE_INPUT.includes(tag.type) ? tag.text : displayText;
+
     const preview: TagEditorDraftPreview = {
-      text: displayText,
+      text: previewText,
       stylePresetId: tag.type === 'sold' && soldTextFormat === 'icon_plain' ? 'sold-icon-plain' : stylePresetId,
       sizePresetId: TYPES_WITH_SIZE_PICKER.includes(tag.type) ? sizePresetId : tag.sizePresetId,
       priceTextFormat: tag.type === 'price' ? priceTextFormat : undefined,
@@ -1060,9 +1077,11 @@ export function TagEditor({
         <Pressable accessibilityRole="button" onPress={onCancel} style={styles.cancelButton}>
           <Text style={styles.cancelButtonText}>{t('tag.cancel')}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={saveTag} style={styles.saveButton}>
-          <Text style={styles.saveButtonText}>{t('tag.save')}</Text>
-        </Pressable>
+        <View collapsable={false} onLayout={onSaveButtonLayout} ref={saveButtonRef}>
+          <Pressable accessibilityRole="button" onPress={saveTag} style={styles.saveButton}>
+            <Text style={styles.saveButtonText}>{t('tag.save')}</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );

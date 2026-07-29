@@ -66,7 +66,10 @@ export async function markCoachCompleted(): Promise<void> {
 /** Clears dismissed tips + coach completion only. Does not touch language, currency, or other settings. */
 export async function resetEditorTips(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([DISMISSED_TIPS_KEY, COACH_COMPLETED_KEY]);
+    await Promise.all([
+      AsyncStorage.removeItem(DISMISSED_TIPS_KEY),
+      AsyncStorage.removeItem(COACH_COMPLETED_KEY),
+    ]);
   } catch {
     // Tip preference write failures should not block UI.
   }

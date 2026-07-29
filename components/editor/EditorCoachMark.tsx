@@ -19,22 +19,28 @@ export type CoachAnchorRect = {
 type EditorCoachMarkProps = {
   stepId: EditorCoachStepId;
   styleButtonRef: RefObject<RNView | null>;
-  tagTypesSectionRef: RefObject<RNView | null>;
-  sizeSectionRef: RefObject<RNView | null>;
+  exportButtonRef: RefObject<RNView | null>;
+  saveButtonRef?: RefObject<RNView | null>;
   canvasRef: RefObject<RNView | null>;
   /** Contained image bounds inside the canvas (place-tag spotlight). */
   imageRect: ImageDisplayRect | null;
+  /** Tag bounds in canvas-local coordinates (edit-price / drag-tag). */
+  tagRect: CoachAnchorRect | null;
   measureToken: number;
   canGoBack: boolean;
+  canGoNext: boolean;
   onBack: () => void;
   onNext: () => void;
   onSkip: () => void;
 };
 
 const HOLE_PADDING = 6;
+const TAG_HOLE_PADDING = 10;
+const TAG_HOLE_RADIUS = 12;
 const ARROW_SIZE = 10;
 const CARD_MAX_WIDTH = 320;
 const CARD_GAP = 10;
+const DIM_COLOR = 'rgba(0, 0, 0, 0.55)';
 /** Keep ring sharp to match the rectangular spotlight cutout. */
 const HOLE_RADIUS = 0;
 
@@ -64,16 +70,18 @@ function measureInWindow(ref: RefObject<RNView | null>): Promise<CoachAnchorRect
 
 function getCopyKeys(stepId: EditorCoachStepId): { titleKey: string; bodyKey: string | null } {
   switch (stepId) {
-    case 'style-button':
-      return { titleKey: 'editor.coach.styleButtonTitle', bodyKey: 'editor.coach.styleButtonBody' };
-    case 'style-types':
-      return { titleKey: 'editor.coach.styleTypesTitle', bodyKey: 'editor.coach.styleTypesBody' };
-    case 'style-size':
-      return { titleKey: 'editor.coach.styleSizeTitle', bodyKey: 'editor.coach.styleSizeBody' };
     case 'place-tag':
       return { titleKey: 'editor.coach.placeTagTitle', bodyKey: null };
+    case 'edit-price':
+      return { titleKey: 'editor.coach.editPriceTitle', bodyKey: 'editor.coach.editPriceBody' };
+    case 'drag-tag':
+      return { titleKey: 'editor.coach.dragTagTitle', bodyKey: null };
+    case 'style-button':
+      return { titleKey: 'editor.coach.styleButtonTitle', bodyKey: null };
+    case 'export':
+      return { titleKey: 'editor.coach.exportTitle', bodyKey: 'editor.coach.exportBody' };
     default:
-      return { titleKey: 'editor.coach.styleButtonTitle', bodyKey: 'editor.coach.styleButtonBody' };
+      return { titleKey: 'editor.coach.placeTagTitle', bodyKey: null };
   }
 }
 
@@ -84,15 +92,146 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function RoundedHoleCorners({
+  hole,
+  radius,
+}: {
+  hole: { x: number; y: number; width: number; height: number };
+  radius: number;
+}) {
+  if (radius <= 0) {
+    return null;
+  }
+
+  const diameter = radius * 2;
+  return (
+    <>
+      <View
+        pointerEvents="none"
+        style={[
+          styles.roundedCornerDim,
+          {
+            width: diameter,
+            height: diameter,
+            borderRadius: radius,
+            top: hole.y - radius,
+            left: hole.x - radius,
+          },
+        ]}
+      />
+      <View
+        pointerEvents="none"
+        style={[
+          styles.roundedCornerDim,
+          {
+            width: diameter,
+            height: diameter,
+            borderRadius: radius,
+            top: hole.y - radius,
+            left: hole.x + hole.width - radius,
+          },
+        ]}
+      />
+      <View
+        pointerEvents="none"
+        style={[
+          styles.roundedCornerDim,
+          {
+            width: diameter,
+            height: diameter,
+            borderRadius: radius,
+            top: hole.y + hole.height - radius,
+            left: hole.x - radius,
+          },
+        ]}
+      />
+      <View
+        pointerEvents="none"
+        style={[
+          styles.roundedCornerDim,
+          {
+            width: diameter,
+            height: diameter,
+            borderRadius: radius,
+            top: hole.y + hole.height - radius,
+            left: hole.x + hole.width - radius,
+          },
+        ]}
+      />
+    </>
+  );
+}
+
+/**
+ * Renders dim overlay with two rectangular cutouts (holes) that don't overlap.
+ * Splits the screen into horizontal bands and carves out each hole in its band.
+ * When holes overlap vertically, merges them into one bounding rect.
+ */
+function DualCutoutDim({
+  hole,
+  secondaryHole,
+  primaryHoleRadius,
+}: {
+  hole: { x: number; y: number; width: number; height: number };
+  secondaryHole: { x: number; y: number; width: number; height: number };
+  primaryHoleRadius?: number;
+}) {
+  const top = hole.y < secondaryHole.y ? hole : secondaryHole;
+  const bottom = hole.y < secondaryHole.y ? secondaryHole : hole;
+
+  const topEnd = top.y + top.height;
+  const overlaps = topEnd > bottom.y;
+
+  if (overlaps) {
+    const merged = {
+      x: Math.min(top.x, bottom.x),
+      y: top.y,
+      width: Math.max(top.x + top.width, bottom.x + bottom.width) - Math.min(top.x, bottom.x),
+      height: Math.max(topEnd, bottom.y + bottom.height) - top.y,
+    };
+    return (
+      <>
+        <View pointerEvents="none" style={[styles.dim, { top: 0, left: 0, right: 0, height: merged.y }]} />
+        <View pointerEvents="none" style={[styles.dim, { top: merged.y + merged.height, left: 0, right: 0, bottom: 0 }]} />
+        <View pointerEvents="none" style={[styles.dim, { top: merged.y, left: 0, width: merged.x, height: merged.height }]} />
+        <View pointerEvents="none" style={[styles.dim, { top: merged.y, left: merged.x + merged.width, right: 0, height: merged.height }]} />
+      </>
+    );
+  }
+
+  const gapHeight = bottom.y - topEnd;
+  return (
+    <>
+      {/* Above top hole */}
+      <View pointerEvents="none" style={[styles.dim, { top: 0, left: 0, right: 0, height: top.y }]} />
+      {/* Left of top hole */}
+      <View pointerEvents="none" style={[styles.dim, { top: top.y, left: 0, width: top.x, height: top.height }]} />
+      {/* Right of top hole */}
+      <View pointerEvents="none" style={[styles.dim, { top: top.y, left: top.x + top.width, right: 0, height: top.height }]} />
+      {/* Between holes */}
+      <View pointerEvents="none" style={[styles.dim, { top: topEnd, left: 0, right: 0, height: gapHeight }]} />
+      {/* Left of bottom hole */}
+      <View pointerEvents="none" style={[styles.dim, { top: bottom.y, left: 0, width: bottom.x, height: bottom.height }]} />
+      {/* Right of bottom hole */}
+      <View pointerEvents="none" style={[styles.dim, { top: bottom.y, left: bottom.x + bottom.width, right: 0, height: bottom.height }]} />
+      {/* Below bottom hole */}
+      <View pointerEvents="none" style={[styles.dim, { top: bottom.y + bottom.height, left: 0, right: 0, bottom: 0 }]} />
+      <RoundedHoleCorners hole={hole} radius={primaryHoleRadius ?? 0} />
+    </>
+  );
+}
+
 export function EditorCoachMark({
   stepId,
   styleButtonRef,
-  tagTypesSectionRef,
-  sizeSectionRef,
+  exportButtonRef,
+  saveButtonRef,
   canvasRef,
   imageRect,
+  tagRect,
   measureToken,
   canGoBack,
+  canGoNext,
   onBack,
   onNext,
   onSkip,
@@ -101,12 +240,14 @@ export function EditorCoachMark({
   const insets = useSafeAreaInsets();
   const rootRef = useRef<RNView | null>(null);
   const [anchor, setAnchor] = useState<CoachAnchorRect | null>(null);
+  const [secondaryAnchor, setSecondaryAnchor] = useState<CoachAnchorRect | null>(null);
   const [rootSize, setRootSize] = useState({ width: 0, height: 0 });
   const [cardMeasuredHeight, setCardMeasuredHeight] = useState(0);
   const progress = getEditorCoachProgress(stepId);
   const { titleKey, bodyKey } = getCopyKeys(stepId);
   const body = bodyKey ? t(bodyKey) : '';
-  const isLastStep = stepId === 'place-tag';
+  const isLastStep = stepId === 'export';
+  const showNext = canGoNext || isLastStep;
   const cardHeight =
     cardMeasuredHeight > 0 ? cardMeasuredHeight : estimateCardHeight(Boolean(body));
 
@@ -138,18 +279,20 @@ export function EditorCoachMark({
         return;
       }
 
+      const needsCanvas =
+        stepId === 'place-tag' || stepId === 'edit-price' || stepId === 'drag-tag';
+
       const targetRef =
         stepId === 'style-button'
           ? styleButtonRef
-          : stepId === 'style-types'
-            ? tagTypesSectionRef
-            : stepId === 'style-size'
-              ? sizeSectionRef
-              : canvasRef;
+          : stepId === 'export'
+            ? exportButtonRef
+            : canvasRef;
 
-      const [rootRect, targetRect] = await Promise.all([
+      const [rootRect, targetRect, saveRect] = await Promise.all([
         measureInWindow(rootRef),
         measureInWindow(targetRef),
+        stepId === 'edit-price' && saveButtonRef ? measureInWindow(saveButtonRef) : Promise.resolve(null),
       ]);
 
       if (cancelled) {
@@ -164,11 +307,46 @@ export function EditorCoachMark({
       const localY = targetRect.y - rootRect.y;
 
       if (stepId === 'place-tag' && imageRect) {
+        setSecondaryAnchor(null);
         setAnchor({
           x: localX + imageRect.x,
           y: localY + imageRect.y,
           width: imageRect.width,
           height: imageRect.height,
+        });
+        return;
+      }
+
+      if ((stepId === 'edit-price' || stepId === 'drag-tag') && tagRect) {
+        setAnchor({
+          x: localX + tagRect.x,
+          y: localY + tagRect.y,
+          width: tagRect.width,
+          height: tagRect.height,
+        });
+
+        // Step 2: also spotlight the dock Save button.
+        if (stepId === 'edit-price' && saveRect) {
+          setSecondaryAnchor({
+            x: saveRect.x - rootRect.x,
+            y: saveRect.y - rootRect.y,
+            width: saveRect.width,
+            height: saveRect.height,
+          });
+        } else {
+          setSecondaryAnchor(null);
+        }
+        return;
+      }
+
+      setSecondaryAnchor(null);
+
+      if (needsCanvas && !imageRect && !tagRect) {
+        setAnchor({
+          x: localX,
+          y: localY,
+          width: targetRect.width,
+          height: targetRect.height,
         });
         return;
       }
@@ -191,12 +369,13 @@ export function EditorCoachMark({
     };
   }, [
     canvasRef,
+    exportButtonRef,
     imageRect,
     measureToken,
-    sizeSectionRef,
+    saveButtonRef,
     stepId,
     styleButtonRef,
-    tagTypesSectionRef,
+    tagRect,
   ]);
 
   const hole = useMemo(() => {
@@ -204,10 +383,11 @@ export function EditorCoachMark({
       return null;
     }
 
-    const x = Math.max(0, anchor.x - HOLE_PADDING);
-    const y = Math.max(0, anchor.y - HOLE_PADDING);
-    const right = Math.min(rootSize.width, anchor.x + anchor.width + HOLE_PADDING);
-    const bottom = Math.min(rootSize.height, anchor.y + anchor.height + HOLE_PADDING);
+    const padding = stepId === 'drag-tag' || stepId === 'edit-price' ? TAG_HOLE_PADDING : HOLE_PADDING;
+    const x = Math.max(0, anchor.x - padding);
+    const y = Math.max(0, anchor.y - padding);
+    const right = Math.min(rootSize.width, anchor.x + anchor.width + padding);
+    const bottom = Math.min(rootSize.height, anchor.y + anchor.height + padding);
 
     return {
       x,
@@ -215,7 +395,25 @@ export function EditorCoachMark({
       width: Math.max(0, right - x),
       height: Math.max(0, bottom - y),
     };
-  }, [anchor, rootSize.height, rootSize.width]);
+  }, [anchor, rootSize.height, rootSize.width, stepId]);
+
+  const secondaryHole = useMemo(() => {
+    if (!secondaryAnchor || rootSize.width <= 0 || rootSize.height <= 0) {
+      return null;
+    }
+
+    const x = Math.max(0, secondaryAnchor.x - TAG_HOLE_PADDING);
+    const y = Math.max(0, secondaryAnchor.y - TAG_HOLE_PADDING);
+    const right = Math.min(rootSize.width, secondaryAnchor.x + secondaryAnchor.width + TAG_HOLE_PADDING);
+    const bottom = Math.min(rootSize.height, secondaryAnchor.y + secondaryAnchor.height + TAG_HOLE_PADDING);
+
+    return {
+      x,
+      y,
+      width: Math.max(0, right - x),
+      height: Math.max(0, bottom - y),
+    };
+  }, [rootSize.height, rootSize.width, secondaryAnchor]);
 
   const cardLayout = useMemo(() => {
     const containerWidth = rootSize.width || 0;
@@ -235,13 +433,26 @@ export function EditorCoachMark({
       };
     }
 
-    // Step 4: place the card BELOW the image hole when possible so the tap area stays clear.
-    // Falls back to maxTop (just above floating bar) on short screens.
-    if (stepId === 'place-tag') {
+    // Canvas / tag steps: keep the card clear of the spotlight when possible.
+    if (stepId === 'place-tag' || stepId === 'edit-price' || stepId === 'drag-tag') {
       const left = Math.max(
         theme.spacing.lg,
         Math.min(hole.x + hole.width / 2 - cardWidth / 2, containerWidth - cardWidth - theme.spacing.lg),
       );
+
+      // Prefer above the hole for edit/drag so the dock and tag stay free.
+      if (stepId === 'edit-price' || stepId === 'drag-tag') {
+        const preferredTop = hole.y - cardHeight - CARD_GAP;
+        const top = clamp(preferredTop, minTop, maxTop);
+        const fitsAbove = preferredTop >= minTop;
+        return {
+          left,
+          top,
+          width: cardWidth,
+          arrowPointsUp: !fitsAbove,
+        };
+      }
+
       const preferredTop = hole.y + hole.height + CARD_GAP;
       return {
         left,
@@ -251,28 +462,13 @@ export function EditorCoachMark({
       };
     }
 
-    // Steps 1–3: place directly above the spotlight using measured card height.
+    // Style / Export: place directly above the spotlight.
     const preferredTop = hole.y - cardHeight - CARD_GAP;
     const top = clamp(preferredTop, minTop, maxTop);
-
-    if (stepId === 'style-button') {
-      const left = Math.max(
-        theme.spacing.lg,
-        Math.min(hole.x + hole.width / 2 - 28, containerWidth - cardWidth - theme.spacing.lg),
-      );
-      return {
-        left,
-        top,
-        width: cardWidth,
-        arrowPointsUp: false,
-      };
-    }
-
     const left = Math.max(
       theme.spacing.lg,
-      Math.min(hole.x + hole.width / 2 - cardWidth / 2, containerWidth - cardWidth - theme.spacing.lg),
+      Math.min(hole.x + hole.width / 2 - 28, containerWidth - cardWidth - theme.spacing.lg),
     );
-
     return {
       left,
       top,
@@ -290,6 +486,12 @@ export function EditorCoachMark({
     return Math.max(16, Math.min(holeCenterX - cardLayout.left - ARROW_SIZE, cardLayout.width - 32));
   }, [cardLayout.left, cardLayout.width, hole]);
 
+  // Step 2: keep visual rings on tag + Save, but let empty-image taps pass through
+  // so the normal dismiss/save path can advance the tutorial.
+  const dimPointerEvents = stepId === 'edit-price' ? 'none' : 'auto';
+  const usePassThroughDim = stepId === 'edit-price';
+  const tagHoleRadius = stepId === 'edit-price' || stepId === 'drag-tag' ? TAG_HOLE_RADIUS : HOLE_RADIUS;
+
   return (
     <View
       collapsable={false}
@@ -297,41 +499,73 @@ export function EditorCoachMark({
       pointerEvents="box-none"
       ref={rootRef}
       style={styles.root}>
-      {hole ? (
+      {usePassThroughDim && hole && secondaryHole ? (
+        <DualCutoutDim hole={hole} secondaryHole={secondaryHole} primaryHoleRadius={TAG_HOLE_RADIUS} />
+      ) : usePassThroughDim && hole ? (
         <>
-          <View pointerEvents="auto" style={[styles.dim, { top: 0, left: 0, right: 0, height: hole.y }]} />
+          <View pointerEvents="none" style={[styles.dim, { top: 0, left: 0, right: 0, height: hole.y }]} />
+          <View pointerEvents="none" style={[styles.dim, { top: hole.y + hole.height, left: 0, right: 0, bottom: 0 }]} />
+          <View pointerEvents="none" style={[styles.dim, { top: hole.y, left: 0, width: hole.x, height: hole.height }]} />
+          <View pointerEvents="none" style={[styles.dim, { top: hole.y, left: hole.x + hole.width, right: 0, height: hole.height }]} />
+          <RoundedHoleCorners hole={hole} radius={TAG_HOLE_RADIUS} />
+        </>
+      ) : usePassThroughDim ? (
+        <View pointerEvents="none" style={[styles.dim, StyleSheet.absoluteFillObject]} />
+      ) : hole ? (
+        <>
+          <View pointerEvents={dimPointerEvents} style={[styles.dim, { top: 0, left: 0, right: 0, height: hole.y }]} />
           <View
-            pointerEvents="auto"
+            pointerEvents={dimPointerEvents}
             style={[styles.dim, { top: hole.y + hole.height, left: 0, right: 0, bottom: 0 }]}
           />
           <View
-            pointerEvents="auto"
+            pointerEvents={dimPointerEvents}
             style={[styles.dim, { top: hole.y, left: 0, width: hole.x, height: hole.height }]}
           />
           <View
-            pointerEvents="auto"
+            pointerEvents={dimPointerEvents}
             style={[
               styles.dim,
               { top: hole.y, left: hole.x + hole.width, right: 0, height: hole.height },
             ]}
           />
-          <View
-            pointerEvents="none"
-            style={[
-              styles.ring,
-              {
-                top: hole.y,
-                left: hole.x,
-                width: hole.width,
-                height: hole.height,
-                borderRadius: HOLE_RADIUS,
-              },
-            ]}
-          />
+          <RoundedHoleCorners hole={hole} radius={tagHoleRadius} />
         </>
       ) : (
-        <View pointerEvents="auto" style={[styles.dim, StyleSheet.absoluteFillObject]} />
+        <View pointerEvents={dimPointerEvents} style={[styles.dim, StyleSheet.absoluteFillObject]} />
       )}
+
+      {hole ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.ring,
+            {
+              top: hole.y,
+              left: hole.x,
+              width: hole.width,
+              height: hole.height,
+              borderRadius: tagHoleRadius,
+            },
+          ]}
+        />
+      ) : null}
+
+      {secondaryHole ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.ring,
+            {
+              top: secondaryHole.y,
+              left: secondaryHole.x,
+              width: secondaryHole.width,
+              height: secondaryHole.height,
+              borderRadius: HOLE_RADIUS,
+            },
+          ]}
+        />
+      ) : null}
 
       <View
         onLayout={handleCardWrapLayout}
@@ -378,11 +612,13 @@ export function EditorCoachMark({
                   <Text style={styles.textButtonLabel}>{t('editor.coach.skip')}</Text>
                 </Pressable>
               )}
-              <Pressable accessibilityRole="button" onPress={onNext} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonLabel}>
-                  {isLastStep ? t('editor.coach.gotIt') : t('editor.coach.next')}
-                </Text>
-              </Pressable>
+              {showNext ? (
+                <Pressable accessibilityRole="button" onPress={onNext} style={styles.primaryButton}>
+                  <Text style={styles.primaryButtonLabel}>
+                    {isLastStep ? t('editor.coach.gotIt') : t('editor.coach.next')}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         </View>
@@ -402,7 +638,11 @@ const styles = StyleSheet.create({
   },
   dim: {
     position: 'absolute',
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: DIM_COLOR,
+  },
+  roundedCornerDim: {
+    position: 'absolute',
+    backgroundColor: DIM_COLOR,
   },
   ring: {
     position: 'absolute',

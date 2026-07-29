@@ -10,6 +10,8 @@ export const DEFAULT_QUANTITY = 1;
 export const QUANTITY_MAX_DIGITS = 3;
 export const DEFAULT_LANGUAGE_CODE: TagLanguageCode = 'TH';
 export const SOLD_ICON_TEXT = '✕';
+/** Default sold look: solid red cross (first style in the sold picker). */
+export const DEFAULT_SOLD_TEXT_FORMAT: SoldTextFormat = 'icon_plain';
 
 export const SOLD_TEXT_FORMAT_CYCLE: SoldTextFormat[] = ['text', 'icon', 'icon_plain'];
 /** Grades cycled when re-tapping the condition tool chip in the style picker. */

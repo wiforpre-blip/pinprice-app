@@ -1,13 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
-import { Image } from 'expo-image';
+import { Image as ExpoImage } from 'expo-image';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Image as RNImage,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type ImageSourcePropType,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RecentDraftsSection } from '@/components/home/RecentDraftsSection';
 import { SettingsSheet } from '@/components/settings/SettingsSheet';
+import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { useRecentDrafts } from '@/hooks/useRecentDrafts';
@@ -16,6 +27,63 @@ import type { EditorDraft } from '@/types/draft';
 import { formatDraftDisplayTitle, formatDraftUpdatedAt } from '@/utils/draftDisplay';
 
 const ONBOARDING_HERO = require('../assets/images/onboarding-hero.png');
+type SamplePhoto = {
+  filename: string;
+  labelKey: string;
+  source: ImageSourcePropType;
+};
+
+const SAMPLE_PHOTOS: SamplePhoto[] = [
+  {
+    filename: 'sample-portrait.jpg',
+    labelKey: 'home.samplePortrait',
+    source: require('../assets/images/samples/sample-portrait.jpg'),
+  },
+  {
+    filename: 'sample-landscape.jpg',
+    labelKey: 'home.sampleLandscape',
+    source: require('../assets/images/samples/sample-landscape.jpg'),
+  },
+];
+const sampleEditorUriPromises: Record<string, Promise<string | null> | undefined> = {};
+
+async function resolveSampleEditorUri(sample: SamplePhoto) {
+  const existingPromise = sampleEditorUriPromises[sample.filename];
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const promise = (async () => {
+    const resolved = RNImage.resolveAssetSource(sample.source);
+    const sourceUri = resolved?.uri;
+
+    if (!sourceUri || !FileSystem.cacheDirectory) {
+      return sourceUri ?? null;
+    }
+
+    const destinationUri = `${FileSystem.cacheDirectory}${sample.filename}`;
+
+    try {
+      const cached = await FileSystem.getInfoAsync(destinationUri);
+      if (cached.exists) {
+        return destinationUri;
+      }
+
+      if (/^https?:\/\//i.test(sourceUri)) {
+        const downloaded = await FileSystem.downloadAsync(sourceUri, destinationUri);
+        return downloaded.uri;
+      }
+
+      await FileSystem.copyAsync({ from: sourceUri, to: destinationUri });
+      return destinationUri;
+    } catch {
+      return sourceUri;
+    }
+  })();
+
+  sampleEditorUriPromises[sample.filename] = promise;
+  return promise;
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -23,8 +91,13 @@ export default function HomeScreen() {
   const { drafts, refreshDrafts } = useRecentDrafts();
   const [isOpeningPicker, setIsOpeningPicker] = useState(false);
   const [isOpeningDraft, setIsOpeningDraft] = useState(false);
+  const [isPhotoSourceSheetOpen, setIsPhotoSourceSheetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    void Promise.all(SAMPLE_PHOTOS.map((sample) => resolveSampleEditorUri(sample)));
+  }, []);
 
   const openEditor = (imageUri: string, options?: { draftId?: string; filename?: string | null }) => {
     const trimmedFilename = options?.filename?.trim();
@@ -87,11 +160,21 @@ export default function HomeScreen() {
     }
   };
 
-  const choosePhoto = async () => {
+  const openPhotoSourceSheet = () => {
     if (isOpeningPicker || isOpeningDraft) {
       return;
     }
 
+    setMessage(null);
+    setIsPhotoSourceSheetOpen(true);
+  };
+
+  const choosePhotoFromGallery = async () => {
+    if (isOpeningPicker || isOpeningDraft) {
+      return;
+    }
+
+    setIsPhotoSourceSheetOpen(false);
     setIsOpeningPicker(true);
     setMessage(null);
 
@@ -109,6 +192,27 @@ export default function HomeScreen() {
       });
 
       handleImageResult(result);
+    } catch {
+      setMessage(t('home.photoPickerError'));
+    } finally {
+      setIsOpeningPicker(false);
+    }
+  };
+
+  const chooseSamplePhoto = async (sample: (typeof SAMPLE_PHOTOS)[number]) => {
+    if (isOpeningPicker || isOpeningDraft) {
+      return;
+    }
+
+    setIsPhotoSourceSheetOpen(false);
+    setIsOpeningPicker(true);
+    setMessage(null);
+
+    try {
+      const sampleUri = await resolveSampleEditorUri(sample);
+      if (sampleUri) {
+        openEditor(sampleUri, { filename: sample.filename });
+      }
     } catch {
       setMessage(t('home.photoPickerError'));
     } finally {
@@ -165,6 +269,40 @@ export default function HomeScreen() {
       </View>
 
       <SettingsSheet onClose={() => setIsSettingsOpen(false)} visible={isSettingsOpen} />
+      <BottomSheetOverlay
+        onClose={() => setIsPhotoSourceSheetOpen(false)}
+        title={t('home.photoSourceTitle')}
+        visible={isPhotoSourceSheetOpen}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={isOpeningPicker || isOpeningDraft}
+          onPress={() => {
+            void choosePhotoFromGallery();
+          }}
+          style={[styles.galleryButton, (isOpeningPicker || isOpeningDraft) && styles.disabledButton]}>
+          <MaterialIcons color={theme.colors.white} name="photo-library" size={22} />
+          <Text style={[styles.buttonText, styles.primaryButtonText, language === 'th' && styles.buttonTextThai]}>
+            {t('home.gallery')}
+          </Text>
+        </Pressable>
+
+        <View style={styles.sampleGrid}>
+          {SAMPLE_PHOTOS.map((sample) => (
+            <Pressable
+              accessibilityLabel={t(sample.labelKey)}
+              accessibilityRole="button"
+              disabled={isOpeningPicker || isOpeningDraft}
+              key={sample.filename}
+              onPress={() => chooseSamplePhoto(sample)}
+              style={[styles.sampleCard, (isOpeningPicker || isOpeningDraft) && styles.disabledButton]}>
+              <ExpoImage contentFit="cover" source={sample.source} style={styles.sampleThumbnail} />
+              <Text numberOfLines={2} style={[styles.sampleLabel, language === 'th' && styles.sampleLabelThai]}>
+                {t(sample.labelKey)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </BottomSheetOverlay>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
@@ -185,7 +323,7 @@ export default function HomeScreen() {
             <Pressable
               accessibilityRole="button"
               disabled={isOpeningPicker || isOpeningDraft}
-              onPress={choosePhoto}
+              onPress={openPhotoSourceSheet}
               style={[
                 styles.button,
                 styles.primaryButton,
@@ -212,7 +350,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.heroImageCard} pointerEvents="none">
-            <Image
+            <ExpoImage
               accessible={false}
               contentFit="contain"
               source={ONBOARDING_HERO}
@@ -316,6 +454,47 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: theme.spacing.md,
+  },
+  galleryButton: {
+    minHeight: theme.buttons.height,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.buttons.primary.borderColor,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+  },
+  sampleGrid: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+  },
+  sampleCard: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.sm,
+    gap: theme.spacing.sm,
+  },
+  sampleThumbnail: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.photoMockBackground,
+  },
+  sampleLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.textPrimary,
+    textAlign: 'center',
+  },
+  sampleLabelThai: {
+    lineHeight: 18,
   },
   button: {
     minHeight: theme.buttons.height,

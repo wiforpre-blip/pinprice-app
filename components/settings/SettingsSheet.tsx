@@ -7,31 +7,37 @@ import { FeedbackSheet } from '@/components/settings/FeedbackSheet';
 import { HelpSheet } from '@/components/settings/HelpSheet';
 import { settingsStyles as styles } from '@/components/settings/settings.styles';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
+import { ConfirmOverlay } from '@/components/ui/ConfirmOverlay';
 import { APP_VERSION } from '@/constants/app';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation, type Language } from '@/contexts/LanguageContext';
 import { loadIsUnlocked, saveIsUnlocked } from '@/services/tier.service';
+import { resetEditorTips } from '@/services/tips.service';
 import { shouldRenderWatermark } from '@/utils/watermark';
 
 type SettingsSheetProps = {
   visible: boolean;
   onClose: () => void;
+  /** Called after tips/coach storage is cleared so an open editor can restart the tutorial. */
+  onEditorTipsReset?: () => void;
 };
 
 const LANGUAGE_OPTIONS: Language[] = ['th', 'en'];
 
-export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
+export function SettingsSheet({ visible, onClose, onEditorTipsReset }: SettingsSheetProps) {
   const { currency } = useCurrency();
   const { language, setLanguage, t } = useTranslation();
   const [isCurrencySelectorOpen, setIsCurrencySelectorOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isResetTipsModalVisible, setIsResetTipsModalVisible] = useState(false);
   /** Free-tier default: watermark on. Mirrors export gating via local unlock flag. */
   const [showWatermark, setShowWatermark] = useState(true);
 
   useEffect(() => {
     if (!visible) {
+      setIsResetTipsModalVisible(false);
       return;
     }
 
@@ -58,7 +64,19 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
     setIsCurrencySelectorOpen(false);
     setIsHelpOpen(false);
     setIsFeedbackOpen(false);
+    setIsResetTipsModalVisible(false);
     onClose();
+  };
+
+  const handleConfirmResetTips = () => {
+    setIsResetTipsModalVisible(false);
+    void resetEditorTips().then(() => {
+      onEditorTipsReset?.();
+      setIsCurrencySelectorOpen(false);
+      setIsHelpOpen(false);
+      setIsFeedbackOpen(false);
+      onClose();
+    });
   };
 
   return (
@@ -117,6 +135,13 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
             <Text style={styles.rowLabel}>{t('settings.contact')}</Text>
           </Pressable>
 
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setIsResetTipsModalVisible(true)}
+            style={styles.row}>
+            <Text style={styles.rowLabel}>{t('settings.showTipsAgain')}</Text>
+          </Pressable>
+
           <View style={styles.row}>
             <Text style={styles.rowLabel}>{t('settings.exportWatermark')}</Text>
             <Switch
@@ -146,6 +171,16 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
       <HelpSheet onClose={() => setIsHelpOpen(false)} visible={visible && isHelpOpen} />
 
       <FeedbackSheet onClose={() => setIsFeedbackOpen(false)} visible={visible && isFeedbackOpen} />
+
+      <ConfirmOverlay
+        body={t('settings.resetTipsBody')}
+        cancelLabel={t('tag.cancel')}
+        confirmLabel={t('settings.resetTipsConfirm')}
+        onCancel={() => setIsResetTipsModalVisible(false)}
+        onConfirm={handleConfirmResetTips}
+        title={t('settings.resetTipsTitle')}
+        visible={visible && isResetTipsModalVisible}
+      />
     </>
   );
 }

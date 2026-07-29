@@ -8,6 +8,10 @@
     "subtitle": "Pick price and Sold tag styles,\nthen save ready to post",
     "takePhoto": "Take Photo",
     "choosePhoto": "Choose Photo",
+    "photoSourceTitle": "Choose photo",
+    "gallery": "Gallery",
+    "samplePortrait": "Portrait sample",
+    "sampleLandscape": "Landscape sample",
     "recent": "Recent Projects",
     "viewAll": "View all",
     "menu": "Menu",
@@ -25,6 +29,11 @@
     "currency": "Currency",
     "version": "App Version",
     "contact": "Contact Developer",
+    "showTipsAgain": "Show tutorial again",
+    "resetTipsTitle": "Show tips again?",
+    "resetTipsBody": "Editor tips and the first-run tutorial will show again. Language, currency, and other settings stay unchanged.",
+    "resetTipsConfirm": "Show tips",
+    "resetTipsDone": "Tips will show again next time you open the editor.",
     "help": {
       "title": "Help",
       "howToTitle": "How to use PinPrice",
@@ -46,12 +55,7 @@
         "permissions": "Camera and photo access are used only to take, choose, save, and share photos"
       },
       "privacyPolicy": "Privacy Policy",
-      "privacyPolicyComingSoon": "Coming soon",
-      "showTipsAgain": "Show tutorial again",
-      "resetTipsTitle": "Show tips again?",
-      "resetTipsBody": "Editor tips and the style coach will show again. Language, currency, and other settings stay unchanged.",
-      "resetTipsConfirm": "Show tips",
-      "resetTipsDone": "Tips will show again next time you open the editor."
+      "privacyPolicyComingSoon": "Coming soon"
     },
     "removeWatermark": "Remove watermark forever",
     "exportWatermark": "Show watermark on images",
@@ -102,7 +106,7 @@
     "saving": "Saving...",
     "sharing": "Sharing...",
     "add": "Add",
-    "style": "Style",
+    "style": "Tag",
     "select": "Select",
     "zoom": "Zoom",
     "align": "Align",
@@ -159,13 +163,13 @@
       "back": "Back",
       "next": "Next",
       "gotIt": "Got it",
-      "styleButtonTitle": "Tap to choose a tag type",
-      "styleButtonBody": "Tap Style to pick what kind of tag to create — price, sold, quantity, or card language.",
-      "styleTypesTitle": "Choose the tag type to create",
-      "styleTypesBody": "Pick a main tag or an item-info tag",
-      "styleSizeTitle": "Choose the tag size",
-      "styleSizeBody": "Select S, M, L, or XL so the tag fits your items.",
-      "placeTagTitle": "Tap the photo to place the selected tag"
+      "placeTagTitle": "Tap an item to add a price tag",
+      "editPriceTitle": "Enter the price, then save",
+      "editPriceBody": "Or tap an empty area to save",
+      "dragTagTitle": "Drag it to where you want",
+      "styleButtonTitle": "Tap here to choose another tag type",
+      "exportTitle": "Export when the photo is ready",
+      "exportBody": "In Preview, tap the filename to rename it"
     }
   },
 
@@ -200,6 +204,8 @@
     "dragToDelete": "Release here to delete",
     "confirmDeleteTitle": "Delete this tag?",
     "confirmDeleteBody": "This tag will be removed from the photo.",
+    "confirmDeleteManyTitle": "Delete selected tags?",
+    "confirmDeleteManyBody": "Selected tags will be removed from the photo.",
     "dock": {
       "color": "Color",
       "style": "Style",

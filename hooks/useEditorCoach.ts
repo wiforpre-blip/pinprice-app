@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { loadCoachCompleted, markCoachCompleted } from '@/services/tips.service';
 import {
   EDITOR_COACH_STEPS,
   getNextCoachStep,
-  getPreviousCoachStep,
+  isCoachActionRequiredStep,
   type EditorCoachStepId,
 } from '@/types/tips';
 import type { EditorPricingMode } from '@/types/editor';
 
 type UseEditorCoachOptions = {
+  draftTagId: string | null;
   editorMode: EditorPricingMode;
   hasConfirmModal: boolean;
   hasImage: boolean;
@@ -17,13 +18,19 @@ type UseEditorCoachOptions = {
   isExporting: boolean;
   isPreviewing: boolean;
   isStylePickerVisible: boolean;
+  /** Newest tag id while a draft is open — used to track place → edit → drag focus. */
+  selectedTagId: string | null;
   tagCount: number;
+  /** Tag ids currently on the canvas (for cancel/save detection). */
+  tagIds: string[];
   openStylePicker: () => void;
   finishStylePicker: () => void;
-  closeStylePicker: () => void;
+  /** Bump after Settings "show tips again" so the coach reloads without leaving the editor. */
+  tipsResetToken?: number;
 };
 
 export function useEditorCoach({
+  draftTagId,
   editorMode,
   hasConfirmModal,
   hasImage,
@@ -31,15 +38,20 @@ export function useEditorCoach({
   isExporting,
   isPreviewing,
   isStylePickerVisible,
+  selectedTagId,
   tagCount,
+  tagIds,
   openStylePicker,
   finishStylePicker,
-  closeStylePicker,
+  tipsResetToken = 0,
 }: UseEditorCoachOptions) {
   const [isReady, setIsReady] = useState(false);
   const [isCompleted, setIsCompleted] = useState(true);
   const [activeStepId, setActiveStepId] = useState<EditorCoachStepId | null>(null);
   const [placeTagBaselineCount, setPlaceTagBaselineCount] = useState(0);
+  const [focusTagId, setFocusTagId] = useState<string | null>(null);
+  const dragSatisfiedRef = useRef(false);
+  const stylePickerOpenedRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -51,16 +63,25 @@ export function useEditorCoach({
 
       setIsCompleted(completed);
       setIsReady(true);
+      if (!completed) {
+        setActiveStepId(null);
+        setFocusTagId(null);
+        dragSatisfiedRef.current = false;
+        stylePickerOpenedRef.current = false;
+      }
     });
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [tipsResetToken]);
 
   const completeCoach = useCallback(() => {
     setIsCompleted(true);
     setActiveStepId(null);
+    setFocusTagId(null);
+    dragSatisfiedRef.current = false;
+    stylePickerOpenedRef.current = false;
     void markCoachCompleted();
   }, []);
 
@@ -74,119 +95,158 @@ export function useEditorCoach({
     isPreviewing ||
     hasConfirmModal;
 
+  const hideOverlay =
+    suppressed || (activeStepId === 'style-button' && isStylePickerVisible);
+
   // Start coach on first eligible editor visit.
   useEffect(() => {
     if (suppressed || activeStepId) {
       return;
     }
 
+    setPlaceTagBaselineCount(tagCount);
+    setFocusTagId(null);
+    dragSatisfiedRef.current = false;
+    stylePickerOpenedRef.current = false;
     setActiveStepId(EDITOR_COACH_STEPS[0]!);
-  }, [activeStepId, suppressed]);
+  }, [activeStepId, suppressed, tagCount]);
 
-  // If Style opens during step 1 (learning by doing), advance.
-  useEffect(() => {
-    if (activeStepId !== 'style-button' || !isStylePickerVisible) {
-      return;
-    }
-
-    setActiveStepId('style-types');
-  }, [activeStepId, isStylePickerVisible]);
-
-  // Keep picker open for type/size steps.
-  useEffect(() => {
-    if (activeStepId !== 'style-types' && activeStepId !== 'style-size') {
-      return;
-    }
-
-    if (!isStylePickerVisible) {
-      openStylePicker();
-    }
-  }, [activeStepId, isStylePickerVisible, openStylePicker]);
-
-  // Complete when user places a tag during place-tag step.
+  // Step 1 → 2: user tapped the photo and a NEW draft tag exists.
   useEffect(() => {
     if (activeStepId !== 'place-tag') {
       return;
     }
 
-    if (tagCount > placeTagBaselineCount) {
-      completeCoach();
-    }
-  }, [activeStepId, completeCoach, placeTagBaselineCount, tagCount]);
-
-  const goNext = useCallback(() => {
-    if (!activeStepId) {
+    if (tagCount <= placeTagBaselineCount) {
       return;
     }
 
-    // Open picker first; step advances when picker is visible so tip/UI stay in sync.
+    // Only advance when the brand-new draft tag is created.
+    // Using selectedTagId here can accidentally target an old selection.
+    if (!draftTagId || !tagIds.includes(draftTagId)) {
+      return;
+    }
+
+    setFocusTagId(draftTagId);
+    setActiveStepId('edit-price');
+  }, [activeStepId, draftTagId, placeTagBaselineCount, tagIds, tagCount]);
+
+  // Step 2: save advances; cancel empty draft returns to step 1.
+  useEffect(() => {
+    if (activeStepId !== 'edit-price' || !focusTagId) {
+      return;
+    }
+
+    const tagStillExists = tagIds.includes(focusTagId);
+    if (!tagStillExists) {
+      setPlaceTagBaselineCount(tagCount);
+      setFocusTagId(null);
+      setActiveStepId('place-tag');
+      return;
+    }
+
+    const editorClosed = selectedTagId === null && draftTagId === null;
+    if (editorClosed) {
+      setActiveStepId('drag-tag');
+    }
+  }, [activeStepId, draftTagId, focusTagId, selectedTagId, tagCount, tagIds]);
+
+  // Step 3: real drag satisfies the step when the gesture ends.
+  useEffect(() => {
+    if (activeStepId !== 'drag-tag') {
+      return;
+    }
+
+    if (isDraggingTag) {
+      dragSatisfiedRef.current = true;
+      return;
+    }
+
+    if (dragSatisfiedRef.current) {
+      dragSatisfiedRef.current = false;
+      setActiveStepId('style-button');
+    }
+  }, [activeStepId, isDraggingTag]);
+
+  // Step 4: after Style picker was opened (Next or tap), advance when it closes.
+  useEffect(() => {
+    if (activeStepId !== 'style-button') {
+      return;
+    }
+
+    if (isStylePickerVisible) {
+      stylePickerOpenedRef.current = true;
+      return;
+    }
+
+    if (stylePickerOpenedRef.current) {
+      stylePickerOpenedRef.current = false;
+      finishStylePicker();
+      setActiveStepId('export');
+    }
+  }, [activeStepId, finishStylePicker, isStylePickerVisible]);
+
+  // Keep Export tip usable — close picker if it is somehow still open.
+  useEffect(() => {
+    if (activeStepId !== 'export' || !isStylePickerVisible) {
+      return;
+    }
+
+    finishStylePicker();
+  }, [activeStepId, finishStylePicker, isStylePickerVisible]);
+
+  const goNext = useCallback(() => {
+    if (!activeStepId || isCoachActionRequiredStep(activeStepId)) {
+      return;
+    }
+
+    if (activeStepId === 'drag-tag') {
+      dragSatisfiedRef.current = false;
+      setActiveStepId('style-button');
+      return;
+    }
+
+    // Open picker first; advance to Export when the user closes it.
     if (activeStepId === 'style-button') {
       openStylePicker();
       return;
     }
 
-    if (activeStepId === 'style-types') {
-      setActiveStepId('style-size');
-      return;
-    }
-
-    if (activeStepId === 'style-size') {
-      finishStylePicker();
-      setPlaceTagBaselineCount(tagCount);
-      setActiveStepId('place-tag');
-      return;
-    }
-
-    if (activeStepId === 'place-tag') {
+    if (activeStepId === 'export') {
       completeCoach();
     }
-  }, [activeStepId, completeCoach, finishStylePicker, openStylePicker, tagCount]);
+  }, [activeStepId, completeCoach, openStylePicker]);
 
   const goBack = useCallback(() => {
-    if (!activeStepId) {
-      return;
-    }
-
-    const previous = getPreviousCoachStep(activeStepId);
-    if (!previous) {
-      return;
-    }
-
-    if (activeStepId === 'style-types' && previous === 'style-button') {
-      closeStylePicker();
-    }
-
-    if (activeStepId === 'place-tag' && previous === 'style-size') {
-      openStylePicker();
-    }
-
-    setActiveStepId(previous);
-  }, [activeStepId, closeStylePicker, openStylePicker]);
+    // Soft-required flow: no reverse navigation — Skip is always available.
+  }, []);
 
   const skip = useCallback(() => {
-    completeCoach();
-  }, [completeCoach]);
-
-  const visibleStepId = suppressed ? null : activeStepId;
-
-  const canGoBack = useMemo(() => {
-    if (!visibleStepId) {
-      return false;
+    if (isStylePickerVisible) {
+      finishStylePicker();
     }
-    return getPreviousCoachStep(visibleStepId) !== null;
-  }, [visibleStepId]);
+    completeCoach();
+  }, [completeCoach, finishStylePicker, isStylePickerVisible]);
+
+  const visibleStepId = hideOverlay ? null : activeStepId;
+
+  const canGoBack = false;
 
   const canGoNext = useMemo(() => {
     if (!visibleStepId) {
       return false;
     }
-    return getNextCoachStep(visibleStepId) !== null || visibleStepId === 'place-tag';
+    if (isCoachActionRequiredStep(visibleStepId)) {
+      return false;
+    }
+    return getNextCoachStep(visibleStepId) !== null || visibleStepId === 'export';
   }, [visibleStepId]);
 
   return {
     activeStepId: visibleStepId,
     canGoBack,
     canGoNext,
+    focusTagId,
     goBack,
     goNext,
     skip,
