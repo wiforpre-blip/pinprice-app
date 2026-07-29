@@ -500,7 +500,125 @@ export function useTagEditorState({
     });
   };
 
+  /** Apply editor save updates to the tag; does not close the editor or clear selection. */
+  const applyTagEditorUpdates = (tagId: string, updates: TagEditorSaveUpdates) => {
+    const soldLabel = t('tag.sold');
+
+    setTags((currentTags) => {
+      const previousTag = currentTags.find((tag) => tag.id === tagId);
+
+      if (!previousTag) {
+        return currentTags;
+      }
+
+      const nextStylePresetId =
+        previousTag.type === 'sold' && (updates.soldTextFormat ?? previousTag.soldTextFormat) === 'icon_plain'
+          ? 'sold-icon-plain'
+          : getStylePresetForType(
+              previousTag.type,
+              updates.stylePresetId === 'sold-icon-plain' ? undefined : (updates.stylePresetId ?? previousTag.stylePresetId),
+            );
+      const safeText = getSafeTagText(updates.text, previousTag.type, soldLabel);
+      const nextSizePresetId = updates.sizePresetId ?? previousTag.sizePresetId;
+      const nextTag: PriceTag = {
+        ...previousTag,
+        text: safeText,
+        stylePresetId: nextStylePresetId,
+        sizePresetId: nextSizePresetId,
+        priceTextFormat:
+          previousTag.type === 'price'
+            ? clampPriceTextFormat(currency, updates.priceTextFormat ?? previousTag.priceTextFormat)
+            : previousTag.priceTextFormat,
+        soldTextFormat: previousTag.type === 'sold' ? (updates.soldTextFormat ?? previousTag.soldTextFormat ?? 'text') : previousTag.soldTextFormat,
+        quantity: previousTag.type === 'quantity' ? (updates.quantity ?? previousTag.quantity ?? DEFAULT_QUANTITY) : previousTag.quantity,
+        condition: previousTag.type === 'condition' ? (updates.condition ?? previousTag.condition ?? DEFAULT_CONDITION_VALUE) : previousTag.condition,
+        languageCode:
+          previousTag.type === 'language' ? (updates.languageCode ?? previousTag.languageCode ?? DEFAULT_LANGUAGE_CODE) : previousTag.languageCode,
+      };
+
+      const hasChanged =
+        previousTag.text !== nextTag.text ||
+        previousTag.stylePresetId !== nextTag.stylePresetId ||
+        previousTag.sizePresetId !== nextTag.sizePresetId ||
+        previousTag.priceTextFormat !== nextTag.priceTextFormat ||
+        previousTag.soldTextFormat !== nextTag.soldTextFormat ||
+        previousTag.quantity !== nextTag.quantity ||
+        previousTag.condition !== nextTag.condition ||
+        previousTag.languageCode !== nextTag.languageCode;
+
+      if (!hasChanged) {
+        return currentTags;
+      }
+
+      if (draftTagId !== tagId) {
+        pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
+      }
+
+      setCurrentStylePresetByType((currentPresets) => ({
+        ...currentPresets,
+        [previousTag.type]: nextStylePresetId,
+      }));
+
+      if (nextSizePresetId) {
+        setSizePresetOverrideByType((currentSizes) => ({
+          ...currentSizes,
+          [previousTag.type]: nextSizePresetId,
+        }));
+      }
+
+      if (previousTag.type === 'price' && nextTag.priceTextFormat) {
+        setCurrentPriceTextFormat(nextTag.priceTextFormat);
+      }
+
+      if (previousTag.type === 'sold' && nextTag.soldTextFormat) {
+        setCurrentSoldTextFormat(nextTag.soldTextFormat);
+      }
+
+      if (previousTag.type === 'language' && nextTag.languageCode) {
+        setCurrentLanguageCode(nextTag.languageCode);
+      }
+
+      if (previousTag.type === 'condition' && nextTag.condition) {
+        setCurrentConditionValue(nextTag.condition);
+      }
+
+      return currentTags.map((tag) => (tag.id === tagId ? nextTag : tag));
+    });
+  };
+
+  /**
+   * Persist dock draft (style/format/size/text) into the real tag without closing the editor.
+   * Used before drag so TagOverlay / post-drag TagEditor re-init use the latest preview values
+   * instead of snapping back to the uncommitted tag.
+   */
+  const commitSelectedDraftIfNeeded = (tagId: string) => {
+    if (!selectedTag || selectedTag.id !== tagId || isMultiSelectMode) {
+      return;
+    }
+
+    const hasPendingDraft =
+      draftPreview != null ||
+      (liveDraftTextRef.current.length > 0 && liveDraftTextRef.current !== selectedTag.text);
+
+    if (!hasPendingDraft) {
+      return;
+    }
+
+    applyTagEditorUpdates(
+      selectedTag.id,
+      buildSaveUpdatesFromDraft(selectedTag, draftPreview, draftText, liveDraftTextRef.current),
+    );
+
+    // Keep selection open for continued drag; only clear the "new draft" marker.
+    if (draftTagId === tagId) {
+      setDraftTagId(null);
+    }
+  };
+
   const handleTagDragStart = (tag: PriceTag) => {
+    // Commit live dock draft before drag so style/format/size do not snap back to the stored tag.
+    commitSelectedDraftIfNeeded(tag.id);
+
     setDraggingTagId(tag.id);
     setDragOriginalTag({ ...tag });
     setDragPoint(null);
@@ -631,88 +749,7 @@ export function useTagEditorState({
   };
 
   const handleSaveTag = (tagId: string, updates: TagEditorSaveUpdates) => {
-    const soldLabel = t('tag.sold');
-
-    setTags((currentTags) => {
-      const previousTag = currentTags.find((tag) => tag.id === tagId);
-
-      if (!previousTag) {
-        return currentTags;
-      }
-
-      const nextStylePresetId =
-        previousTag.type === 'sold' && (updates.soldTextFormat ?? previousTag.soldTextFormat) === 'icon_plain'
-          ? 'sold-icon-plain'
-          : getStylePresetForType(
-              previousTag.type,
-              updates.stylePresetId === 'sold-icon-plain' ? undefined : (updates.stylePresetId ?? previousTag.stylePresetId),
-            );
-      const safeText = getSafeTagText(updates.text, previousTag.type, soldLabel);
-      const nextSizePresetId = updates.sizePresetId ?? previousTag.sizePresetId;
-      const nextTag: PriceTag = {
-        ...previousTag,
-        text: safeText,
-        stylePresetId: nextStylePresetId,
-        sizePresetId: nextSizePresetId,
-        priceTextFormat:
-          previousTag.type === 'price'
-            ? clampPriceTextFormat(currency, updates.priceTextFormat ?? previousTag.priceTextFormat)
-            : previousTag.priceTextFormat,
-        soldTextFormat: previousTag.type === 'sold' ? (updates.soldTextFormat ?? previousTag.soldTextFormat ?? 'text') : previousTag.soldTextFormat,
-        quantity: previousTag.type === 'quantity' ? (updates.quantity ?? previousTag.quantity ?? DEFAULT_QUANTITY) : previousTag.quantity,
-        condition: previousTag.type === 'condition' ? (updates.condition ?? previousTag.condition ?? DEFAULT_CONDITION_VALUE) : previousTag.condition,
-        languageCode:
-          previousTag.type === 'language' ? (updates.languageCode ?? previousTag.languageCode ?? DEFAULT_LANGUAGE_CODE) : previousTag.languageCode,
-      };
-
-      const hasChanged =
-        previousTag.text !== nextTag.text ||
-        previousTag.stylePresetId !== nextTag.stylePresetId ||
-        previousTag.sizePresetId !== nextTag.sizePresetId ||
-        previousTag.priceTextFormat !== nextTag.priceTextFormat ||
-        previousTag.soldTextFormat !== nextTag.soldTextFormat ||
-        previousTag.quantity !== nextTag.quantity ||
-        previousTag.condition !== nextTag.condition ||
-        previousTag.languageCode !== nextTag.languageCode;
-
-      if (!hasChanged) {
-        return currentTags;
-      }
-
-      if (draftTagId !== tagId) {
-        pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
-      }
-
-      setCurrentStylePresetByType((currentPresets) => ({
-        ...currentPresets,
-        [previousTag.type]: nextStylePresetId,
-      }));
-
-      if (nextSizePresetId) {
-        setSizePresetOverrideByType((currentSizes) => ({
-          ...currentSizes,
-          [previousTag.type]: nextSizePresetId,
-        }));
-      }
-
-      if (previousTag.type === 'price' && nextTag.priceTextFormat) {
-        setCurrentPriceTextFormat(nextTag.priceTextFormat);
-      }
-
-      if (previousTag.type === 'sold' && nextTag.soldTextFormat) {
-        setCurrentSoldTextFormat(nextTag.soldTextFormat);
-      }
-
-      if (previousTag.type === 'language' && nextTag.languageCode) {
-        setCurrentLanguageCode(nextTag.languageCode);
-      }
-
-      if (previousTag.type === 'condition' && nextTag.condition) {
-        setCurrentConditionValue(nextTag.condition);
-      }
-
-      return currentTags.map((tag) => (tag.id === tagId ? nextTag : tag));
-    });
+    applyTagEditorUpdates(tagId, updates);
     clearTagEditorState();
   };
 
