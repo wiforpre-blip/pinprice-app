@@ -8,7 +8,7 @@ import { HelpSheet } from '@/components/settings/HelpSheet';
 import { settingsStyles as styles } from '@/components/settings/settings.styles';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { ConfirmOverlay } from '@/components/ui/ConfirmOverlay';
-import { APP_VERSION } from '@/constants/app';
+import { getAppVersionLabel } from '@/constants/app';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation, type Language } from '@/contexts/LanguageContext';
@@ -24,6 +24,7 @@ type SettingsSheetProps = {
 };
 
 const LANGUAGE_OPTIONS: Language[] = ['th', 'en'];
+const APP_VERSION_LABEL = getAppVersionLabel();
 
 export function SettingsSheet({ visible, onClose, onEditorTipsReset }: SettingsSheetProps) {
   const { currency } = useCurrency();
@@ -158,7 +159,7 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset }: SettingsS
 
           <View style={styles.row}>
             <Text style={[styles.rowLabel, styles.rowLabelDisabled]}>{t('settings.version')}</Text>
-            <Text style={styles.rowValueMuted}>{`PinPrice ${APP_VERSION}`}</Text>
+            <Text style={styles.rowValueMuted}>{APP_VERSION_LABEL}</Text>
           </View>
         </View>
       </BottomSheetOverlay>

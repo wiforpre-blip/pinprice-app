@@ -1,15 +1,41 @@
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { requireNativeModule } from 'expo-modules-core';
 import * as SplashScreen from 'expo-splash-screen';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
-import { StyleSheet } from 'react-native';
+import { LogBox, StyleSheet } from 'react-native';
 
 import { AppSplash } from '@/components/ui/AppSplash';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
+
+/**
+ * Expo SDK 54 DEV wraps the app with withDevTools → useKeepAwake, which does not
+ * catch activate failures. On Android, activate rejects when Activity is missing
+ * during reload/splash ("Unable to activate keep awake"). Production omits withDevTools.
+ */
+if (__DEV__) {
+  LogBox.ignoreLogs(['Unable to activate keep awake']);
+
+  try {
+    const keepAwake = requireNativeModule('ExpoKeepAwake') as {
+      activate: (tag: string) => Promise<void>;
+    };
+    const originalActivate = keepAwake.activate.bind(keepAwake);
+    keepAwake.activate = async (tag: string) => {
+      try {
+        await originalActivate(tag);
+      } catch {
+        // Ignore CurrentActivityNotFound / ActivateKeepAwakeException.
+      }
+    };
+  } catch {
+    // Keep-awake native module unavailable in this runtime.
+  }
+}
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
   // Native splash may already be hidden in some reload paths.
