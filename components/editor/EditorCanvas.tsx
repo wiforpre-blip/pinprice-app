@@ -1,5 +1,5 @@
 import { Image, type ImageLoadEventData } from 'expo-image';
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { LayoutChangeEvent, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { ComposedGesture, GestureType } from 'react-native-gesture-handler';
 import type { AnimatedStyle } from 'react-native-reanimated';
@@ -17,7 +17,11 @@ import { useTranslation } from '@/contexts/LanguageContext';
 import type { EditorPricingMode, ScreenPoint, Size, TagSize } from '@/types/editor';
 import type { PanelMarker as PanelMarkerType } from '@/types/pricePanel';
 import type { ImageDisplayRect, PriceTag, TagEditorDraftPreview, TagEditorSaveUpdates, TagType } from '@/types/tag';
-import { clampGroupPixelOffset } from '@/utils/editorGeometry';
+import { clampGroupPixelOffset, getDraftPreviewVisualOffsetY, getSafeTagSize } from '@/utils/editorGeometry';
+
+/** Approximate TagEditor dock height (content + padding) for occlusion math. */
+const TAG_EDITOR_DOCK_HEIGHT = 56;
+const DRAFT_PREVIEW_CLEARANCE_GAP = theme.spacing.sm;
 
 type EditorCanvasProps = {
   canvasRef: RefObject<View | null>;
@@ -127,14 +131,19 @@ export function EditorCanvas({
   const tagInlineInputRef = useRef<TextInput>(null);
   const [inlineEdit, setInlineEdit] = useState<TagInlineEdit | null>(null);
   const [keyboardCanvasLift, setKeyboardCanvasLift] = useState(0);
+  const [keyboardOverlap, setKeyboardOverlap] = useState(0);
   const handleCanvasLiftChange = useCallback(
     (liftY: number) => {
+      // Canvas must stay put — TagEditor always reports 0; keep coach plumbing inert.
       const nextLift = liftY > 0 ? liftY : 0;
       setKeyboardCanvasLift(nextLift);
       onKeyboardCanvasLiftChange?.(nextLift);
     },
     [onKeyboardCanvasLiftChange],
   );
+  const handleKeyboardOverlapChange = useCallback((overlap: number) => {
+    setKeyboardOverlap(overlap > 0 ? overlap : 0);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -148,11 +157,51 @@ export function EditorCanvas({
     isTagEditorVisible && selectedTag != null && TYPES_WITH_INLINE_INPUT.includes(selectedTag.type);
   const activeInlineEdit = selectedSupportsInlineEdit ? inlineEdit : null;
 
+  const draftPreviewVisualOffsetY = useMemo(() => {
+    if (!isTagEditorVisible || !selectedTag || !imageRect || canvasSize.height <= 0) {
+      return 0;
+    }
+
+    // While dragging the selected tag, TagEditor is hidden — no offset. After drag, recompute from real x/y.
+    if (draggingTagId === selectedTag.id) {
+      return 0;
+    }
+
+    const tagSize = getSafeTagSize(tagSizeById[selectedTag.id]);
+    const focusTop = imageRect.y + selectedTag.y * imageRect.height;
+    const focusBottom = focusTop + tagSize.height;
+    // Dock sits above the keyboard (or at bottom when no IME). Always reserve dock height while editing.
+    const dockHeight = TAG_EDITOR_DOCK_HEIGHT;
+
+    return getDraftPreviewVisualOffsetY({
+      canvasHeight: canvasSize.height,
+      keyboardOverlap,
+      dockHeight,
+      focusBottom,
+      focusTop,
+      gap: DRAFT_PREVIEW_CLEARANCE_GAP,
+    });
+  }, [
+    canvasSize.height,
+    draggingTagId,
+    imageRect,
+    isTagEditorVisible,
+    keyboardOverlap,
+    selectedTag,
+    tagSizeById,
+  ]);
+
   useEffect(() => {
     if (!selectedSupportsInlineEdit) {
       setInlineEdit(null);
     }
   }, [selectedSupportsInlineEdit]);
+
+  useEffect(() => {
+    if (!isTagEditorVisible) {
+      setKeyboardOverlap(0);
+    }
+  }, [isTagEditorVisible]);
 
   if (!imageUri) {
     return (
@@ -302,6 +351,7 @@ export function EditorCanvas({
                       }
                       typeOverride={tag.id === selectedTagId ? draftType : undefined}
                       viewportScale={viewportScale}
+                      visualOffsetY={tag.id === selectedTagId ? draftPreviewVisualOffsetY : 0}
                     />
                   );
                 })
@@ -321,6 +371,7 @@ export function EditorCanvas({
             isNewTag={Boolean(draftTagId)}
             onCancel={onCancelTagEdit}
             onCanvasLiftChange={handleCanvasLiftChange}
+            onKeyboardOverlapChange={handleKeyboardOverlapChange}
             onDraftChange={onDraftChange}
             onInlineEditChange={setInlineEdit}
             onSave={onSaveTag}

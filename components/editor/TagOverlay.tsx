@@ -57,6 +57,11 @@ type TagOverlayProps = {
   imageRect: ImageDisplayRect;
   /** Current editor viewport scale (1–3). Drag deltas are converted to canvas-local space. */
   viewportScale?: number;
+  /**
+   * Temporary visual Y shift for draft preview only (negative = up).
+   * Cleared while dragging so finger tracking uses real tag.x/y.
+   */
+  visualOffsetY?: number;
   clampDragOffset?: (dx: number, dy: number) => DragPoint;
   onDragCancel: () => void;
   onDragEnd: (tagId: string, canvasX: number, canvasY: number, tagSize: TagSize, releasePoint: DragPoint) => void;
@@ -138,6 +143,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
     typeOverride,
     imageRect,
     viewportScale = EDITOR_ZOOM_DEFAULT,
+    visualOffsetY = 0,
     clampDragOffset,
     onDragCancel,
     onDragEnd,
@@ -432,6 +438,8 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
   const left = leftTop.x;
   const top = leftTop.y;
   const activeOffset = isDragging ? dragOffset : externalDragOffset ?? ZERO_OFFSET;
+  // Draft preview only: lift above keyboard/dock without changing tag.x/y. Drop while dragging.
+  const previewOffsetY = isDragging || !Number.isFinite(visualOffsetY) ? 0 : visualOffsetY;
   // Cap by remaining space to the right so tags never hang past the photo edge.
   const roomToRight = Math.max(0, imageRect.x + imageRect.width - left);
   const isTextTag = displayType === 'text';
@@ -553,37 +561,30 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
           top,
           transform: [
             { translateX: activeOffset.x },
-            { translateY: activeOffset.y },
+            { translateY: activeOffset.y + previewOffsetY },
             ...(tagStyle.rotateDeg !== 0 ? [{ rotate: `${tagStyle.rotateDeg}deg` as const }] : []),
           ],
           ...getTagViewShadowStyle(isFlatTag ? null : tagStyle.viewShadow),
         },
+        // Flat/transparent tags must not get elevation — Android draws a rectangular
+        // shadow under the transparent bounds (very visible on sold red cross).
         isSelected && styles.selectedTag,
+        isSelected && isFlatTag && styles.selectedFlatTag,
         isDragging && styles.draggingTag,
+        isDragging && isFlatTag && styles.draggingFlatTag,
       ]}>
       {isSelected ? (
-        <>
-          <View
-            pointerEvents="none"
-            style={[
-              styles.selectedRingOuter,
-              isCircle && styles.circleSelectedRing,
-              !isCircle && {
-                borderRadius: Math.max(theme.radius.md, tagStyle.borderRadius + theme.spacing.sm + 1),
-              },
-            ]}
-          />
-          <View
-            pointerEvents="none"
-            style={[
-              styles.selectedRingInner,
-              isCircle && styles.circleSelectedRing,
-              !isCircle && {
-                borderRadius: Math.max(theme.radius.md - 1, tagStyle.borderRadius + theme.spacing.sm),
-              },
-            ]}
-          />
-        </>
+        <View
+          pointerEvents="none"
+          style={[
+            styles.selectedRing,
+            isPlainSoldIcon || isCircle
+              ? styles.circleSelectedRing
+              : {
+                  borderRadius: Math.max(theme.radius.md, tagStyle.borderRadius + theme.spacing.sm),
+                },
+          ]}
+        />
       ) : null}
       {isInlineEditing && inlineEdit ? (
         <View
@@ -723,30 +724,30 @@ const styles = StyleSheet.create({
     zIndex: 4,
     elevation: 8,
   },
+  selectedFlatTag: {
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+  },
   draggingTag: {
     opacity: 0.92,
     zIndex: 5,
     elevation: 12,
   },
-  selectedRingOuter: {
-    position: 'absolute',
-    top: -(theme.spacing.sm + 1),
-    right: -(theme.spacing.sm + 1),
-    bottom: -(theme.spacing.sm + 1),
-    left: -(theme.spacing.sm + 1),
-    borderRadius: theme.radius.md,
-    borderWidth: 3,
-    borderColor: theme.colors.selectionRingOuter,
+  draggingFlatTag: {
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
   },
-  selectedRingInner: {
+  selectedRing: {
     position: 'absolute',
     top: -theme.spacing.sm,
     right: -theme.spacing.sm,
     bottom: -theme.spacing.sm,
     left: -theme.spacing.sm,
-    borderRadius: theme.radius.md - 1,
+    borderRadius: theme.radius.md,
     borderWidth: 2,
-    borderColor: theme.colors.selectionRingInner,
+    borderColor: theme.colors.selectionRing,
   },
   circleSelectedRing: {
     borderRadius: 999,

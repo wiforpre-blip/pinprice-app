@@ -92,10 +92,8 @@ export function getContainedImageRect(canvasSize: Size, imageSize: Size | null):
 }
 
 /**
- * Temporary visual lift (px) so keyboard/dock do not cover the real image or draft focus.
- * Letterbox-only overlap returns 0. Does not change normalized tag positions.
- * When focusTop is set, lift is clamped so the focused tag does not leave the top of the canvas
- * (portrait / full-height images can otherwise push a top tap off-screen).
+ * Formerly used to lift canvas content above the keyboard.
+ * Editor now lets the keyboard overlay the canvas; kept for reuse / tests.
  */
 export function getKeyboardCanvasLift({
   imageRect,
@@ -139,6 +137,45 @@ export function getKeyboardCanvasLift({
   // Prefer keeping the draft tag visible over keeping the full image above the keyboard.
   const maxLift = Math.max(0, Math.round(focusTop - gap));
   return Math.min(lift, maxLift);
+}
+
+/**
+ * Visual-only Y shift (negative = up) so a draft preview clears keyboard + dock.
+ * Does not change normalized tag.x/y. Returns 0 when the real tag is already clear.
+ */
+export function getDraftPreviewVisualOffsetY({
+  canvasHeight,
+  keyboardOverlap,
+  dockHeight,
+  focusBottom,
+  focusTop,
+  gap = 0,
+}: {
+  canvasHeight: number;
+  keyboardOverlap: number;
+  dockHeight: number;
+  focusBottom: number;
+  focusTop: number;
+  gap?: number;
+}): number {
+  if (canvasHeight <= 0 || dockHeight < 0 || keyboardOverlap < 0) {
+    return 0;
+  }
+
+  const occlusionTop = canvasHeight - Math.max(0, keyboardOverlap) - dockHeight;
+  if (!Number.isFinite(occlusionTop) || !Number.isFinite(focusBottom) || !Number.isFinite(focusTop)) {
+    return 0;
+  }
+
+  const needed = focusBottom + gap - occlusionTop;
+  if (needed <= 0) {
+    return 0;
+  }
+
+  // Keep the preview top on-canvas; prefer visibility over full clearance if near the top.
+  const maxUp = Math.max(0, focusTop - gap);
+  const lift = Math.min(Math.round(needed), Math.round(maxUp));
+  return lift > 0 ? -lift : 0;
 }
 
 export function hasPositionChanged(previousTag: PriceTag, nextX: number, nextY: number) {

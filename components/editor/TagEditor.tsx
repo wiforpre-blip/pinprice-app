@@ -21,7 +21,6 @@ import { DEFAULT_CONDITION_VALUE, DEFAULT_QUANTITY, DEFAULT_SOLD_TEXT_FORMAT, QU
 import {
   DEFAULT_TAG_SIZE_PRESET_ID,
   DEFAULT_TAG_STYLE_BY_TYPE,
-  TAG_SIZE_PRESETS,
   TAG_STYLE_PRESETS,
   getStylePresetForType,
   getStylePresetIdsForType,
@@ -45,7 +44,6 @@ import type {
   TagStylePresetId,
   TagType,
 } from '@/types/tag';
-import { FALLBACK_TAG_SIZE, getKeyboardCanvasLift } from '@/utils/editorGeometry';
 import { extractPriceDigits, formatPriceDisplay, getPriceTextFormatsForCurrency, clampPriceTextFormat } from '@/utils/priceText';
 
 type CanvasSize = {
@@ -54,7 +52,9 @@ type CanvasSize = {
 };
 
 type TagEditorProps = {
+  /** Kept for call-site stability; keyboard overlays canvas (no lift). */
   canvasSize: CanvasSize;
+  /** Kept for call-site stability; keyboard overlays canvas (no lift). */
   imageRect: ImageDisplayRect;
   /** Forwarded TextInput ref from the selected TagOverlay (inline edit). */
   inputRef?: RefObject<TextInput | null>;
@@ -64,8 +64,10 @@ type TagEditorProps = {
   tag: PriceTag | null;
   visible: boolean;
   onCancel: () => void;
-  /** Temporary visual lift for image/tags — must not change normalized tag positions. */
+  /** Always reports 0 — keyboard overlays canvas instead of lifting it. */
   onCanvasLiftChange?: (liftY: number) => void;
+  /** Canvas-relative keyboard overlap (px) for draft-preview visibility only. */
+  onKeyboardOverlapChange?: (overlap: number) => void;
   onDraftChange: (preview: TagEditorDraftPreview, options?: { syncOnly?: boolean }) => void;
   onInlineEditChange?: (edit: TagInlineEdit | null) => void;
   onSave: (tagId: string, updates: TagEditorSaveUpdates) => void;
@@ -74,11 +76,7 @@ type TagEditorProps = {
 
 type DockMenu = 'main' | 'color' | 'style' | 'size' | 'format' | 'grade' | 'language';
 
-const KEYBOARD_LIFT_GAP = theme.spacing.sm;
 const PRICE_AMOUNT_MAX_DIGITS = 6;
-const DOCK_HEIGHT_ESTIMATE = 56;
-/** Extra pad beyond tag body so selection ring / long text stay clear of the keyboard dock. */
-const TAG_CLEARANCE_PAD = theme.spacing.md;
 const LANGUAGE_CODES: TagLanguageCode[] = ['TH', 'EN', 'JP', 'CN'];
 const SIZE_CHIP_LABELS: Record<TagPickerSizePresetId, string> = {
   small: 'S',
@@ -89,7 +87,7 @@ const SIZE_CHIP_LABELS: Record<TagPickerSizePresetId, string> = {
 const PREVIEW_AMOUNT = '1000';
 const TYPES_WITH_SIZE_PICKER: TagType[] = ['price', 'sold', 'text', 'quantity', 'language'];
 export const TYPES_WITH_INLINE_INPUT: TagType[] = ['price', 'text', 'quantity'];
-/** Used only when we have never measured an IME yet — prefers lifting before autoFocus. */
+/** Used when IME height is not measured yet — parks the dock above an estimated keyboard. */
 const PROVISIONAL_KEYBOARD_OVERLAP = Platform.OS === 'ios' ? 320 : 280;
 /** Late fallback if autoFocus never raised the IME (hardware keyboard / rare devices). */
 const INLINE_FOCUS_FALLBACK_MS = 600;
@@ -199,14 +197,6 @@ function acceptQuantityDigits(nextText: string, currentDigits: string) {
   }
 
   return digits.slice(0, QUANTITY_MAX_DIGITS);
-}
-
-function estimateTagClearance(tag: PriceTag) {
-  const sizePreset = TAG_SIZE_PRESETS[tag.sizePresetId ?? DEFAULT_TAG_SIZE_PRESET_ID];
-  return {
-    width: Math.max(FALLBACK_TAG_SIZE.width, sizePreset.maxWidth * 0.45, sizePreset.minHeight * 2) + TAG_CLEARANCE_PAD,
-    height: Math.max(FALLBACK_TAG_SIZE.height, sizePreset.minHeight + sizePreset.paddingVertical * 2) + TAG_CLEARANCE_PAD,
-  };
 }
 
 /** Never poke native focus while the IME is already up (avoids restart flicker). */
@@ -515,13 +505,12 @@ function SizePresetChips({
 }
 
 export function TagEditor({
-  canvasSize,
-  imageRect,
   inputRef,
   tag,
   visible,
   onCancel,
   onCanvasLiftChange,
+  onKeyboardOverlapChange,
   onDraftChange,
   onInlineEditChange,
   onSave,
@@ -534,13 +523,15 @@ export function TagEditor({
   const ignoreKeyboardHideRef = useRef(false);
   const onCanvasLiftChangeRef = useRef(onCanvasLiftChange);
   onCanvasLiftChangeRef.current = onCanvasLiftChange;
+  const onKeyboardOverlapChangeRef = useRef(onKeyboardOverlapChange);
+  onKeyboardOverlapChangeRef.current = onKeyboardOverlapChange;
   const onInlineEditChangeRef = useRef(onInlineEditChange);
   onInlineEditChangeRef.current = onInlineEditChange;
   const onDraftChangeRef = useRef(onDraftChange);
   onDraftChangeRef.current = onDraftChange;
   const scheduleKeyboardSyncRef = useRef<() => void>(() => {});
   const keyboardSettleTimersRef = useRef<KeyboardSettleTimers>({ a: null, b: null, c: null });
-  /** Last measured IME overlap — reused to pre-lift the canvas before autoFocus. */
+  /** Last measured IME overlap — reused to park the dock before the next autoFocus. */
   const lastKeyboardOverlapRef = useRef(0);
   const [priceAmount, setPriceAmount] = useState('');
   const [priceTextFormat, setPriceTextFormat] = useState<PriceTextFormat>('symbol');
@@ -659,7 +650,7 @@ export function TagEditor({
     return () => clearTimeout(fallback);
   }, [tag?.id, tag?.type, visible]);
 
-  // Pre-lift on first inline-edit render (before autoFocus) so parent translateY is not applied mid-focus.
+  // Park dock above keyboard on first inline-edit render (before autoFocus measures IME).
   const effectiveKeyboardOverlap = useMemo(() => {
     if (keyboardOverlap > 0) {
       return keyboardOverlap;
@@ -677,6 +668,16 @@ export function TagEditor({
       setIsDockReady(true);
     }
   }, [effectiveKeyboardOverlap]);
+
+  useLayoutEffect(() => {
+    onKeyboardOverlapChangeRef.current?.(visible ? effectiveKeyboardOverlap : 0);
+  }, [effectiveKeyboardOverlap, visible]);
+
+  useEffect(() => {
+    return () => {
+      onKeyboardOverlapChangeRef.current?.(0);
+    };
+  }, []);
 
   const getEditorHost = () => hostRef.current;
   const syncKeyboardOverlap = () => {
@@ -811,29 +812,10 @@ export function TagEditor({
     onDraftChangeRef.current(preview, { syncOnly: true });
   }, [displayText, tag, visible, stylePresetId, sizePresetId, priceTextFormat, soldTextFormat, conditionValue, languageCode]);
 
-  const canvasLift = useMemo(() => {
-    if (!visible || !tag || effectiveKeyboardOverlap <= 0) {
-      return 0;
-    }
-
-    const clearance = estimateTagClearance({ ...tag, sizePresetId });
-    const tagTop = imageRect.y + tag.y * imageRect.height;
-    const tagBottom = tagTop + clearance.height;
-
-    return getKeyboardCanvasLift({
-      imageRect,
-      canvasHeight: canvasSize.height,
-      keyboardOverlap: effectiveKeyboardOverlap,
-      dockHeight: DOCK_HEIGHT_ESTIMATE,
-      focusBottom: tagBottom,
-      focusTop: tagTop,
-      gap: KEYBOARD_LIFT_GAP,
-    });
-  }, [canvasSize.height, effectiveKeyboardOverlap, imageRect, sizePresetId, tag, visible]);
-
+  // Keyboard overlays the canvas — do not translate image/tags up.
   useLayoutEffect(() => {
-    onCanvasLiftChangeRef.current?.(canvasLift);
-  }, [canvasLift]);
+    onCanvasLiftChangeRef.current?.(0);
+  }, [visible]);
 
   useEffect(() => {
     return () => {
@@ -945,26 +927,6 @@ export function TagEditor({
 
     return () => clearTimeout(fallback);
   }, [inputRef, tag?.id, tag?.type, visible]);
-
-  // After canvas lifts, recover only if input is already focused and the IME dropped.
-  // Skip when the input is not focused yet so we do not race TextInput autoFocus.
-  useEffect(() => {
-    if (!visible || !tag || !TYPES_WITH_INLINE_INPUT.includes(tag.type) || canvasLift <= 0) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      const input = inputRef?.current;
-      if (!input?.isFocused()) {
-        return;
-      }
-
-      focusInlineInputIfNeeded(input);
-      scheduleKeyboardSyncRef.current();
-    }, 60);
-
-    return () => clearTimeout(timer);
-  }, [canvasLift, inputRef, tag?.id, tag?.type, visible]);
 
   if (!visible || !tag) {
     return null;

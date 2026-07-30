@@ -24,9 +24,8 @@ export const PinPriceTheme = {
     photoMockItemBorder: '#CBD3DA',
     overlayBackdrop: 'rgba(0, 0, 0, 0.28)',
     white: '#FFFFFF',
-    /** High-contrast selection chrome for editor tags (editor-only, never export). */
-    selectionRingOuter: '#FFFFFF',
-    selectionRingInner: '#000000',
+    /** Selection chrome for editor tags (editor-only, never export). */
+    selectionRing: '#FFFFFF',
   },
   spacing: {
     xs: 4,
