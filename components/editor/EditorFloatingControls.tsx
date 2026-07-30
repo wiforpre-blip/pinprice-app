@@ -12,8 +12,7 @@ export const EDITOR_FLOATING_MAIN_BAR_HEIGHT = 66;
 
 const FLOATING_MAIN_ACTIONS = [
   { id: 'style', labelKey: 'editor.style', icon: 'palette' },
-  { id: 'select', labelKey: 'editor.select', icon: 'select-all' },
-  { id: 'zoom', labelKey: 'editor.zoom', icon: 'zoom-in' },
+  { id: 'align', labelKey: 'editor.align', icon: 'vertical-align-center' },
   { id: 'export', labelKey: 'editor.export', icon: 'file-upload' },
 ] as const;
 
@@ -23,16 +22,13 @@ export type FloatingHistoryActionId = 'undo' | 'reset' | 'redo';
 type EditorFloatingControlsProps = {
   alignFeedbackMessage: string | null;
   canExport: boolean;
-  canSelect: boolean;
   isDraggingTag: boolean;
   isStylePickerVisible: boolean;
   isMultiSelectMode: boolean;
-  isZoomMode: boolean;
   editorMode: EditorPricingMode;
   selectedImageUri: string | null;
   selectedTagIds: string[];
   isDragOverDelete: boolean;
-  zoomScaleLabel: string | null;
   bottomDropAreaRef: RefObject<View | null>;
   styleButtonRef?: RefObject<View | null>;
   exportButtonRef?: RefObject<View | null>;
@@ -45,16 +41,13 @@ type EditorFloatingControlsProps = {
 export function EditorFloatingControls({
   alignFeedbackMessage,
   canExport,
-  canSelect,
   isDraggingTag,
   isStylePickerVisible,
   isMultiSelectMode,
-  isZoomMode,
   editorMode,
   selectedImageUri,
   selectedTagIds,
   isDragOverDelete,
-  zoomScaleLabel,
   bottomDropAreaRef,
   styleButtonRef,
   exportButtonRef,
@@ -101,22 +94,16 @@ export function EditorFloatingControls({
           ) : null}
           <View style={styles.floatingMainBar}>
             {FLOATING_MAIN_ACTIONS.map((item) => {
-              const isSelectAction = item.id === 'select';
+              const isAlignAction = item.id === 'align';
               const isStyleAction = item.id === 'style';
               const isExportAction = item.id === 'export';
-              const isZoomAction = item.id === 'zoom';
-              const isAlignAction = isSelectAction && isMultiSelectMode;
-              const isAlignInactive = isAlignAction && selectedTagIds.length < 2;
+              const isAlignInactive = isAlignAction && (!isMultiSelectMode || selectedTagIds.length < 2);
               const isDisabled =
                 (isStyleAction &&
-                  (isMultiSelectMode || editorMode === 'priceList' || !selectedImageUri || isZoomMode)) ||
-                (isSelectAction && (!selectedImageUri || !canSelect)) ||
-                (isZoomAction && !selectedImageUri) ||
+                  (isMultiSelectMode || editorMode === 'priceList' || !selectedImageUri)) ||
                 isAlignInactive ||
                 (isExportAction && (!selectedImageUri || !canExport));
-              const actionIcon = isAlignAction ? 'vertical-align-center' : item.icon;
-              const actionLabel = isAlignAction ? t('editor.align') : t(item.labelKey);
-              const showZoomLevel = isZoomAction && Boolean(zoomScaleLabel);
+              const actionLabel = t(item.labelKey);
               const anchorOnLayout = isStyleAction
                 ? onStyleButtonLayout
                 : isExportAction
@@ -132,11 +119,10 @@ export function EditorFloatingControls({
                   ref={anchorRef}
                   style={isStyleAction || isExportAction ? styles.styleButtonAnchor : undefined}>
                   <Pressable
-                    accessibilityLabel={showZoomLevel ? `${actionLabel} ${zoomScaleLabel}` : actionLabel}
+                    accessibilityLabel={actionLabel}
                     accessibilityRole="button"
                     accessibilityState={{
                       disabled: isDisabled,
-                      selected: isZoomAction ? isZoomMode : undefined,
                     }}
                     disabled={isDisabled}
                     onPress={() => onFloatingMainAction(item.id)}
@@ -144,36 +130,19 @@ export function EditorFloatingControls({
                       styles.floatingMainAction,
                       isDisabled && styles.floatingActionDisabled,
                       isAlignInactive && styles.floatingAlignInactive,
-                      isZoomAction && isZoomMode && styles.floatingMainActionActive,
                     ]}>
                     <MaterialIcons
-                      color={
-                        isDisabled
-                          ? theme.colors.textMuted
-                          : isZoomAction && isZoomMode
-                            ? theme.buttons.primary.color
-                            : theme.buttons.secondary.color
-                      }
-                      name={actionIcon}
+                      color={isDisabled ? theme.colors.textMuted : theme.buttons.secondary.color}
+                      name={item.icon}
                       size={22}
                     />
                     <Text
                       style={[
                         styles.floatingMainActionText,
                         isDisabled && styles.floatingActionTextDisabled,
-                        isZoomAction && isZoomMode && styles.floatingMainActionTextActive,
                       ]}>
                       {actionLabel}
                     </Text>
-                    {showZoomLevel ? (
-                      <Text
-                        style={[
-                          styles.floatingZoomLevelText,
-                          isZoomAction && isZoomMode && styles.floatingMainActionTextActive,
-                        ]}>
-                        {zoomScaleLabel}
-                      </Text>
-                    ) : null}
                   </Pressable>
                 </View>
               );
@@ -200,7 +169,7 @@ const styles = StyleSheet.create({
     // absolute so canvas/imageRect never resize when it appears.
   },
   floatingControlsLayerDragging: {
-    // Stay below elevated content (zIndex 40) so the dragged tag paints over the delete zone.
+    // Stay below elevated content (zIndex 40) so the dragged tag floats over the delete zone.
     zIndex: 10,
   },
   floatingBarsColumn: {
@@ -234,9 +203,6 @@ const styles = StyleSheet.create({
   styleButtonAnchor: {
     // Keep native host view for reliable measureInWindow on Android.
   },
-  floatingMainActionActive: {
-    backgroundColor: theme.buttons.primary.backgroundColor,
-  },
   floatingActionDisabled: {
     opacity: 0.45,
   },
@@ -247,15 +213,6 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     // Slightly taller than caption default so Thai under-marks render fully.
     lineHeight: 18,
-    color: theme.buttons.secondary.color,
-  },
-  floatingMainActionTextActive: {
-    color: theme.buttons.primary.color,
-  },
-  floatingZoomLevelText: {
-    ...theme.typography.caption,
-    fontSize: 10,
-    lineHeight: 12,
     color: theme.buttons.secondary.color,
   },
   floatingActionTextDisabled: {

@@ -232,7 +232,3 @@ export function screenDeltaToCanvasDelta(dx: number, dy: number, viewportScale: 
     y: dy / safeScale,
   };
 }
-
-export function formatZoomPercent(scale: number) {
-  return `${Math.round(clampZoomScale(scale) * 100)}%`;
-}

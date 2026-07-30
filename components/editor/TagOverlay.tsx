@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  Vibration,
   View,
   type KeyboardTypeOptions,
 } from 'react-native';
@@ -62,6 +63,7 @@ type TagOverlayProps = {
   onDragMove: (point: DragPoint) => void;
   onDragOffsetChange?: (offset: DragPoint) => void;
   onDragStart: (tag: PriceTag) => void;
+  onLongPress?: (tag: PriceTag) => void;
   onPress: (tag: PriceTag) => void;
   onSizeChange?: (tagId: string, size: TagSize) => void;
 };
@@ -82,6 +84,10 @@ type TextInputSelection = {
 };
 
 const DRAG_THRESHOLD = 6;
+/** Cancel pending long-press / treat as drag intent once finger moves this far. */
+const LONG_PRESS_MOVE_THRESHOLD = 10;
+const LONG_PRESS_MS = 400;
+const LONG_PRESS_VIBRATE_MS = 12;
 const MULTILINE_INPUT_VERTICAL_PAD = 6;
 const ZERO_OFFSET = { x: 0, y: 0 };
 
@@ -138,6 +144,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
     onDragMove,
     onDragOffsetChange,
     onDragStart,
+    onLongPress,
     onPress,
     onSizeChange,
   },
@@ -163,6 +170,8 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
   const tagViewRef = useRef<View>(null);
   const startPointRef = useRef({ x: 0, y: 0 });
   const hasDraggedRef = useRef(false);
+  const hasLongPressedRef = useRef(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tagRef = useRef(tag);
   const imageRectRef = useRef(imageRect);
   const minDragYRef = useRef(minDragY);
@@ -176,6 +185,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
     onDragMove,
     onDragOffsetChange,
     onDragStart,
+    onLongPress,
     onPress,
     onSizeChange,
   });
@@ -193,6 +203,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
     onDragMove,
     onDragOffsetChange,
     onDragStart,
+    onLongPress,
     onPress,
     onSizeChange,
   };
@@ -285,8 +296,15 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
     };
   };
 
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current != null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
   const startDrag = () => {
-    if (!dragEnabledRef.current || hasDraggedRef.current) {
+    if (!dragEnabledRef.current || hasDraggedRef.current || hasLongPressedRef.current) {
       return;
     }
 
@@ -299,7 +317,9 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_event, gestureState) =>
-        dragEnabledRef.current && (Math.abs(gestureState.dx) > DRAG_THRESHOLD || Math.abs(gestureState.dy) > DRAG_THRESHOLD),
+        !hasLongPressedRef.current &&
+        dragEnabledRef.current &&
+        (Math.abs(gestureState.dx) > DRAG_THRESHOLD || Math.abs(gestureState.dy) > DRAG_THRESHOLD),
       onPanResponderGrant: () => {
         const currentTag = tagRef.current;
         const currentImageRect = imageRectRef.current;
@@ -309,10 +329,32 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
           y: currentImageRect.y + currentTag.y * currentImageRect.height,
         };
         hasDraggedRef.current = false;
+        hasLongPressedRef.current = false;
         setIsDragging(false);
         setDragOffset(ZERO_OFFSET);
+        clearLongPressTimer();
+        longPressTimerRef.current = setTimeout(() => {
+          longPressTimerRef.current = null;
+          if (hasDraggedRef.current) {
+            return;
+          }
+
+          hasLongPressedRef.current = true;
+          Vibration.vibrate(LONG_PRESS_VIBRATE_MS);
+          callbacksRef.current.onLongPress?.(tagRef.current);
+        }, LONG_PRESS_MS);
       },
       onPanResponderMove: (event, gestureState) => {
+        if (hasLongPressedRef.current) {
+          return;
+        }
+
+        const moveDistance = Math.max(Math.abs(gestureState.dx), Math.abs(gestureState.dy));
+
+        if (moveDistance > LONG_PRESS_MOVE_THRESHOLD) {
+          clearLongPressTimer();
+        }
+
         if (!dragEnabledRef.current) {
           return;
         }
@@ -323,6 +365,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
           return;
         }
 
+        clearLongPressTimer();
         startDrag();
         const boundedOffset = getBoundedDragOffset(gestureState.dx, gestureState.dy);
 
@@ -334,6 +377,16 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
         callbacksRef.current.onDragMove({ x: event.nativeEvent.pageX, y: event.nativeEvent.pageY });
       },
       onPanResponderRelease: (event, gestureState) => {
+        clearLongPressTimer();
+
+        if (hasLongPressedRef.current) {
+          hasLongPressedRef.current = false;
+          hasDraggedRef.current = false;
+          setIsDragging(false);
+          setDragOffset(ZERO_OFFSET);
+          return;
+        }
+
         if (!hasDraggedRef.current) {
           callbacksRef.current.onPress(tagRef.current);
         } else {
@@ -354,6 +407,8 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
         setDragOffset(ZERO_OFFSET);
       },
       onPanResponderTerminate: () => {
+        clearLongPressTimer();
+        hasLongPressedRef.current = false;
         hasDraggedRef.current = false;
         setIsDragging(false);
         setDragOffset(ZERO_OFFSET);
@@ -361,6 +416,12 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
       },
     }),
   ).current;
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimer();
+    };
+  }, []);
 
   const rawLeft = imageRect.x + tag.x * imageRect.width;
   const rawTop = imageRect.y + tag.y * imageRect.height;

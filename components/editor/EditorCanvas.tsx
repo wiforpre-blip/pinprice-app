@@ -1,6 +1,6 @@
 import { Image, type ImageLoadEventData } from 'expo-image';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { GestureResponderEvent, LayoutChangeEvent, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { LayoutChangeEvent, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { ComposedGesture, GestureType } from 'react-native-gesture-handler';
 import type { AnimatedStyle } from 'react-native-reanimated';
 import type { ViewStyle } from 'react-native';
@@ -37,12 +37,10 @@ type EditorCanvasProps = {
   isDraggingTag: boolean;
   isMultiSelectMode: boolean;
   isStylePickerVisible: boolean;
-  isZoomMode: boolean;
   onCancelTagEdit: () => void;
   onCanvasLayout: (event: LayoutChangeEvent) => void;
   /** Keyboard lift applied to canvas content — coach highlight must subtract this from tag Y. */
   onKeyboardCanvasLiftChange?: (liftY: number) => void;
-  onCanvasPress: (event: GestureResponderEvent) => void;
   onDeleteMarker: (markerId: string) => void;
   onDeleteTag: (tagId: string) => void;
   onDraftChange: (preview: TagEditorDraftPreview, options?: { syncOnly?: boolean }) => void;
@@ -58,6 +56,7 @@ type EditorCanvasProps = {
   onTagDragMove: (point: ScreenPoint) => void;
   onTagDragOffsetChange: (offset: ScreenPoint) => void;
   onTagDragStart: (tag: PriceTag) => void;
+  onTagLongPress: (tag: PriceTag) => void;
   onTagPress: (tag: PriceTag) => void;
   onTagSizeChange: (tagId: string, size: TagSize) => void;
   panelMarkers: PanelMarkerType[];
@@ -91,11 +90,9 @@ export function EditorCanvas({
   isDraggingTag,
   isMultiSelectMode,
   isStylePickerVisible,
-  isZoomMode,
   onCancelTagEdit,
   onCanvasLayout,
   onKeyboardCanvasLiftChange,
-  onCanvasPress,
   onDeleteMarker,
   onDeleteTag,
   onDraftChange,
@@ -111,6 +108,7 @@ export function EditorCanvas({
   onTagDragMove,
   onTagDragOffsetChange,
   onTagDragStart,
+  onTagLongPress,
   onTagPress,
   onTagSizeChange,
   panelMarkers,
@@ -145,7 +143,7 @@ export function EditorCanvas({
   }, [onKeyboardCanvasLiftChange]);
 
   const isTagEditorVisible =
-    Boolean(selectedTag) && !isZoomMode && !isMultiSelectMode && draggingTagId !== selectedTagId && !isStylePickerVisible;
+    Boolean(selectedTag) && !isMultiSelectMode && draggingTagId !== selectedTagId && !isStylePickerVisible;
   const selectedSupportsInlineEdit =
     isTagEditorVisible && selectedTag != null && TYPES_WITH_INLINE_INPUT.includes(selectedTag.type);
   const activeInlineEdit = selectedSupportsInlineEdit ? inlineEdit : null;
@@ -183,18 +181,16 @@ export function EditorCanvas({
           showChart={panelMarkers.length > 0}>
           <View collapsable={false} ref={canvasRef} style={styles.imageCanvas} onLayout={onCanvasLayout}>
             <EditorZoomViewport
-              isZoomMode={isZoomMode}
+              canvasPressAccessibilityLabel={t('editor.addPriceTag')}
               zoomAnimatedStyle={zoomAnimatedStyle}
               zoomGesture={zoomGesture}>
-              <Image source={{ uri: imageUri }} style={styles.image} contentFit="contain" onLoad={onImageLoad} />
-              {isZoomMode ? null : (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('editor.addPriceTag')}
-                  onPress={onCanvasPress}
-                  style={styles.tapLayer}
-                />
-              )}
+              <Image
+                source={{ uri: imageUri }}
+                style={styles.image}
+                contentFit="contain"
+                onLoad={onImageLoad}
+                pointerEvents="none"
+              />
               {imageRect
                 ? panelMarkers.map((marker, index) => (
                     <PanelMarker
@@ -224,24 +220,22 @@ export function EditorCanvas({
           ]}>
           <EditorZoomViewport
             allowOverflow={isDraggingTag}
-            isZoomMode={isZoomMode}
+            canvasPressAccessibilityLabel={
+              isMultiSelectMode
+                ? t('editor.exitMultiSelect')
+                : selectedTag
+                  ? t('editor.closeTagEditor')
+                  : t('editor.addPriceTag')
+            }
             zoomAnimatedStyle={zoomAnimatedStyle}
             zoomGesture={zoomGesture}>
-            <Image source={{ uri: imageUri }} style={styles.image} contentFit="contain" onLoad={onImageLoad} />
-            {isZoomMode ? null : (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  isMultiSelectMode
-                    ? t('editor.exitMultiSelect')
-                    : selectedTag
-                      ? t('editor.closeTagEditor')
-                      : t('editor.addPriceTag')
-                }
-                onPress={onCanvasPress}
-                style={styles.tapLayer}
-              />
-            )}
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.image}
+              contentFit="contain"
+              onLoad={onImageLoad}
+              pointerEvents="none"
+            />
             {imageRect
               ? tags.map((tag) => {
                   const isTagSelected = isMultiSelectMode ? selectedTagIds.includes(tag.id) : tag.id === selectedTagId;
@@ -282,6 +276,7 @@ export function EditorCanvas({
                       onDragMove={onTagDragMove}
                       onDragOffsetChange={isMultiSelectMode && isTagSelected ? onTagDragOffsetChange : undefined}
                       onDragStart={onTagDragStart}
+                      onLongPress={onTagLongPress}
                       onPress={onTagPress}
                       onSizeChange={onTagSizeChange}
                       tag={
@@ -377,10 +372,6 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-  },
-  tapLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
   },
   emptyState: {
     flex: 1,

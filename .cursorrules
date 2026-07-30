@@ -31,7 +31,7 @@ Expertise:
 * React Native + Expo
 * TypeScript
 * Mobile-first UX
-* Gesture-driven UI: tap, drag, long press, pinch/zoom
+* Gesture-driven UI: tap, drag, multi-select, pinch/zoom
 * Image overlay and export workflows
 * Local-first MVP architecture
 
@@ -86,7 +86,7 @@ Allowed work:
 - Photo input: choose image / take photo
 - Tag editing: add, edit, drag, delete, undo
 - Tag types: Price, Sold, Reserved
-- Placement help: zoom-to-place
+- Placement help: pinch-to-zoom on the photo
 - Output: preview, save, share
 - Basic tag styles and lightweight local settings
 - Watermark on export (Free tier)
@@ -250,7 +250,7 @@ Tag behavior:
 
 * Tap image to add tag
 * Tap tag to edit text or change type
-* Long press tag to mark Sold
+* Long press tag enters multi-select mode
 * Drag tag to move
 * Delete from tag editor or action menu
 * Undo must recover the latest destructive or position-changing action
@@ -270,7 +270,7 @@ Tag type rules:
 Gesture rules:
 
 * Avoid conflicts between image pan/zoom and tag drag
-* If placement is hard on small screens, improve zoom-to-place before adding advanced features
+* If placement is hard on small screens, improve pinch-to-zoom before adding advanced features
 * Do not make destructive actions too easy without undo
 
 Export rules:
@@ -292,7 +292,7 @@ Be aware of these differences and call them out in plans when relevant:
 
 * **Share sheet**: iOS uses native share modal. Android behavior varies by device/version — test both.
 * **expo-media-library**: requires permission prompt on both platforms. Handle denied state explicitly.
-* **Long press**: sensitivity differs between platforms — test gesture threshold on both.
+* **Long press**: reserved for entering multi-select mode; sensitivity differs between platforms — test gesture threshold on both.
 * **react-native-view-shot**: capture timing can differ; await the capture promise fully before proceeding.
 * **Keyboard**: text input inside bottom sheets may trigger layout shifts differently on iOS vs Android — test tag text editing on both.
 
@@ -436,7 +436,7 @@ QA checklist when relevant:
 * Edit tag text
 * Change Price -> Sold
 * Change Price -> Reserved
-* Long press to Sold
+* Long press tag to enter multi-select
 * Drag tag
 * Delete tag
 * Undo delete/drag/status change

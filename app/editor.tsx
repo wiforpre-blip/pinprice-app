@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { GestureResponderEvent } from 'react-native';
 import { Keyboard, Text, View } from 'react-native';
 import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
@@ -17,6 +16,7 @@ import {
 import { EditorHeader } from '@/components/editor/EditorHeader';
 import { EditorPreviewScreen } from '@/components/editor/EditorPreviewScreen';
 import { PendingPlacementChip } from '@/components/editor/PendingPlacementChip';
+import { MultiSelectHintChip } from '@/components/editor/MultiSelectHintChip';
 import { PriceRowEditor } from '@/components/editor/PriceRowEditor';
 import { StylePickerPanel } from '@/components/editor/StylePickerPanel';
 import { styles } from '@/components/editor/editor.styles';
@@ -33,7 +33,7 @@ import { useEditorDraftHydration } from '@/hooks/useEditorDraftHydration';
 import { useEditorExport } from '@/hooks/useEditorExport';
 import { useEditorLayout } from '@/hooks/useEditorLayout';
 import { getDraftId, getFilenameParam, getImageUri, useEditorSession } from '@/hooks/useEditorSession';
-import { useEditorZoom } from '@/hooks/useEditorZoom';
+import { useEditorZoom, type CanvasTapPoint } from '@/hooks/useEditorZoom';
 import { usePriceListEditorState } from '@/hooks/usePriceListEditorState';
 import {
   getDefaultTextForType,
@@ -41,7 +41,7 @@ import {
 } from '@/hooks/useTagEditorState';
 
 import type { EditorDraftSnapshot } from '@/types/draft';
-import { formatZoomPercent, getSafeTagSize } from '@/utils/editorGeometry';
+import { getSafeTagSize } from '@/utils/editorGeometry';
 import { createCurrentHistorySnapshot } from '@/utils/editorHistory';
 
 type EditorParams = {
@@ -160,7 +160,6 @@ export default function EditorScreen() {
     draftType,
     draftPreview,
     draggingTagId,
-    enterMultiSelectMode,
     exitMultiSelectMode,
     groupDragOffset,
     groupDragOriginalTagsRef,
@@ -178,6 +177,7 @@ export default function EditorScreen() {
     handleTagDragMove,
     handleTagDragOffsetChange,
     handleTagDragStart,
+    handleTagLongPress,
     handleTagPress,
     handleTagSizeChange,
     isDeleteModalVisible,
@@ -240,7 +240,6 @@ export default function EditorScreen() {
   });
   const canReset = tags.length > 0 || panelMarkers.length > 0;
   const canExport = canReset;
-  const canSelect = tags.length > 0;
   bindChrome({
     clearPricePanelState,
     clearTagEditorState,
@@ -326,34 +325,12 @@ export default function EditorScreen() {
     openExportPreview();
   };
 
-  const handleZoomBackgroundTap = useCallback(() => {
-    if (isMultiSelectMode) {
-      exitMultiSelectMode();
-      return;
-    }
+  const handleCanvasPressRef = useRef<(point: CanvasTapPoint) => void>(() => {});
 
-    if (editorMode === 'tag' && selectedTag) {
-      handleDismissTagEdit();
-      return;
-    }
-
-    if (editorMode === 'priceList' && editingMarkerId) {
-      handleCancelMarkerPriceEdit();
-    }
-  }, [
-    editorMode,
-    editingMarkerId,
-    exitMultiSelectMode,
-    handleCancelMarkerPriceEdit,
-    handleDismissTagEdit,
-    isMultiSelectMode,
-    selectedTag,
-  ]);
-
-  const { isZoomMode, resetZoom, toggleZoomMode, zoomAnimatedStyle, zoomGesture, zoomScale } = useEditorZoom({
+  const { resetZoom, zoomAnimatedStyle, zoomGesture, zoomScale } = useEditorZoom({
     canvasSize,
     imageUri: selectedImageUri,
-    onBackgroundTap: handleZoomBackgroundTap,
+    onCanvasTap: (point) => handleCanvasPressRef.current(point),
   });
 
   const hasConfirmModal =
@@ -410,7 +387,7 @@ export default function EditorScreen() {
     bumpCoachMeasure();
   }, [activeStepId, bumpCoachMeasure, coachTagRect, isStylePickerVisible, keyboardCanvasLift]);
 
-  const handleCanvasPress = (event: GestureResponderEvent) => {
+  const handleCanvasPress = (point: CanvasTapPoint) => {
     if (!imageRect) {
       return;
     }
@@ -434,16 +411,7 @@ export default function EditorScreen() {
       return;
     }
 
-    // Zoom mode: never add tags/markers from empty-canvas taps.
-    if (isZoomMode) {
-      if (editorMode === 'priceList' && editingMarkerId) {
-        handleCancelMarkerPriceEdit();
-      }
-
-      return;
-    }
-
-    const { locationX, locationY, pageX, pageY } = event.nativeEvent;
+    const { locationX, locationY, pageX, pageY } = point;
 
     const handlePoint = (touchX: number, touchY: number) => {
       if (editorMode === 'priceList') {
@@ -472,10 +440,11 @@ export default function EditorScreen() {
       handlePoint(pageX - canvasPageX, pageY - canvasPageY);
     });
   };
+  handleCanvasPressRef.current = handleCanvasPress;
 
   const handleFloatingMainAction = (actionId: FloatingMainActionId) => {
     if (actionId === 'style') {
-      if (isMultiSelectMode || isZoomMode) {
+      if (isMultiSelectMode) {
         return;
       }
 
@@ -483,33 +452,8 @@ export default function EditorScreen() {
       return;
     }
 
-    if (actionId === 'select') {
-      if (isMultiSelectMode) {
-        handleAlignSelectedTags();
-        return;
-      }
-
-      if (!canSelect) {
-        return;
-      }
-
-      enterMultiSelectMode();
-      return;
-    }
-
-    if (actionId === 'zoom') {
-      if (!selectedImageUri) {
-        return;
-      }
-
-      // Close edit popup when entering/leaving Zoom so tap-to-edit does not fire by accident.
-      // Multi-select selection state is left alone.
-      cancelPendingPlacement();
-      if (!isMultiSelectMode) {
-        handleCancelTagEdit();
-      }
-
-      toggleZoomMode();
+    if (actionId === 'align') {
+      handleAlignSelectedTags();
       return;
     }
 
@@ -699,25 +643,18 @@ export default function EditorScreen() {
         }
       />
 
-      {!activeStepId && (!selectedImageUri || isZoomMode || isMultiSelectMode) ? (
-        <Text style={styles.placeholder}>
-          {selectedImageUri
-            ? isZoomMode
-              ? t('editor.zoomHint')
-              : t('editor.tapEmptyToExit')
-            : t('editor.choosePhotoToStart')}
-        </Text>
+      {!activeStepId && !selectedImageUri ? (
+        <Text style={styles.placeholder}>{t('editor.choosePhotoToStart')}</Text>
       ) : null}
 
       <View style={styles.workspace}>
-        {selectedImageUri &&
-        editorMode === 'tag' &&
-        !isStylePickerVisible &&
-        !activeStepId &&
-        !isMultiSelectMode &&
-        !isZoomMode ? (
+        {selectedImageUri && editorMode === 'tag' && !isStylePickerVisible && !activeStepId ? (
           <View pointerEvents="box-none" style={styles.placementChipOverlay}>
-            <PendingPlacementChip onCancel={cancelPendingPlacement} previewTag={stylePreviewTag} />
+            {isMultiSelectMode ? (
+              <MultiSelectHintChip />
+            ) : (
+              <PendingPlacementChip onCancel={cancelPendingPlacement} previewTag={stylePreviewTag} />
+            )}
           </View>
         ) : null}
 
@@ -745,10 +682,8 @@ export default function EditorScreen() {
             isDraggingTag={isDraggingTag}
             isMultiSelectMode={isMultiSelectMode}
             isStylePickerVisible={isStylePickerVisible}
-            isZoomMode={isZoomMode}
             onCancelTagEdit={handleCancelTagEdit}
             onCanvasLayout={handleCanvasLayout}
-            onCanvasPress={handleCanvasPress}
             onKeyboardCanvasLiftChange={handleKeyboardCanvasLiftChange}
             onDeleteMarker={requestDeleteMarker}
             onDeleteTag={handleDeleteTag}
@@ -765,6 +700,7 @@ export default function EditorScreen() {
             onTagDragMove={handleTagDragMove}
             onTagDragOffsetChange={handleTagDragOffsetChange}
             onTagDragStart={handleTagDragStart}
+            onTagLongPress={handleTagLongPress}
             onTagPress={handleTagPress}
             onTagSizeChange={handleTagSizeChange}
             panelMarkers={panelMarkers}
@@ -828,14 +764,12 @@ export default function EditorScreen() {
         alignFeedbackMessage={alignFeedbackMessage}
         bottomDropAreaRef={bottomDropAreaRef}
         canExport={canExport}
-        canSelect={canSelect}
         editorMode={editorMode}
         exportButtonRef={exportButtonRef}
         isDragOverDelete={isDragOverDelete}
         isDraggingTag={isDraggingTag}
         isMultiSelectMode={isMultiSelectMode}
         isStylePickerVisible={isStylePickerVisible}
-        isZoomMode={isZoomMode}
         onBottomDropAreaLayout={handleBottomDropAreaLayout}
         onExportButtonLayout={bumpCoachMeasure}
         onFloatingMainAction={handleFloatingMainAction}
@@ -843,7 +777,6 @@ export default function EditorScreen() {
         selectedImageUri={selectedImageUri}
         selectedTagIds={selectedTagIds}
         styleButtonRef={styleButtonRef}
-        zoomScaleLabel={isZoomMode || zoomScale !== 1 ? formatZoomPercent(zoomScale) : null}
       />
     </SafeAreaView>
   );

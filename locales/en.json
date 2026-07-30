@@ -40,7 +40,7 @@
       "howTo": {
         "tapAdd": "Tap the photo to add a price tag",
         "tapEdit": "Tap a tag to edit the price or change to Price / Sold / Reserved",
-        "longPressSold": "Long-press a tag to mark it Sold",
+        "longPressMultiSelect": "Long-press a tag to select multiple tags",
         "dragMove": "Drag a tag to move it",
         "undo": "Use Undo if you place, delete, or change something by mistake",
         "preview": "Tap Preview to check the photo before Save / Share"
@@ -144,7 +144,6 @@
     "tapPhotoToAddMarker": "Tap the photo to add a number",
     "placingChip": "Placing:",
     "cancelPlacing": "Cancel placing",
-    "zoomHint": "Pinch to zoom · Drag to pan",
     "choosePhotoToStart": "Choose a photo to start tagging",
     "tips": {
       "gotIt": "Got it",
@@ -153,7 +152,7 @@
       "dragTag": "Drag the tag onto the item",
       "style": "Tap Style to pick the tag look",
       "tagPopup": "Edit price, type, or style for this tag here",
-      "select": "Tap Select, pick tags, then Align",
+      "select": "Long-press a tag to multi-select, then tap Align",
       "zoom": "Pinch to zoom, then drag tags into place",
       "export": "Tap Export to save or share"
     },

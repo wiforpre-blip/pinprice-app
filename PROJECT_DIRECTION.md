@@ -51,9 +51,9 @@ MVP includes:
   - Sold
   - Reserved
 - Quick status change:
-  - long press tag to mark Sold
+  - long press tag to enter multi-select mode
   - tap tag to edit or change status
-- Zoom-to-place mode for accurate tag placement
+- Pinch-to-zoom on the photo for accurate tag placement
 - Preview before export
 - Save image to gallery
 - Share exported image

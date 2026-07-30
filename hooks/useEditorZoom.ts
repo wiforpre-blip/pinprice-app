@@ -16,23 +16,35 @@ import {
   clampZoomScale,
 } from '@/utils/editorGeometry';
 
+/** Delay before clearing suppressTap after a real pinch ends (blocks ghost taps). */
+const SUPPRESS_TAP_CLEAR_MS = 120;
+
 function clampWorklet(value: number, min: number, max: number) {
   'worklet';
   return Math.min(max, Math.max(min, value));
 }
 
+/** Canvas-local press point (same space as former Pressable locationX/Y). */
+export type CanvasTapPoint = {
+  locationX: number;
+  locationY: number;
+  pageX: number;
+  pageY: number;
+};
+
 type UseEditorZoomOptions = {
   canvasSize: Size;
   imageUri: string | null;
-  /** Tap on empty zoom surface (close editor / exit multi-select). Never adds tags. */
-  onBackgroundTap?: () => void;
+  /** Single-finger tap on empty zoom surface (create tag / dismiss). */
+  onCanvasTap?: (point: CanvasTapPoint) => void;
 };
 
-export function useEditorZoom({ canvasSize, imageUri, onBackgroundTap }: UseEditorZoomOptions) {
-  const [isZoomMode, setIsZoomMode] = useState(false);
+export function useEditorZoom({ canvasSize, imageUri, onCanvasTap }: UseEditorZoomOptions) {
   const [zoomScale, setZoomScale] = useState(EDITOR_ZOOM_DEFAULT);
-  const onBackgroundTapRef = useRef(onBackgroundTap);
-  onBackgroundTapRef.current = onBackgroundTap;
+  const suppressTapClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressTapRef = useRef(false);
+  const onCanvasTapRef = useRef(onCanvasTap);
+  onCanvasTapRef.current = onCanvasTap;
 
   const scale = useSharedValue(EDITOR_ZOOM_DEFAULT);
   const translateX = useSharedValue(0);
@@ -48,15 +60,45 @@ export function useEditorZoom({ canvasSize, imageUri, onBackgroundTap }: UseEdit
     canvasHeight.value = canvasSize.height;
   }, [canvasHeight, canvasSize.height, canvasSize.width, canvasWidth]);
 
+  const clearSuppressTapTimer = useCallback(() => {
+    if (suppressTapClearTimerRef.current != null) {
+      clearTimeout(suppressTapClearTimerRef.current);
+      suppressTapClearTimerRef.current = null;
+    }
+  }, []);
+
+  const armSuppressTap = useCallback(() => {
+    clearSuppressTapTimer();
+    suppressTapRef.current = true;
+  }, [clearSuppressTapTimer]);
+
+  const scheduleClearSuppressTap = useCallback(() => {
+    if (!suppressTapRef.current) {
+      return;
+    }
+
+    clearSuppressTapTimer();
+    suppressTapClearTimerRef.current = setTimeout(() => {
+      suppressTapRef.current = false;
+      suppressTapClearTimerRef.current = null;
+    }, SUPPRESS_TAP_CLEAR_MS);
+  }, [clearSuppressTapTimer]);
+
   const syncZoomScale = useCallback((nextScale: number) => {
     setZoomScale(clampZoomScale(nextScale));
   }, []);
 
-  const handleBackgroundTap = useCallback(() => {
-    onBackgroundTapRef.current?.();
+  const dispatchCanvasTap = useCallback((locationX: number, locationY: number, pageX: number, pageY: number) => {
+    if (suppressTapRef.current) {
+      return;
+    }
+
+    onCanvasTapRef.current?.({ locationX, locationY, pageX, pageY });
   }, []);
 
   const resetZoom = useCallback(() => {
+    clearSuppressTapTimer();
+    suppressTapRef.current = false;
     scale.value = EDITOR_ZOOM_DEFAULT;
     translateX.value = 0;
     translateY.value = 0;
@@ -64,28 +106,24 @@ export function useEditorZoom({ canvasSize, imageUri, onBackgroundTap }: UseEdit
     startTranslateX.value = 0;
     startTranslateY.value = 0;
     setZoomScale(EDITOR_ZOOM_DEFAULT);
-    setIsZoomMode(false);
-  }, [scale, startScale, startTranslateX, startTranslateY, translateX, translateY]);
+  }, [clearSuppressTapTimer, scale, startScale, startTranslateX, startTranslateY, translateX, translateY]);
 
   useEffect(() => {
     resetZoom();
   }, [imageUri, resetZoom]);
 
-  const toggleZoomMode = useCallback(() => {
-    if (isZoomMode) {
-      // Leaving zoom mode: always restore 100% so tap-to-tag is not on a leftover zoom.
-      resetZoom();
-      return;
-    }
-
-    setIsZoomMode(true);
-  }, [isZoomMode, resetZoom]);
+  useEffect(() => {
+    return () => {
+      clearSuppressTapTimer();
+    };
+  }, [clearSuppressTapTimer]);
 
   const zoomGesture = useMemo(() => {
     const pinch = Gesture.Pinch()
-      .enabled(isZoomMode)
-      .onBegin(() => {
+      .onStart(() => {
         'worklet';
+        // Arm suppress only when pinch activates (not onBegin — that fires on one finger).
+        runOnJS(armSuppressTap)();
         startScale.value = scale.value;
         startTranslateX.value = translateX.value;
         startTranslateY.value = translateY.value;
@@ -101,7 +139,7 @@ export function useEditorZoom({ canvasSize, imageUri, onBackgroundTap }: UseEdit
         translateY.value = clampWorklet(translateY.value, -maxY, maxY);
         runOnJS(syncZoomScale)(nextScale);
       })
-      .onEnd(() => {
+      .onFinalize(() => {
         'worklet';
         startScale.value = scale.value;
 
@@ -112,10 +150,12 @@ export function useEditorZoom({ canvasSize, imageUri, onBackgroundTap }: UseEdit
           startTranslateY.value = 0;
           runOnJS(syncZoomScale)(EDITOR_ZOOM_DEFAULT);
         }
+
+        runOnJS(scheduleClearSuppressTap)();
       });
 
+    // Pan: empty surface only (under tags). No-op at 100%.
     const pan = Gesture.Pan()
-      .enabled(isZoomMode)
       .maxPointers(1)
       .minDistance(6)
       .onBegin(() => {
@@ -140,20 +180,23 @@ export function useEditorZoom({ canvasSize, imageUri, onBackgroundTap }: UseEdit
         startTranslateY.value = translateY.value;
       });
 
+    // Local x/y = canvas space inside the transformed viewport.
     const tap = Gesture.Tap()
-      .enabled(isZoomMode)
-      .onEnd(() => {
+      .maxDuration(250)
+      .maxDistance(10)
+      .onEnd((event) => {
         'worklet';
-        runOnJS(handleBackgroundTap)();
+        runOnJS(dispatchCanvasTap)(event.x, event.y, event.absoluteX, event.absoluteY);
       });
 
-    return Gesture.Simultaneous(pinch, Gesture.Exclusive(pan, tap));
+    return Gesture.Simultaneous(pinch, Gesture.Race(tap, pan));
   }, [
+    armSuppressTap,
     canvasHeight,
     canvasWidth,
-    handleBackgroundTap,
-    isZoomMode,
+    dispatchCanvasTap,
     scale,
+    scheduleClearSuppressTap,
     startScale,
     startTranslateX,
     startTranslateY,
@@ -183,9 +226,7 @@ export function useEditorZoom({ canvasSize, imageUri, onBackgroundTap }: UseEdit
   }, [canvasSize, startTranslateX, startTranslateY, translateX, translateY, zoomScale]);
 
   return {
-    isZoomMode,
     resetZoom,
-    toggleZoomMode,
     zoomAnimatedStyle,
     zoomGesture,
     zoomScale,

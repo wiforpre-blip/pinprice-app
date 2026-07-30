@@ -948,7 +948,7 @@ export function useTagEditorState({
     clearAlignFeedback();
   };
 
-  const enterMultiSelectMode = () => {
+  const enterMultiSelectMode = (seedTagId?: string) => {
     if (!selectedImageUri || editorMode !== 'tag' || tags.length === 0) {
       return;
     }
@@ -960,8 +960,21 @@ export function useTagEditorState({
     clearAlignFeedback();
     setGroupDragOffset({ x: 0, y: 0 });
     groupDragOriginalTagsRef.current = null;
-    setSelectedTagIds([]);
+    setSelectedTagIds(seedTagId ? [seedTagId] : []);
     setIsMultiSelectMode(true);
+  };
+
+  const handleTagLongPress = (tag: PriceTag) => {
+    if (editorMode !== 'tag') {
+      return;
+    }
+
+    if (isMultiSelectMode) {
+      setSelectedTagIds((currentIds) => (currentIds.includes(tag.id) ? currentIds : [...currentIds, tag.id]));
+      return;
+    }
+
+    enterMultiSelectMode(tag.id);
   };
 
   const handleAlignSelectedTags = () => {
@@ -1135,6 +1148,7 @@ export function useTagEditorState({
     handleTagDragMove,
     handleTagDragOffsetChange,
     handleTagDragStart,
+    handleTagLongPress,
     handleTagPress,
     handleTagSizeChange,
     isDeleteModalVisible,

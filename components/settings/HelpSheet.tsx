@@ -16,7 +16,7 @@ type HelpSheetProps = {
 const HOW_TO_KEYS = [
   'settings.help.howTo.tapAdd',
   'settings.help.howTo.tapEdit',
-  'settings.help.howTo.longPressSold',
+  'settings.help.howTo.longPressMultiSelect',
   'settings.help.howTo.dragMove',
   'settings.help.howTo.undo',
   'settings.help.howTo.preview',
