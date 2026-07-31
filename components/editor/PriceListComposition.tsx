@@ -69,12 +69,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.photoMockBackground,
+    backgroundColor: theme.colors.photoStageBackground,
   },
   imageArea: {
     overflow: 'hidden',
     minHeight: 0,
-    backgroundColor: theme.colors.photoMockBackground,
+    backgroundColor: theme.colors.photoStageBackground,
   },
   imageAreaFlex: {
     flex: 1,

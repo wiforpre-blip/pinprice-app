@@ -7,9 +7,9 @@ import { useTranslation } from '@/contexts/LanguageContext';
 import type { FloatingHistoryActionId } from '@/components/editor/EditorFloatingControls';
 
 const HEADER_HISTORY_ACTIONS = [
-  { id: 'undo', labelKey: 'editor.undo', icon: 'undo' },
-  { id: 'reset', labelKey: 'editor.reset', icon: 'restart-alt' },
-  { id: 'redo', labelKey: 'editor.redo', icon: 'redo' },
+  { id: 'undo', labelKey: 'editor.undo', kind: 'icon', icon: 'undo' },
+  { id: 'reset', labelKey: 'editor.reset', kind: 'text' },
+  { id: 'redo', labelKey: 'editor.redo', kind: 'icon', icon: 'redo' },
 ] as const;
 
 type EditorHeaderProps = {
@@ -61,12 +61,21 @@ export const EditorHeader = forwardRef<View, EditorHeaderProps>(function EditorH
                   disabled={isDisabled}
                   key={item.id}
                   onPress={() => onHistoryAction(item.id)}
-                  style={[styles.historyAction, isDisabled && styles.historyActionDisabled]}>
-                  <MaterialIcons
-                    color={isDisabled ? theme.colors.textMuted : theme.colors.textPrimary}
-                    name={item.icon}
-                    size={22}
-                  />
+                  style={[
+                    item.kind === 'text' ? styles.resetAction : styles.historyAction,
+                    isDisabled && styles.historyActionDisabled,
+                  ]}>
+                  {item.kind === 'text' ? (
+                    <Text style={[styles.resetText, isDisabled && styles.resetTextDisabled]}>
+                      {t(item.labelKey)}
+                    </Text>
+                  ) : (
+                    <MaterialIcons
+                      color={isDisabled ? theme.colors.textMuted : theme.colors.textPrimary}
+                      name={item.icon}
+                      size={22}
+                    />
+                  )}
                 </Pressable>
               );
             })}
@@ -123,6 +132,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.sm,
+  },
+  resetAction: {
+    minHeight: 44,
+    paddingHorizontal: theme.spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.radius.sm,
+  },
+  resetText: {
+    ...theme.typography.button,
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+  },
+  resetTextDisabled: {
+    color: theme.colors.textMuted,
   },
   historyActionDisabled: {
     opacity: 0.45,

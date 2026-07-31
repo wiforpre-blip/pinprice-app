@@ -3,7 +3,7 @@ import { Keyboard, Text, View } from 'react-native';
 import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EditorCanvas } from '@/components/editor/EditorCanvas';
 import { EditorCoachMark } from '@/components/editor/EditorCoachMark';
@@ -32,7 +32,7 @@ import { useEditorCoach } from '@/hooks/useEditorCoach';
 import { useEditorDraftHydration } from '@/hooks/useEditorDraftHydration';
 import { useEditorExport } from '@/hooks/useEditorExport';
 import { useEditorLayout } from '@/hooks/useEditorLayout';
-import { getDraftId, getFilenameParam, getImageUri, useEditorSession } from '@/hooks/useEditorSession';
+import { getDraftId, getFilenameParam, getHydrateDraftParam, getImageUri, useEditorSession } from '@/hooks/useEditorSession';
 import { useEditorZoom, type CanvasTapPoint } from '@/hooks/useEditorZoom';
 import { usePriceListEditorState } from '@/hooks/usePriceListEditorState';
 import {
@@ -48,6 +48,7 @@ type EditorParams = {
   draftId?: string | string[];
   filename?: string | string[];
   imageUri?: string | string[];
+  hydrateDraft?: string | string[];
 };
 
 const STYLE_SHEET_ENTER_MS = 280;
@@ -55,14 +56,17 @@ const STYLE_SHEET_EXIT_MS = 220;
 
 export default function EditorScreen() {
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
-  const { draftId, filename: filenameParam, imageUri } = useLocalSearchParams<EditorParams>();
+  const { draftId, filename: filenameParam, imageUri, hydrateDraft: hydrateDraftParam } =
+    useLocalSearchParams<EditorParams>();
   const selectedImageUri = getImageUri(imageUri);
   const selectedDraftId = getDraftId(draftId);
   const routeFilename = getFilenameParam(filenameParam);
-  // Reserve space for the main floating bar only — history row stays absolute and must not resize imageRect.
+  const shouldHydrateDraft = getHydrateDraftParam(hydrateDraftParam);
+  // Reserve main bar height only — sm less than bar+gap so the floating pill
+  // overlaps the photo stage slightly (~8pt) instead of sitting flush on the edge.
+  // History row stays absolute and must not resize imageRect.
   const contentBottomPadding = selectedImageUri
-    ? EDITOR_FLOATING_MAIN_BAR_HEIGHT + theme.spacing.lg + insets.bottom
+    ? EDITOR_FLOATING_MAIN_BAR_HEIGHT
     : theme.spacing.sm;
   const draftSnapshotRef = useRef<EditorDraftSnapshot | null>(null);
   const styleButtonRef = useRef<View | null>(null);
@@ -73,11 +77,15 @@ export default function EditorScreen() {
   const [coachMeasureToken, setCoachMeasureToken] = useState(0);
   const [tipsResetToken, setTipsResetToken] = useState(0);
   const [keyboardCanvasLift, setKeyboardCanvasLift] = useState(0);
+  const [draftPreviewVisualOffsetY, setDraftPreviewVisualOffsetY] = useState(0);
   const bumpCoachMeasure = useCallback(() => {
     setCoachMeasureToken((current) => current + 1);
   }, []);
   const handleKeyboardCanvasLiftChange = useCallback((liftY: number) => {
     setKeyboardCanvasLift(liftY);
+  }, []);
+  const handleDraftPreviewVisualOffsetChange = useCallback((offsetY: number) => {
+    setDraftPreviewVisualOffsetY(Number.isFinite(offsetY) ? offsetY : 0);
   }, []);
   const handleEditorTipsReset = useCallback(() => {
     setTipsResetToken((current) => current + 1);
@@ -299,6 +307,7 @@ export default function EditorScreen() {
 
   useEditorDraftHydration({
     draftId: selectedDraftId,
+    hydrateDraft: shouldHydrateDraft,
     onHydrate: (draft) => {
       applyRestoredFilename(draft.filename);
       hydrateEditorMode(draft.editorMode);
@@ -370,14 +379,23 @@ export default function EditorScreen() {
     }
 
     const size = getSafeTagSize(tagSizeById[focusTag.id]);
+    // Match the visible draft preview: real tag.y plus visualOffsetY (negative = above keyboard/dock).
+    // keyboardCanvasLift stays 0 (canvas no longer lifts) but keep the term for safety.
     return {
       x: imageRect.x + focusTag.x * imageRect.width,
-      // Canvas content shifts up under the keyboard; keep the coach ring on the visible tag.
-      y: imageRect.y + focusTag.y * imageRect.height - keyboardCanvasLift,
+      y: imageRect.y + focusTag.y * imageRect.height - keyboardCanvasLift + draftPreviewVisualOffsetY,
       width: size.width,
       height: size.height,
     };
-  }, [activeStepId, focusTagId, imageRect, keyboardCanvasLift, tagSizeById, tags]);
+  }, [
+    activeStepId,
+    draftPreviewVisualOffsetY,
+    focusTagId,
+    imageRect,
+    keyboardCanvasLift,
+    tagSizeById,
+    tags,
+  ]);
 
   useEffect(() => {
     if (!activeStepId) {
@@ -385,7 +403,14 @@ export default function EditorScreen() {
     }
 
     bumpCoachMeasure();
-  }, [activeStepId, bumpCoachMeasure, coachTagRect, isStylePickerVisible, keyboardCanvasLift]);
+  }, [
+    activeStepId,
+    bumpCoachMeasure,
+    coachTagRect,
+    draftPreviewVisualOffsetY,
+    isStylePickerVisible,
+    keyboardCanvasLift,
+  ]);
 
   const handleCanvasPress = (point: CanvasTapPoint) => {
     if (!imageRect) {
@@ -685,6 +710,7 @@ export default function EditorScreen() {
             onCancelTagEdit={handleCancelTagEdit}
             onCanvasLayout={handleCanvasLayout}
             onKeyboardCanvasLiftChange={handleKeyboardCanvasLiftChange}
+            onDraftPreviewVisualOffsetChange={handleDraftPreviewVisualOffsetChange}
             onDeleteMarker={requestDeleteMarker}
             onDeleteTag={handleDeleteTag}
             onDraftChange={handleDraftChange}

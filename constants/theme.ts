@@ -19,6 +19,9 @@ export const PinPriceTheme = {
     quantityBlue: '#2F6FED',
     quantityTeal: '#0F8A7A',
     quantitySlate: '#4A5B6A',
+    /** Letterbox / stage behind the photo on crop + editor (not UI chrome mocks). */
+    photoStageBackground: '#111111',
+    /** Light mock fill for home/draft previews and non-stage UI samples. */
     photoMockBackground: '#ECEFF1',
     photoMockItem: '#D8DEE4',
     photoMockItemBorder: '#CBD3DA',

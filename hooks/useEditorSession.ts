@@ -1,10 +1,14 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler } from 'react-native';
+
+import { discardCropBakeSession } from '@/services/imageManipulator.service';
 
 const FALLBACK_FILENAME = 'Untitled';
 const UUID_LIKE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type LeaveIntent = 'editorBack' | 'newPhoto';
 
 export function getImageUri(imageUri: string | string[] | undefined) {
   const rawUri = Array.isArray(imageUri) ? imageUri[0] : imageUri;
@@ -39,6 +43,17 @@ export function getFilenameParam(filename: string | string[] | undefined) {
   } catch {
     return rawFilename.trim() || null;
   }
+}
+
+/** Route param from crop → editor. Default true when absent (legacy / direct entry). */
+export function getHydrateDraftParam(value: string | string[] | undefined) {
+  const raw = Array.isArray(value) ? value[0] : value;
+
+  if (raw == null || raw === '') {
+    return true;
+  }
+
+  return raw !== 'false' && raw !== '0';
 }
 
 function getFilenameFromUri(uri: string | null) {
@@ -99,6 +114,8 @@ export function useEditorSession({
   const [baselineFilename, setBaselineFilename] = useState(initialFilename);
   const [isEditingFilename, setIsEditingFilename] = useState(false);
   const [isLeaveModalVisible, setIsLeaveModalVisible] = useState(false);
+  /** Shared leave modal: editor chrome back vs preview "New photo". */
+  const leaveIntentRef = useRef<LeaveIntent>('editorBack');
 
   const hasUnsavedWork =
     Boolean(selectedImageUri) &&
@@ -120,13 +137,26 @@ export function useEditorSession({
     setIsEditingFilename(false);
   }, []);
 
-  const goHome = useCallback(() => {
+  /** Return to crop (or home if nothing to pop). Used by editor back / hardware back. */
+  const goBackInStack = useCallback(() => {
     if (router.canGoBack()) {
       router.back();
       return;
     }
 
     router.replace('/');
+  }, [router]);
+
+  /** Leave the whole home → crop → editor stack and land on home (New photo). */
+  const goHomeFresh = useCallback(() => {
+    void discardCropBakeSession().finally(() => {
+      if (router.canDismiss()) {
+        router.dismissAll();
+        return;
+      }
+
+      router.replace('/');
+    });
   }, [router]);
 
   const requestLeaveEditor = useCallback(() => {
@@ -139,30 +169,42 @@ export function useEditorSession({
       return;
     }
 
+    leaveIntentRef.current = 'editorBack';
+
     if (hasUnsavedWork) {
       setIsLeaveModalVisible(true);
       return;
     }
 
-    goHome();
-  }, [closePreview, goHome, hasUnsavedWork, isExporting, isPreviewing]);
+    goBackInStack();
+  }, [closePreview, goBackInStack, hasUnsavedWork, isExporting, isPreviewing]);
 
-  /** Preview header: confirm before leaving to pick a new photo. */
+  /** Preview header: confirm before leaving to pick a new photo on home. */
   const requestNewPhoto = useCallback(() => {
     if (isExporting) {
       return;
     }
 
+    leaveIntentRef.current = 'newPhoto';
     setIsLeaveModalVisible(true);
   }, [isExporting]);
 
   const cancelLeaveEditor = () => {
     setIsLeaveModalVisible(false);
+    leaveIntentRef.current = 'editorBack';
   };
 
   const confirmLeaveEditor = () => {
+    const intent = leaveIntentRef.current;
     setIsLeaveModalVisible(false);
-    goHome();
+    leaveIntentRef.current = 'editorBack';
+
+    if (intent === 'newPhoto') {
+      goHomeFresh();
+      return;
+    }
+
+    goBackInStack();
   };
 
   useEffect(() => {

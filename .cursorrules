@@ -85,7 +85,7 @@ PinPrice MVP is local-first and mobile-first.
 Allowed work:
 - Photo input: choose image / take photo
 - Tag editing: add, edit, drag, delete, undo
-- Tag types: Price, Sold, Reserved
+- Tag types: Price, Sold
 - Placement help: pinch-to-zoom on the photo
 - Output: preview, save, share
 - Basic tag styles and lightweight local settings
@@ -110,6 +110,7 @@ The following libraries are pre-approved. Do not add anything outside this list 
 - `expo-image-picker`
 - `expo-camera`
 - `expo-image`
+- `expo-image-manipulator`
 - `expo-media-library`
 - `react-native-gesture-handler`
 - `react-native-reanimated`
@@ -139,7 +140,7 @@ If a task seems to require a new library, stop and ask first.
 
 Domain concepts:
 
-* `TagType`: `'price' | 'sold' | 'reserved'`
+* `TagType`: `'price' | 'sold'`
 * `PriceTag`: `{ id, type: TagType, text, x: number, y: number, stylePresetId }`
 * Tag position must always be stored as normalized values (0.0–1.0) relative to image dimensions. Never store raw pixel values directly. Convert to pixels only at render/export time.
 * Tag type must be semantic, not only visual color
@@ -208,7 +209,7 @@ Boundary rules:
 - Services should not know about UI state, navigation, or rendered components.
 - Utils should be deterministic and side-effect free.
 - Hooks should stay focused on one domain. If one hook starts owning unrelated domains, split it.
-- Future-approved features in these rules, such as Reserved tags, watermark, or Pro tier, must not be implemented unless the task explicitly asks for them.
+- Future-approved features in these rules, such as watermark or Pro tier, must not be implemented unless the task explicitly asks for them.
 
 Style rules:
 - Small, local component styles may stay in the component file.
@@ -257,9 +258,9 @@ Tag behavior:
 
 Tag type rules:
 
-* Price, Sold, and Reserved are separate semantic types
+* Price and Sold are separate semantic types
 * Each type can have its own default style
-* Style changes for Price must not break Sold or Reserved
+* Style changes for Price must not break Sold
 * Avoid global "apply all" if it can break tag meaning
 * Prefer:
 
@@ -282,7 +283,7 @@ Export rules:
 * Test portrait and landscape images
 * Test dense layouts with multiple tags
 * Test long Thai/English text
-* Test Price, Sold, and Reserved together
+* Test Price and Sold together
 
 ---
 
@@ -292,7 +293,7 @@ Be aware of these differences and call them out in plans when relevant:
 
 * **Share sheet**: iOS uses native share modal. Android behavior varies by device/version — test both.
 * **expo-media-library**: requires permission prompt on both platforms. Handle denied state explicitly.
-* **Long press**: reserved for entering multi-select mode; sensitivity differs between platforms — test gesture threshold on both.
+* **Long press**: used for entering multi-select mode; sensitivity differs between platforms — test gesture threshold on both.
 * **react-native-view-shot**: capture timing can differ; await the capture promise fully before proceeding.
 * **Keyboard**: text input inside bottom sheets may trigger layout shifts differently on iOS vs Android — test tag text editing on both.
 
@@ -314,10 +315,9 @@ Important flows:
 
 1. Add price quickly
 2. Change to Sold quickly
-3. Change to Reserved quickly
-4. Move tag accurately
-5. Undo mistakes
-6. Preview/export confidently
+3. Move tag accurately
+4. Undo mistakes
+5. Preview/export confidently
 
 Permission or async states must handle:
 
@@ -435,7 +435,6 @@ QA checklist when relevant:
 * Add Price tag
 * Edit tag text
 * Change Price -> Sold
-* Change Price -> Reserved
 * Long press tag to enter multi-select
 * Drag tag
 * Delete tag

@@ -172,6 +172,32 @@
     }
   },
 
+  "crop": {
+    "back": "กลับ",
+    "next": "ถัดไป",
+    "undo": "Undo",
+    "redo": "Redo",
+    "reset": "Reset",
+    "rotateLeft": "หมุนซ้าย",
+    "rotateRight": "หมุนขวา",
+    "aspectTitle": "เลือกสัดส่วน",
+    "noImage": "ยังไม่ได้เลือกรูป",
+    "imageLoadError": "โหลดรูปนี้ไม่ได้",
+    "bakeError": "ครอปรูปไม่สำเร็จ ลองอีกครั้ง",
+    "preparing": "กำลังเตรียมรูป…",
+    "aspect": {
+      "original": "ต้นฉบับ",
+      "originalSub": "เต็มภาพ",
+      "square": "1:1",
+      "squareSub": "FB Grid / Shopee",
+      "portrait": "4:5",
+      "portraitSub": "FB / IG Post",
+      "story": "9:16",
+      "storySub": "Story / Reels",
+      "recommended": "แนะนำ"
+    }
+  },
+
   "pricePanel": {
     "confirmDeleteBody": "หมายเลขและแถวราคานี้จะถูกลบออก",
     "confirmDeleteTitle": "ลบรายการราคานี้?",

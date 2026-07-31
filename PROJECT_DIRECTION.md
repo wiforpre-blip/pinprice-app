@@ -26,7 +26,6 @@ Initial target users:
 Sellers often have one photo with many items. They need to show:
 - price
 - sold status
-- reserved status
 
 Existing tools like Canva, Phonto, PicsArt, or story editors can do this manually, but they are slow because sellers must create and position each text label one by one.
 
@@ -49,7 +48,6 @@ MVP includes:
 - Tag types:
   - Price
   - Sold
-  - Reserved
 - Quick status change:
   - long press tag to enter multi-select mode
   - tap tag to edit or change status
@@ -84,7 +82,7 @@ Do not build these in MVP:
 - Reduce taps
 - Avoid becoming Canva
 - Tag types must be semantic, not only visual styles
-- Price, Sold, and Reserved must keep separate styling logic
+- Price and Sold must keep separate styling logic
 - Export must match what the user sees in the editor
 - The app should remember lightweight settings only, such as last used style
 
@@ -104,7 +102,7 @@ Do not build these in MVP:
 
 3. Tag editor
    - Price text
-   - Tag type: Price / Sold / Reserved
+   - Tag type: Price / Sold
    - Confirm / Delete
 
 4. Preview / Export

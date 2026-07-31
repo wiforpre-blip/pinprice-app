@@ -69,6 +69,7 @@ export default function RootLayout() {
           <CurrencyProvider>
             <Stack>
               <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="crop" options={{ headerShown: false }} />
               <Stack.Screen name="editor" options={{ headerShown: false }} />
             </Stack>
             <StatusBar style={showAppSplash ? 'light' : 'auto'} />

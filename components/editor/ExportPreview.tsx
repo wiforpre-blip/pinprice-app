@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.photoMockBackground,
+    backgroundColor: theme.colors.photoStageBackground,
   },
   /** Measures available area; letterbox around the preview frame stays here. */
   exportHost: {
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     overflow: 'hidden',
-    backgroundColor: theme.colors.photoMockBackground,
+    backgroundColor: theme.colors.photoStageBackground,
   },
   image: {
     width: '100%',

@@ -12,8 +12,7 @@ export const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xs,
+    // Full-bleed photo stage — letterbox #111 reaches screen edges; header/bottom stay light.
     // paddingBottom is set at render time to clear the floating main bar + safe area.
   },
   // Above floating delete drop zone (zIndex 20) so the dragged tag floats over it.

@@ -99,7 +99,7 @@ export default function HomeScreen() {
     void Promise.all(SAMPLE_PHOTOS.map((sample) => resolveSampleEditorUri(sample)));
   }, []);
 
-  const openEditor = (imageUri: string, options?: { draftId?: string; filename?: string | null }) => {
+  const openCrop = (imageUri: string, options?: { draftId?: string; filename?: string | null }) => {
     const trimmedFilename = options?.filename?.trim();
     const params: { imageUri: string; draftId?: string; filename?: string } = {
       imageUri: encodeURIComponent(imageUri),
@@ -114,7 +114,7 @@ export default function HomeScreen() {
     }
 
     router.push({
-      pathname: '/editor',
+      pathname: '/crop',
       params,
     });
   };
@@ -127,7 +127,7 @@ export default function HomeScreen() {
     const asset = result.assets[0];
     const selectedUri = asset?.uri;
     if (selectedUri) {
-      openEditor(selectedUri, { filename: asset.fileName });
+      openCrop(selectedUri, { filename: asset.fileName });
     }
   };
 
@@ -154,7 +154,7 @@ export default function HomeScreen() {
         return;
       }
 
-      openEditor(draft.imageUri, { draftId: draft.id, filename: draft.filename });
+      openCrop(draft.imageUri, { draftId: draft.id, filename: draft.filename });
     } finally {
       setIsOpeningDraft(false);
     }
@@ -211,7 +211,7 @@ export default function HomeScreen() {
     try {
       const sampleUri = await resolveSampleEditorUri(sample);
       if (sampleUri) {
-        openEditor(sampleUri, { filename: sample.filename });
+        openCrop(sampleUri, { filename: sample.filename });
       }
     } catch {
       setMessage(t('home.photoPickerError'));

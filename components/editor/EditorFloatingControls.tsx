@@ -59,7 +59,9 @@ export function EditorFloatingControls({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const bottomInset = insets.bottom;
-  const floatingBottomPadding = theme.spacing.lg + bottomInset;
+  // Keep in sync with editor contentBottomPadding: bar sits on safe inset only
+  // so ~sm of the pill overlaps the photo stage. Inset clears home indicator.
+  const floatingBottomPadding = theme.spacing.sm + bottomInset;
   const showFloatingBars = Boolean(selectedImageUri) && !isStylePickerVisible && !isDraggingTag;
 
   return (
@@ -164,9 +166,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingHorizontal: theme.spacing.lg,
-    // Base bottom padding is applied at render time with safe-area inset so the
-    // absolute chrome clears the system nav / home indicator. Keep history row
-    // absolute so canvas/imageRect never resize when it appears.
+    // Bottom padding (sm + safe inset) is applied at render time so absolute
+    // chrome clears the home indicator while matching crop canvas reserve.
+    // Keep history row absolute so canvas/imageRect never resize when it appears.
   },
   floatingControlsLayerDragging: {
     // Stay below elevated content (zIndex 40) so the dragged tag floats over the delete zone.

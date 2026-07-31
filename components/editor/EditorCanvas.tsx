@@ -1,5 +1,5 @@
 import { Image, type ImageLoadEventData } from 'expo-image';
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { LayoutChangeEvent, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { ComposedGesture, GestureType } from 'react-native-gesture-handler';
 import type { AnimatedStyle } from 'react-native-reanimated';
@@ -45,6 +45,8 @@ type EditorCanvasProps = {
   onCanvasLayout: (event: LayoutChangeEvent) => void;
   /** Keyboard lift applied to canvas content — coach highlight must subtract this from tag Y. */
   onKeyboardCanvasLiftChange?: (liftY: number) => void;
+  /** Draft-preview-only Y shift (negative = up). Coach hole must match the visible tag. */
+  onDraftPreviewVisualOffsetChange?: (offsetY: number) => void;
   onDeleteMarker: (markerId: string) => void;
   onDeleteTag: (tagId: string) => void;
   onDraftChange: (preview: TagEditorDraftPreview, options?: { syncOnly?: boolean }) => void;
@@ -97,6 +99,7 @@ export function EditorCanvas({
   onCancelTagEdit,
   onCanvasLayout,
   onKeyboardCanvasLiftChange,
+  onDraftPreviewVisualOffsetChange,
   onDeleteMarker,
   onDeleteTag,
   onDraftChange,
@@ -148,8 +151,9 @@ export function EditorCanvas({
   useEffect(() => {
     return () => {
       onKeyboardCanvasLiftChange?.(0);
+      onDraftPreviewVisualOffsetChange?.(0);
     };
-  }, [onKeyboardCanvasLiftChange]);
+  }, [onDraftPreviewVisualOffsetChange, onKeyboardCanvasLiftChange]);
 
   const isTagEditorVisible =
     Boolean(selectedTag) && !isMultiSelectMode && draggingTagId !== selectedTagId && !isStylePickerVisible;
@@ -190,6 +194,10 @@ export function EditorCanvas({
     selectedTag,
     tagSizeById,
   ]);
+
+  useLayoutEffect(() => {
+    onDraftPreviewVisualOffsetChange?.(draftPreviewVisualOffsetY);
+  }, [draftPreviewVisualOffsetY, onDraftPreviewVisualOffsetChange]);
 
   useEffect(() => {
     if (!selectedSupportsInlineEdit) {
@@ -396,10 +404,7 @@ const styles = StyleSheet.create({
   canvas: {
     flex: 1,
     overflow: 'hidden',
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.photoMockBackground,
+    backgroundColor: theme.colors.photoStageBackground,
   },
   canvasContent: {
     flex: 1,
@@ -412,7 +417,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     overflow: 'hidden',
-    backgroundColor: theme.colors.photoMockBackground,
+    backgroundColor: theme.colors.photoStageBackground,
   },
   draggingCanvas: {
     overflow: 'visible',

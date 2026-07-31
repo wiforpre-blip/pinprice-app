@@ -172,6 +172,32 @@
     }
   },
 
+  "crop": {
+    "back": "Back",
+    "next": "Next",
+    "undo": "Undo",
+    "redo": "Redo",
+    "reset": "Reset",
+    "rotateLeft": "Left",
+    "rotateRight": "Right",
+    "aspectTitle": "Aspect ratio",
+    "noImage": "No image selected",
+    "imageLoadError": "Could not load this image.",
+    "bakeError": "Could not crop the image. Please try again.",
+    "preparing": "Preparing photo…",
+    "aspect": {
+      "original": "Original",
+      "originalSub": "Full image",
+      "square": "1:1",
+      "squareSub": "FB Grid / Shopee",
+      "portrait": "4:5",
+      "portraitSub": "FB / IG Post",
+      "story": "9:16",
+      "storySub": "Story / Reels",
+      "recommended": "Recommended"
+    }
+  },
+
   "pricePanel": {
     "confirmDeleteBody": "This marker and its price row will be removed.",
     "confirmDeleteTitle": "Delete this price item?",
