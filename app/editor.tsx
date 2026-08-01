@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EditorCanvas } from '@/components/editor/EditorCanvas';
 import { EditorCoachMark } from '@/components/editor/EditorCoachMark';
+import { EditorContextualTip } from '@/components/editor/EditorContextualTip';
 import {
   EDITOR_FLOATING_MAIN_BAR_HEIGHT,
   EditorFloatingControls,
@@ -29,6 +30,7 @@ import { useTranslation } from '@/contexts/LanguageContext';
 
 import { useEditorChrome } from '@/hooks/useEditorChrome';
 import { useEditorCoach } from '@/hooks/useEditorCoach';
+import { useEditorContextualTips } from '@/hooks/useEditorContextualTips';
 import { useEditorDraftHydration } from '@/hooks/useEditorDraftHydration';
 import { useEditorExport } from '@/hooks/useEditorExport';
 import { useEditorLayout } from '@/hooks/useEditorLayout';
@@ -41,7 +43,8 @@ import {
 } from '@/hooks/useTagEditorState';
 
 import type { EditorDraftSnapshot } from '@/types/draft';
-import { getSafeTagSize } from '@/utils/editorGeometry';
+import type { PriceTag } from '@/types/tag';
+import { clampPointToImageRect, getSafeTagSize } from '@/utils/editorGeometry';
 import { createCurrentHistorySnapshot } from '@/utils/editorHistory';
 
 type EditorParams = {
@@ -70,16 +73,21 @@ export default function EditorScreen() {
     : theme.spacing.sm;
   const draftSnapshotRef = useRef<EditorDraftSnapshot | null>(null);
   const styleButtonRef = useRef<View | null>(null);
+  const alignButtonRef = useRef<View | null>(null);
   const exportButtonRef = useRef<View | null>(null);
   const saveButtonRef = useRef<View | null>(null);
   const tagTypesSectionRef = useRef<View | null>(null);
   const sizeSectionRef = useRef<View | null>(null);
   const [coachMeasureToken, setCoachMeasureToken] = useState(0);
+  const [contextualTipMeasureToken, setContextualTipMeasureToken] = useState(0);
   const [tipsResetToken, setTipsResetToken] = useState(0);
   const [keyboardCanvasLift, setKeyboardCanvasLift] = useState(0);
   const [draftPreviewVisualOffsetY, setDraftPreviewVisualOffsetY] = useState(0);
   const bumpCoachMeasure = useCallback(() => {
     setCoachMeasureToken((current) => current + 1);
+  }, []);
+  const bumpContextualTipMeasure = useCallback(() => {
+    setContextualTipMeasureToken((current) => current + 1);
   }, []);
   const handleKeyboardCanvasLiftChange = useCallback((liftY: number) => {
     setKeyboardCanvasLift(liftY);
@@ -351,7 +359,8 @@ export default function EditorScreen() {
 
   const tagIds = useMemo(() => tags.map((tag) => tag.id), [tags]);
 
-  const { activeStepId, canGoBack, canGoNext, focusTagId, goBack, goNext, skip } = useEditorCoach({
+  const { activeStepId, canGoBack, canGoNext, focusTagId, goBack, goNext, isCoachCompleted, skip } =
+    useEditorCoach({
     draftTagId,
     editorMode,
     finishStylePicker,
@@ -368,6 +377,37 @@ export default function EditorScreen() {
     tipsResetToken,
   });
 
+  const {
+    message: contextualTipTitle,
+    notifyAlignTapped,
+    notifyEnteredMultiSelect,
+    onGotIt: onContextualTipGotIt,
+    visibleTipId: contextualTipId,
+  } = useEditorContextualTips({
+    alignFeedbackVisible: Boolean(alignFeedbackMessage),
+    coachCompleted: isCoachCompleted,
+    editorMode,
+    hasConfirmModal,
+    hasImage: Boolean(selectedImageUri),
+    hasTagEditorOpen: Boolean(selectedTag),
+    isDraggingTag,
+    isExporting,
+    isMultiSelectMode,
+    isPreviewing,
+    isStylePickerVisible,
+    selectedCount: selectedTagIds.length,
+    tagCount: tags.length,
+    tipsResetToken,
+  });
+
+  const handleTagLongPressWithTip = useCallback(
+    (tag: PriceTag) => {
+      handleTagLongPress(tag);
+      notifyEnteredMultiSelect();
+    },
+    [handleTagLongPress, notifyEnteredMultiSelect],
+  );
+
   const coachTagRect = useMemo(() => {
     if (!imageRect || !focusTagId) {
       return null;
@@ -383,11 +423,17 @@ export default function EditorScreen() {
     }
 
     const size = getSafeTagSize(tagSizeById[focusTag.id]);
-    // Match the visible draft preview: real tag.y plus visualOffsetY (negative = above keyboard/dock).
+    // Match TagOverlay placement (clamped) + draft visualOffsetY so the hole tracks the preview.
     // keyboardCanvasLift stays 0 (canvas no longer lifts) but keep the term for safety.
+    const clamped = clampPointToImageRect(
+      imageRect.x + focusTag.x * imageRect.width,
+      imageRect.y + focusTag.y * imageRect.height,
+      imageRect,
+      size,
+    );
     return {
-      x: imageRect.x + focusTag.x * imageRect.width,
-      y: imageRect.y + focusTag.y * imageRect.height - keyboardCanvasLift + draftPreviewVisualOffsetY,
+      x: clamped.x,
+      y: clamped.y - keyboardCanvasLift + draftPreviewVisualOffsetY,
       width: size.width,
       height: size.height,
     };
@@ -400,6 +446,32 @@ export default function EditorScreen() {
     tagSizeById,
     tags,
   ]);
+
+  /** Tip A spotlight — newest tag (single hole; never merges nearby tags). */
+  const contextualTipTagRect = useMemo(() => {
+    if (contextualTipId !== 'multi-select' || !imageRect || tags.length < 2) {
+      return null;
+    }
+
+    const focusTag = tags[tags.length - 1];
+    if (!focusTag) {
+      return null;
+    }
+
+    const size = getSafeTagSize(tagSizeById[focusTag.id]);
+    const clamped = clampPointToImageRect(
+      imageRect.x + focusTag.x * imageRect.width,
+      imageRect.y + focusTag.y * imageRect.height,
+      imageRect,
+      size,
+    );
+    return {
+      x: clamped.x,
+      y: clamped.y - keyboardCanvasLift,
+      width: size.width,
+      height: size.height,
+    };
+  }, [contextualTipId, imageRect, keyboardCanvasLift, tagSizeById, tags]);
 
   useEffect(() => {
     if (!activeStepId) {
@@ -415,6 +487,14 @@ export default function EditorScreen() {
     isStylePickerVisible,
     keyboardCanvasLift,
   ]);
+
+  useEffect(() => {
+    if (!contextualTipId) {
+      return;
+    }
+
+    bumpContextualTipMeasure();
+  }, [bumpContextualTipMeasure, contextualTipId, contextualTipTagRect, isMultiSelectMode]);
 
   const handleCanvasPress = (point: CanvasTapPoint) => {
     if (!imageRect) {
@@ -482,6 +562,7 @@ export default function EditorScreen() {
     }
 
     if (actionId === 'align') {
+      notifyAlignTapped();
       handleAlignSelectedTags();
       return;
     }
@@ -712,6 +793,7 @@ export default function EditorScreen() {
             groupDragOriginalTagsRef={groupDragOriginalTagsRef}
             imageRect={imageRect}
             imageUri={selectedImageUri}
+            hideSelectedTagRing={activeStepId === 'edit-price'}
             isDraggingTag={isDraggingTag}
             isMultiSelectMode={isMultiSelectMode}
             isStylePickerVisible={isStylePickerVisible}
@@ -734,7 +816,7 @@ export default function EditorScreen() {
             onTagDragMove={handleTagDragMove}
             onTagDragOffsetChange={handleTagDragOffsetChange}
             onTagDragStart={handleTagDragStart}
-            onTagLongPress={handleTagLongPress}
+            onTagLongPress={handleTagLongPressWithTip}
             onTagPress={handleTagPress}
             onTagSizeChange={handleTagSizeChange}
             panelMarkers={panelMarkers}
@@ -794,7 +876,20 @@ export default function EditorScreen() {
         />
       ) : null}
 
+      {contextualTipId && contextualTipTitle && !activeStepId ? (
+        <EditorContextualTip
+          alignButtonRef={alignButtonRef}
+          canvasRef={canvasRef}
+          measureToken={contextualTipMeasureToken}
+          onGotIt={onContextualTipGotIt}
+          tagRect={contextualTipTagRect}
+          tipId={contextualTipId}
+          title={contextualTipTitle}
+        />
+      ) : null}
+
       <EditorFloatingControls
+        alignButtonRef={alignButtonRef}
         alignFeedbackMessage={alignFeedbackMessage}
         bottomDropAreaRef={bottomDropAreaRef}
         canExport={canExport}
@@ -804,6 +899,7 @@ export default function EditorScreen() {
         isDraggingTag={isDraggingTag}
         isMultiSelectMode={isMultiSelectMode}
         isStylePickerVisible={isStylePickerVisible}
+        onAlignButtonLayout={bumpContextualTipMeasure}
         onBottomDropAreaLayout={handleBottomDropAreaLayout}
         onExportButtonLayout={bumpCoachMeasure}
         onFloatingMainAction={handleFloatingMainAction}

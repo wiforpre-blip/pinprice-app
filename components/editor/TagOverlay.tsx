@@ -51,6 +51,8 @@ type TagOverlayProps = {
   externalDragOffset?: DragPoint | null;
   inlineEdit?: TagInlineEdit | null;
   isSelected?: boolean;
+  /** Hide white selection chrome (e.g. coach step 2 uses accent hole ring only). */
+  hideSelectionRing?: boolean;
   minDragY?: number;
   tag: PriceTag;
   textOverride?: string;
@@ -138,6 +140,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
     externalDragOffset = null,
     inlineEdit = null,
     isSelected = false,
+    hideSelectionRing = false,
     minDragY,
     tag,
     textOverride,
@@ -605,7 +608,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
         isDragging && styles.draggingTag,
         isDragging && isFlatTag && styles.draggingFlatTag,
       ]}>
-      {isSelected ? (
+      {isSelected && !hideSelectionRing ? (
         <View
           pointerEvents="none"
           style={[

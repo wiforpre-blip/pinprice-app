@@ -30,9 +30,11 @@ type EditorFloatingControlsProps = {
   selectedTagIds: string[];
   isDragOverDelete: boolean;
   bottomDropAreaRef: RefObject<View | null>;
+  alignButtonRef?: RefObject<View | null>;
   styleButtonRef?: RefObject<View | null>;
   exportButtonRef?: RefObject<View | null>;
   onBottomDropAreaLayout: () => void;
+  onAlignButtonLayout?: () => void;
   onStyleButtonLayout?: () => void;
   onExportButtonLayout?: () => void;
   onFloatingMainAction: (actionId: FloatingMainActionId) => void;
@@ -49,9 +51,11 @@ export function EditorFloatingControls({
   selectedTagIds,
   isDragOverDelete,
   bottomDropAreaRef,
+  alignButtonRef,
   styleButtonRef,
   exportButtonRef,
   onBottomDropAreaLayout,
+  onAlignButtonLayout,
   onStyleButtonLayout,
   onExportButtonLayout,
   onFloatingMainAction,
@@ -110,8 +114,17 @@ export function EditorFloatingControls({
                 ? onStyleButtonLayout
                 : isExportAction
                   ? onExportButtonLayout
-                  : undefined;
-              const anchorRef = isStyleAction ? styleButtonRef : isExportAction ? exportButtonRef : undefined;
+                  : isAlignAction
+                    ? onAlignButtonLayout
+                    : undefined;
+              const anchorRef = isStyleAction
+                ? styleButtonRef
+                : isExportAction
+                  ? exportButtonRef
+                  : isAlignAction
+                    ? alignButtonRef
+                    : undefined;
+              const needsAnchor = isStyleAction || isExportAction || isAlignAction;
 
               return (
                 <View
@@ -119,7 +132,7 @@ export function EditorFloatingControls({
                   key={item.id}
                   onLayout={anchorOnLayout}
                   ref={anchorRef}
-                  style={isStyleAction || isExportAction ? styles.styleButtonAnchor : undefined}>
+                  style={needsAnchor ? styles.styleButtonAnchor : undefined}>
                   <Pressable
                     accessibilityLabel={actionLabel}
                     accessibilityRole="button"

@@ -249,6 +249,8 @@ export function useEditorCoach({
     focusTagId,
     goBack,
     goNext,
+    /** True only after storage load and coach finished/skipped — gates contextual tips. */
+    isCoachCompleted: isReady && isCompleted,
     skip,
   };
 }

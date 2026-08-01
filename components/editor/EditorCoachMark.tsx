@@ -34,15 +34,76 @@ type EditorCoachMarkProps = {
   onSkip: () => void;
 };
 
-const HOLE_PADDING = 6;
-const TAG_HOLE_PADDING = 10;
-const TAG_HOLE_RADIUS = 12;
+/** Per-target padding — canvas flush, tag/save tight to chrome. */
+const CANVAS_HOLE_PADDING = 0;
+const DEFAULT_HOLE_PADDING = 4;
+const TAG_HOLE_PADDING = 4;
+const SAVE_HOLE_PADDING = 3;
 const ARROW_SIZE = 10;
 const CARD_MAX_WIDTH = 320;
 const CARD_GAP = 10;
 const DIM_COLOR = 'rgba(0, 0, 0, 0.55)';
-/** Keep ring sharp to match the rectangular spotlight cutout. */
+/**
+ * Cutouts are axis-aligned rectangles (scanline dim). Accent rings must stay sharp
+ * so hole + highlight stack exactly — no fake rounded-corner discs.
+ */
 const HOLE_RADIUS = 0;
+
+type HoleRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+function roundRect(rect: HoleRect): HoleRect {
+  return {
+    x: Math.round(rect.x),
+    y: Math.round(rect.y),
+    width: Math.max(0, Math.round(rect.width)),
+    height: Math.max(0, Math.round(rect.height)),
+  };
+}
+
+function expandHole(
+  anchor: HoleRect,
+  padding: number,
+  rootWidth: number,
+  rootHeight: number,
+): HoleRect {
+  const x = Math.max(0, anchor.x - padding);
+  const y = Math.max(0, anchor.y - padding);
+  const right = Math.min(rootWidth, anchor.x + anchor.width + padding);
+  const bottom = Math.min(rootHeight, anchor.y + anchor.height + padding);
+  return {
+    x,
+    y,
+    width: Math.max(0, right - x),
+    height: Math.max(0, bottom - y),
+  };
+}
+
+/** Merge overlapping X intervals within one scanline strip. */
+function mergeXIntervals(intervals: { start: number; end: number }[]): { start: number; end: number }[] {
+  if (intervals.length === 0) {
+    return [];
+  }
+
+  const sorted = [...intervals].sort((a, b) => a.start - b.start);
+  const merged: { start: number; end: number }[] = [{ ...sorted[0] }];
+
+  for (let i = 1; i < sorted.length; i += 1) {
+    const current = sorted[i];
+    const last = merged[merged.length - 1];
+    if (current.start <= last.end) {
+      last.end = Math.max(last.end, current.end);
+    } else {
+      merged.push({ ...current });
+    }
+  }
+
+  return merged;
+}
 
 /** First-frame fallback only — real height comes from onLayout. */
 function estimateCardHeight(hasBody: boolean): number {
@@ -92,131 +153,77 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function RoundedHoleCorners({
-  hole,
-  radius,
-}: {
-  hole: { x: number; y: number; width: number; height: number };
-  radius: number;
-}) {
-  if (radius <= 0) {
-    return null;
-  }
-
-  const diameter = radius * 2;
-  return (
-    <>
-      <View
-        pointerEvents="none"
-        style={[
-          styles.roundedCornerDim,
-          {
-            width: diameter,
-            height: diameter,
-            borderRadius: radius,
-            top: hole.y - radius,
-            left: hole.x - radius,
-          },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.roundedCornerDim,
-          {
-            width: diameter,
-            height: diameter,
-            borderRadius: radius,
-            top: hole.y - radius,
-            left: hole.x + hole.width - radius,
-          },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.roundedCornerDim,
-          {
-            width: diameter,
-            height: diameter,
-            borderRadius: radius,
-            top: hole.y + hole.height - radius,
-            left: hole.x - radius,
-          },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.roundedCornerDim,
-          {
-            width: diameter,
-            height: diameter,
-            borderRadius: radius,
-            top: hole.y + hole.height - radius,
-            left: hole.x + hole.width - radius,
-          },
-        ]}
-      />
-    </>
-  );
-}
-
 /**
- * Renders dim overlay with two rectangular cutouts (holes) that don't overlap.
- * Splits the screen into horizontal bands and carves out each hole in its band.
- * When holes overlap vertically, merges them into one bounding rect.
+ * Dim overlay with two independent rectangular cutouts.
+ * Uses Y scanlines so nearby holes (tag + Save) never merge into one bounding box.
  */
 function DualCutoutDim({
   hole,
   secondaryHole,
-  primaryHoleRadius,
 }: {
-  hole: { x: number; y: number; width: number; height: number };
-  secondaryHole: { x: number; y: number; width: number; height: number };
-  primaryHoleRadius?: number;
+  hole: HoleRect;
+  secondaryHole: HoleRect;
 }) {
-  const top = hole.y < secondaryHole.y ? hole : secondaryHole;
-  const bottom = hole.y < secondaryHole.y ? secondaryHole : hole;
+  const holes = [hole, secondaryHole];
+  const yEdges = new Set<number>([0]);
+  for (const rect of holes) {
+    yEdges.add(rect.y);
+    yEdges.add(rect.y + rect.height);
+  }
+  const ys = [...yEdges].sort((a, b) => a - b);
 
-  const topEnd = top.y + top.height;
-  const overlaps = topEnd > bottom.y;
+  const strips: { key: string; style: { top: number; left: number; width?: number; right?: number; height: number } }[] =
+    [];
 
-  if (overlaps) {
-    const merged = {
-      x: Math.min(top.x, bottom.x),
-      y: top.y,
-      width: Math.max(top.x + top.width, bottom.x + bottom.width) - Math.min(top.x, bottom.x),
-      height: Math.max(topEnd, bottom.y + bottom.height) - top.y,
-    };
-    return (
-      <>
-        <View pointerEvents="none" style={[styles.dim, { top: 0, left: 0, right: 0, height: merged.y }]} />
-        <View pointerEvents="none" style={[styles.dim, { top: merged.y + merged.height, left: 0, right: 0, bottom: 0 }]} />
-        <View pointerEvents="none" style={[styles.dim, { top: merged.y, left: 0, width: merged.x, height: merged.height }]} />
-        <View pointerEvents="none" style={[styles.dim, { top: merged.y, left: merged.x + merged.width, right: 0, height: merged.height }]} />
-      </>
+  for (let i = 0; i < ys.length - 1; i += 1) {
+    const y0 = ys[i];
+    const y1 = ys[i + 1];
+    const stripHeight = y1 - y0;
+    if (stripHeight <= 0) {
+      continue;
+    }
+
+    const intervals = mergeXIntervals(
+      holes
+        .filter((rect) => rect.y < y1 && rect.y + rect.height > y0)
+        .map((rect) => ({ start: rect.x, end: rect.x + rect.width })),
     );
+
+    if (intervals.length === 0) {
+      strips.push({
+        key: `dim-full-${y0}`,
+        style: { top: y0, left: 0, right: 0, height: stripHeight },
+      });
+      continue;
+    }
+
+    let cursor = 0;
+    intervals.forEach((interval, index) => {
+      if (interval.start > cursor) {
+        strips.push({
+          key: `dim-gap-${y0}-${index}`,
+          style: { top: y0, left: cursor, width: interval.start - cursor, height: stripHeight },
+        });
+      }
+      cursor = Math.max(cursor, interval.end);
+    });
+
+    if (cursor >= 0) {
+      strips.push({
+        key: `dim-trail-${y0}`,
+        style: { top: y0, left: cursor, right: 0, height: stripHeight },
+      });
+    }
   }
 
-  const gapHeight = bottom.y - topEnd;
+  const maxBottom = Math.max(hole.y + hole.height, secondaryHole.y + secondaryHole.height);
+
   return (
     <>
-      {/* Above top hole */}
-      <View pointerEvents="none" style={[styles.dim, { top: 0, left: 0, right: 0, height: top.y }]} />
-      {/* Left of top hole */}
-      <View pointerEvents="none" style={[styles.dim, { top: top.y, left: 0, width: top.x, height: top.height }]} />
-      {/* Right of top hole */}
-      <View pointerEvents="none" style={[styles.dim, { top: top.y, left: top.x + top.width, right: 0, height: top.height }]} />
-      {/* Between holes */}
-      <View pointerEvents="none" style={[styles.dim, { top: topEnd, left: 0, right: 0, height: gapHeight }]} />
-      {/* Left of bottom hole */}
-      <View pointerEvents="none" style={[styles.dim, { top: bottom.y, left: 0, width: bottom.x, height: bottom.height }]} />
-      {/* Right of bottom hole */}
-      <View pointerEvents="none" style={[styles.dim, { top: bottom.y, left: bottom.x + bottom.width, right: 0, height: bottom.height }]} />
-      {/* Below bottom hole */}
-      <View pointerEvents="none" style={[styles.dim, { top: bottom.y + bottom.height, left: 0, right: 0, bottom: 0 }]} />
-      <RoundedHoleCorners hole={hole} radius={primaryHoleRadius ?? 0} />
+      {strips.map((strip) => (
+        <View key={strip.key} pointerEvents="none" style={[styles.dim, strip.style]} />
+      ))}
+      <View pointerEvents="none" style={[styles.dim, { top: maxBottom, left: 0, right: 0, bottom: 0 }]} />
     </>
   );
 }
@@ -308,31 +315,38 @@ export function EditorCoachMark({
 
       if (stepId === 'place-tag' && imageRect) {
         setSecondaryAnchor(null);
-        setAnchor({
-          x: localX + imageRect.x,
-          y: localY + imageRect.y,
-          width: imageRect.width,
-          height: imageRect.height,
-        });
+        // Round to whole pixels so the accent ring matches the visible image edge.
+        setAnchor(
+          roundRect({
+            x: localX + imageRect.x,
+            y: localY + imageRect.y,
+            width: imageRect.width,
+            height: imageRect.height,
+          }),
+        );
         return;
       }
 
       if ((stepId === 'edit-price' || stepId === 'drag-tag') && tagRect) {
-        setAnchor({
-          x: localX + tagRect.x,
-          y: localY + tagRect.y,
-          width: tagRect.width,
-          height: tagRect.height,
-        });
+        setAnchor(
+          roundRect({
+            x: localX + tagRect.x,
+            y: localY + tagRect.y,
+            width: tagRect.width,
+            height: tagRect.height,
+          }),
+        );
 
         // Step 2: also spotlight the dock Save button.
         if (stepId === 'edit-price' && saveRect) {
-          setSecondaryAnchor({
-            x: saveRect.x - rootRect.x,
-            y: saveRect.y - rootRect.y,
-            width: saveRect.width,
-            height: saveRect.height,
-          });
+          setSecondaryAnchor(
+            roundRect({
+              x: saveRect.x - rootRect.x,
+              y: saveRect.y - rootRect.y,
+              width: saveRect.width,
+              height: saveRect.height,
+            }),
+          );
         } else {
           setSecondaryAnchor(null);
         }
@@ -342,21 +356,23 @@ export function EditorCoachMark({
       setSecondaryAnchor(null);
 
       if (needsCanvas && !imageRect && !tagRect) {
-        setAnchor({
+        setAnchor(roundRect({
           x: localX,
           y: localY,
           width: targetRect.width,
           height: targetRect.height,
-        });
+        }));
         return;
       }
 
-      setAnchor({
-        x: localX,
-        y: localY,
-        width: targetRect.width,
-        height: targetRect.height,
-      });
+      setAnchor(
+        roundRect({
+          x: localX,
+          y: localY,
+          width: targetRect.width,
+          height: targetRect.height,
+        }),
+      );
     };
 
     void run();
@@ -383,18 +399,14 @@ export function EditorCoachMark({
       return null;
     }
 
-    const padding = stepId === 'drag-tag' || stepId === 'edit-price' ? TAG_HOLE_PADDING : HOLE_PADDING;
-    const x = Math.max(0, anchor.x - padding);
-    const y = Math.max(0, anchor.y - padding);
-    const right = Math.min(rootSize.width, anchor.x + anchor.width + padding);
-    const bottom = Math.min(rootSize.height, anchor.y + anchor.height + padding);
+    const padding =
+      stepId === 'place-tag'
+        ? CANVAS_HOLE_PADDING
+        : stepId === 'drag-tag' || stepId === 'edit-price'
+          ? TAG_HOLE_PADDING
+          : DEFAULT_HOLE_PADDING;
 
-    return {
-      x,
-      y,
-      width: Math.max(0, right - x),
-      height: Math.max(0, bottom - y),
-    };
+    return expandHole(anchor, padding, rootSize.width, rootSize.height);
   }, [anchor, rootSize.height, rootSize.width, stepId]);
 
   const secondaryHole = useMemo(() => {
@@ -402,17 +414,7 @@ export function EditorCoachMark({
       return null;
     }
 
-    const x = Math.max(0, secondaryAnchor.x - TAG_HOLE_PADDING);
-    const y = Math.max(0, secondaryAnchor.y - TAG_HOLE_PADDING);
-    const right = Math.min(rootSize.width, secondaryAnchor.x + secondaryAnchor.width + TAG_HOLE_PADDING);
-    const bottom = Math.min(rootSize.height, secondaryAnchor.y + secondaryAnchor.height + TAG_HOLE_PADDING);
-
-    return {
-      x,
-      y,
-      width: Math.max(0, right - x),
-      height: Math.max(0, bottom - y),
-    };
+    return expandHole(secondaryAnchor, SAVE_HOLE_PADDING, rootSize.width, rootSize.height);
   }, [rootSize.height, rootSize.width, secondaryAnchor]);
 
   const cardLayout = useMemo(() => {
@@ -440,16 +442,42 @@ export function EditorCoachMark({
         Math.min(hole.x + hole.width / 2 - cardWidth / 2, containerWidth - cardWidth - theme.spacing.lg),
       );
 
-      // Prefer above the hole for edit/drag so the dock and tag stay free.
+      // Tag steps: choose above/below from real free space.
+      // Top-of-canvas tags → tooltip below the hole with arrow pointing up at the tag.
       if (stepId === 'edit-price' || stepId === 'drag-tag') {
-        const preferredTop = hole.y - cardHeight - CARD_GAP;
-        const top = clamp(preferredTop, minTop, maxTop);
-        const fitsAbove = preferredTop >= minTop;
+        const preferredAbove = hole.y - cardHeight - CARD_GAP;
+        const preferredBelow = hole.y + hole.height + CARD_GAP;
+        const fitsAbove = preferredAbove >= minTop;
+        const fitsBelow = preferredBelow <= maxTop;
+        const tagNearTop = hole.y < minTop + cardHeight + CARD_GAP;
+
+        if (fitsBelow && (tagNearTop || !fitsAbove)) {
+          return {
+            left,
+            top: preferredBelow,
+            width: cardWidth,
+            arrowPointsUp: true,
+          };
+        }
+
+        if (fitsAbove) {
+          return {
+            left,
+            top: preferredAbove,
+            width: cardWidth,
+            arrowPointsUp: false,
+          };
+        }
+
+        // Neither fits cleanly — pick the side with more room and clamp.
+        const spaceAbove = hole.y - minTop;
+        const spaceBelow = maxTop - (hole.y + hole.height);
+        const useBelow = spaceBelow >= spaceAbove;
         return {
           left,
-          top,
+          top: clamp(useBelow ? preferredBelow : preferredAbove, minTop, maxTop),
           width: cardWidth,
-          arrowPointsUp: !fitsAbove,
+          arrowPointsUp: useBelow,
         };
       }
 
@@ -490,7 +518,6 @@ export function EditorCoachMark({
   // so the normal dismiss/save path can advance the tutorial.
   const dimPointerEvents = stepId === 'edit-price' ? 'none' : 'auto';
   const usePassThroughDim = stepId === 'edit-price';
-  const tagHoleRadius = stepId === 'edit-price' || stepId === 'drag-tag' ? TAG_HOLE_RADIUS : HOLE_RADIUS;
 
   return (
     <View
@@ -500,14 +527,13 @@ export function EditorCoachMark({
       ref={rootRef}
       style={styles.root}>
       {usePassThroughDim && hole && secondaryHole ? (
-        <DualCutoutDim hole={hole} secondaryHole={secondaryHole} primaryHoleRadius={TAG_HOLE_RADIUS} />
+        <DualCutoutDim hole={hole} secondaryHole={secondaryHole} />
       ) : usePassThroughDim && hole ? (
         <>
           <View pointerEvents="none" style={[styles.dim, { top: 0, left: 0, right: 0, height: hole.y }]} />
           <View pointerEvents="none" style={[styles.dim, { top: hole.y + hole.height, left: 0, right: 0, bottom: 0 }]} />
           <View pointerEvents="none" style={[styles.dim, { top: hole.y, left: 0, width: hole.x, height: hole.height }]} />
           <View pointerEvents="none" style={[styles.dim, { top: hole.y, left: hole.x + hole.width, right: 0, height: hole.height }]} />
-          <RoundedHoleCorners hole={hole} radius={TAG_HOLE_RADIUS} />
         </>
       ) : usePassThroughDim ? (
         <View pointerEvents="none" style={[styles.dim, StyleSheet.absoluteFillObject]} />
@@ -529,7 +555,6 @@ export function EditorCoachMark({
               { top: hole.y, left: hole.x + hole.width, right: 0, height: hole.height },
             ]}
           />
-          <RoundedHoleCorners hole={hole} radius={tagHoleRadius} />
         </>
       ) : (
         <View pointerEvents={dimPointerEvents} style={[styles.dim, StyleSheet.absoluteFillObject]} />
@@ -545,7 +570,7 @@ export function EditorCoachMark({
               left: hole.x,
               width: hole.width,
               height: hole.height,
-              borderRadius: tagHoleRadius,
+              borderRadius: HOLE_RADIUS,
             },
           ]}
         />
@@ -637,10 +662,6 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   dim: {
-    position: 'absolute',
-    backgroundColor: DIM_COLOR,
-  },
-  roundedCornerDim: {
     position: 'absolute',
     backgroundColor: DIM_COLOR,
   },

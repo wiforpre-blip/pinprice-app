@@ -41,6 +41,8 @@ type EditorCanvasProps = {
   isDraggingTag: boolean;
   isMultiSelectMode: boolean;
   isStylePickerVisible: boolean;
+  /** Coach edit-price step: hide white selected ring so accent hole is the only chrome. */
+  hideSelectedTagRing?: boolean;
   onCancelTagEdit: () => void;
   onCanvasLayout: (event: LayoutChangeEvent) => void;
   /** Keyboard lift applied to canvas content — coach highlight must subtract this from tag Y. */
@@ -96,6 +98,7 @@ export function EditorCanvas({
   isDraggingTag,
   isMultiSelectMode,
   isStylePickerVisible,
+  hideSelectedTagRing = false,
   onCancelTagEdit,
   onCanvasLayout,
   onKeyboardCanvasLiftChange,
@@ -324,6 +327,7 @@ export function EditorCanvas({
                       dragEnabled={canDragTag && !isInlineEditingSelected}
                       externalDragOffset={isSiblingInGroupDrag ? groupDragOffset : null}
                       imageRect={imageRect}
+                      hideSelectionRing={hideSelectedTagRing && tag.id === selectedTagId}
                       inlineEdit={isInlineEditingSelected ? activeInlineEdit : null}
                       isSelected={isTagSelected}
                       key={tag.id}

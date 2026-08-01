@@ -156,6 +156,10 @@
       "zoom": "Pinch to zoom, then drag tags into place",
       "export": "Tap Export to save or share"
     },
+    "contextualTips": {
+      "multiSelect": "Long-press a tag to select several",
+      "align": "Tap Align — for nearby tags"
+    },
     "coach": {
       "stepLabel": "Step",
       "skip": "Skip",

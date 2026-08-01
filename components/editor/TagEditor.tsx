@@ -494,6 +494,27 @@ export function TagEditor({
     onKeyboardOverlapChangeRef.current?.(visible ? effectiveKeyboardOverlap : 0);
   }, [effectiveKeyboardOverlap, visible]);
 
+  // Dock `bottom` moves the Save button in window space without firing child onLayout.
+  // Re-bump coach measure on provisional → real keyboard (and dock ready) so the Save hole tracks.
+  useEffect(() => {
+    if (!visible || !isDockReady || !onSaveButtonLayout) {
+      return;
+    }
+
+    onSaveButtonLayout();
+    const frameId = requestAnimationFrame(() => {
+      onSaveButtonLayout();
+    });
+    // IME height often lands after the first overlap event; catch the settled dock.
+    const settleId = setTimeout(() => {
+      onSaveButtonLayout();
+    }, 120);
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(settleId);
+    };
+  }, [effectiveKeyboardOverlap, isDockReady, onSaveButtonLayout, visible]);
+
   useEffect(() => {
     return () => {
       onKeyboardOverlapChangeRef.current?.(0);

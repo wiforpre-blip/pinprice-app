@@ -46,7 +46,15 @@ export function isCoachActionRequiredStep(stepId: EditorCoachStepId): boolean {
   return stepId === 'place-tag' || stepId === 'edit-price';
 }
 
-/** @deprecated Legacy tip ids retained for AsyncStorage parse safety. */
+/** Contextual tips shown after the first-run coach completes. */
+export const EDITOR_CONTEXTUAL_TIP_IDS = ['multi-select', 'align'] as const;
+
+export type EditorContextualTipId = (typeof EDITOR_CONTEXTUAL_TIP_IDS)[number];
+
+/**
+ * Persistable tip ids. Includes legacy ids for AsyncStorage parse safety
+ * plus contextual tip ids used by useEditorContextualTips.
+ */
 export const EDITOR_TIP_IDS = [
   'add-tag',
   'drag-tag',
@@ -55,10 +63,15 @@ export const EDITOR_TIP_IDS = [
   'select',
   'zoom',
   'export',
+  ...EDITOR_CONTEXTUAL_TIP_IDS,
 ] as const;
 
 export type EditorTipId = (typeof EDITOR_TIP_IDS)[number];
 
 export function isEditorTipId(value: string): value is EditorTipId {
   return (EDITOR_TIP_IDS as readonly string[]).includes(value);
+}
+
+export function isEditorContextualTipId(value: string): value is EditorContextualTipId {
+  return (EDITOR_CONTEXTUAL_TIP_IDS as readonly string[]).includes(value);
 }
