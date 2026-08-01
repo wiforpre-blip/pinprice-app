@@ -2,12 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import {
+  DEFAULT_CONDITION_SIZE_PRESET_ID,
+  DEFAULT_LANGUAGE_SIZE_PRESET_ID,
+  DEFAULT_PRICE_TEXT_SIZE_PRESET_ID,
   DEFAULT_TAG_SIZE_PRESET_ID,
   DEFAULT_TAG_STYLE_BY_TYPE,
   estimatePlacementTagSize,
+  getStyleFamilyId,
+  getStylePresetForFamily,
   getStylePresetForType,
   SOLD_STYLE_PRESET_ORDER,
 } from '@/constants/tagPresets';
+import type { TagStyleFamilyId } from '@/constants/tagPresets';
 import {
   DEFAULT_CONDITION_TEXT,
   DEFAULT_CONDITION_VALUE,
@@ -18,14 +24,10 @@ import {
   DEFAULT_SOLD_TEXT_FORMAT,
   DEFAULT_TEXT_TAG,
   SOLD_ICON_TEXT,
-  TAG_CONDITION_VALUE_CYCLE,
-  TAG_LANGUAGE_CODE_CYCLE,
-  TEXT_STYLE_PRESET_CYCLE,
   getLargerSizePreset,
-  getNextCycleValue,
   getSmallerSizePreset,
-  isInfoTagType,
   toPickerSizePreset,
+  usesInfoSizeStepDown,
 } from '@/constants/tagDefaults';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation } from '@/contexts/LanguageContext';
@@ -51,7 +53,7 @@ import {
   isPointInsideRect,
   isPointNearImageRect,
 } from '@/utils/editorGeometry';
-import { clampPriceTextFormat, extractPriceDigits, formatPriceDisplay, getPriceTextFormatsForCurrency } from '@/utils/priceText';
+import { clampPriceTextFormat, extractPriceDigits, formatPriceDisplay } from '@/utils/priceText';
 
 export {
   DEFAULT_CONDITION_TEXT,
@@ -299,8 +301,10 @@ export function useTagEditorState({
   const [currentStylePresetByType, setCurrentStylePresetByType] = useState<Record<TagType, TagStylePresetId>>({
     ...DEFAULT_TAG_STYLE_BY_TYPE,
   });
+  /** Last shared style family picked on price or text — carries the look across the two types. */
+  const [lastMainTextStyleFamilyId, setLastMainTextStyleFamilyId] = useState<TagStyleFamilyId | null>(null);
   const [sizePresetOverrideByType, setSizePresetOverrideByType] = useState<Partial<Record<TagType, TagSizePresetId>>>({});
-  const [currentSizePresetId, setCurrentSizePresetId] = useState<TagSizePresetId>(DEFAULT_TAG_SIZE_PRESET_ID);
+  const [currentSizePresetId, setCurrentSizePresetId] = useState<TagSizePresetId>(DEFAULT_PRICE_TEXT_SIZE_PRESET_ID);
   const [currentPriceTextFormat, setCurrentPriceTextFormat] = useState<PriceTextFormat>('symbol');
   const [currentSoldTextFormat, setCurrentSoldTextFormat] = useState<SoldTextFormat>(DEFAULT_SOLD_TEXT_FORMAT);
   const [currentLanguageCode, setCurrentLanguageCode] = useState<TagLanguageCode>(DEFAULT_LANGUAGE_CODE);
@@ -434,7 +438,13 @@ export function useTagEditorState({
     const soldLabel = t('tag.sold');
     const sizePresetId =
       sizePresetOverrideByType[currentToolType] ??
-      (isInfoTagType(currentToolType) ? getSmallerSizePreset(currentSizePresetId) : currentSizePresetId);
+      (currentToolType === 'condition'
+        ? DEFAULT_CONDITION_SIZE_PRESET_ID
+        : currentToolType === 'language'
+          ? DEFAULT_LANGUAGE_SIZE_PRESET_ID
+          : usesInfoSizeStepDown(currentToolType)
+            ? getSmallerSizePreset(currentSizePresetId)
+            : currentSizePresetId);
     // Clamp with a realistic chip size so wide tags do not hang past the right edge.
     const placementSize = estimatePlacementTagSize(currentToolType, sizePresetId, imageRect.width);
     const { x, y } = getNormalizedPointFromCanvasPoint(touchX, touchY, imageRect, placementSize);
@@ -558,6 +568,13 @@ export function useTagEditorState({
         ...currentPresets,
         [previousTag.type]: nextStylePresetId,
       }));
+
+      if (previousTag.type === 'price' || previousTag.type === 'text') {
+        const familyId = getStyleFamilyId(nextStylePresetId);
+        if (familyId) {
+          setLastMainTextStyleFamilyId(familyId);
+        }
+      }
 
       if (nextSizePresetId) {
         setSizePresetOverrideByType((currentSizes) => ({
@@ -754,55 +771,98 @@ export function useTagEditorState({
   };
 
   const handleSelectToolType = (type: TagType) => {
-    if (type === currentToolType) {
-      if (type === 'price') {
-        const formats = getPriceTextFormatsForCurrency(currency);
-        setCurrentPriceTextFormat((current) => getNextCycleValue(formats, clampPriceTextFormat(currency, current)));
-        return;
-      }
+    const previousType = currentToolType;
+    setCurrentToolType(type);
 
-      if (type === 'sold') {
-        const currentId =
-          currentSoldTextFormat === 'icon_plain'
-            ? 'sold-icon-plain'
-            : getStylePresetForType('sold', currentStylePresetByType.sold);
-        const nextId = getNextCycleValue([...SOLD_STYLE_PRESET_ORDER], currentId);
-        setCurrentStylePresetByType((currentPresets) => ({
-          ...currentPresets,
-          sold: nextId,
-        }));
-        setCurrentSoldTextFormat(nextId === 'sold-icon-plain' ? 'icon_plain' : 'text');
-        return;
-      }
+    if (type !== 'price' && type !== 'text') {
+      return;
+    }
 
-      if (type === 'text') {
-        setCurrentStylePresetByType((currentPresets) => {
-          const currentId = getStylePresetForType('text', currentPresets.text);
-          return {
-            ...currentPresets,
-            text: getNextCycleValue(TEXT_STYLE_PRESET_CYCLE, currentId),
-          };
-        });
-        return;
-      }
+    // Prefer the last family the seller explicitly picked; if empty, fall back to the
+    // active preset on the type we are leaving so price ↔ text still stay in sync.
+    let familyId = lastMainTextStyleFamilyId;
+    if (!familyId && (previousType === 'price' || previousType === 'text')) {
+      familyId = getStyleFamilyId(
+        getStylePresetForType(previousType, currentStylePresetByType[previousType]),
+      );
+    }
 
-      if (type === 'language') {
-        setCurrentLanguageCode((current) => getNextCycleValue(TAG_LANGUAGE_CODE_CYCLE, current));
-        return;
-      }
+    if (!familyId) {
+      return;
+    }
 
-      if (type === 'condition') {
-        setCurrentConditionValue((current) => getNextCycleValue(TAG_CONDITION_VALUE_CYCLE, current));
-        return;
+    setLastMainTextStyleFamilyId(familyId);
+    setCurrentStylePresetByType((currentPresets) => ({
+      ...currentPresets,
+      [type]: getStylePresetForFamily(type, familyId),
+    }));
+  };
+
+  const handleSelectToolStylePreset = (type: TagType, stylePresetId: TagStylePresetId) => {
+    const resolvedStylePresetId = getStylePresetForType(type, stylePresetId);
+
+    setCurrentStylePresetByType((currentPresets) => ({
+      ...currentPresets,
+      [type]: resolvedStylePresetId,
+    }));
+
+    if (type === 'price' || type === 'text') {
+      const familyId = getStyleFamilyId(resolvedStylePresetId);
+      if (familyId) {
+        setLastMainTextStyleFamilyId(familyId);
       }
     }
 
-    setCurrentToolType(type);
+    if (type === 'sold') {
+      setCurrentSoldTextFormat((currentFormat) => {
+        if (resolvedStylePresetId === 'sold-icon-plain') {
+          return 'icon_plain';
+        }
+
+        return currentFormat === 'icon_plain' ? 'text' : currentFormat;
+      });
+    }
+  };
+
+  const handleSelectToolPriceFormat = (format: PriceTextFormat) => {
+    setCurrentPriceTextFormat(clampPriceTextFormat(currency, format));
+  };
+
+  const handleSelectToolSoldTextFormat = (format: SoldTextFormat) => {
+    setCurrentSoldTextFormat(format);
+
+    if (format === 'icon_plain') {
+      return;
+    }
+
+    setCurrentStylePresetByType((currentPresets) => {
+      if (currentPresets.sold !== 'sold-icon-plain') {
+        return currentPresets;
+      }
+
+      const fallbackPresetId =
+        SOLD_STYLE_PRESET_ORDER.find((presetId) => presetId !== 'sold-icon-plain') ?? 'sold-red';
+
+      return {
+        ...currentPresets,
+        sold: fallbackPresetId,
+      };
+    });
+  };
+
+  const handleSelectToolConditionValue = (value: TagConditionValue) => {
+    setCurrentConditionValue(value);
+  };
+
+  const handleSelectToolLanguageCode = (code: TagLanguageCode) => {
+    setCurrentLanguageCode(code);
   };
 
   const handleSelectSizePreset = (sizePresetId: TagSizePresetId) => {
     setCurrentSizePresetId(sizePresetId);
-    const resolvedSizeForTool = isInfoTagType(currentToolType) ? getSmallerSizePreset(sizePresetId) : sizePresetId;
+    const resolvedSizeForTool = usesInfoSizeStepDown(currentToolType)
+      ? getSmallerSizePreset(sizePresetId)
+      : sizePresetId;
     setSizePresetOverrideByType((currentSizes) => ({
       ...currentSizes,
       [currentToolType]: resolvedSizeForTool,
@@ -1049,19 +1109,24 @@ export function useTagEditorState({
   };
 
   const stylePickerType = currentToolType;
-  const activeStylePresetId =
-    selectedTag && selectedTag.type === stylePickerType
-      ? getStylePresetForType(stylePickerType, selectedTag.stylePresetId)
-      : currentStylePresetByType[stylePickerType];
-  // Info tags store a stepped-down size for render; map back up so picker chips match the tap.
+  const activeStylePresetId = getStylePresetForType(
+    stylePickerType,
+    currentStylePresetByType[stylePickerType],
+  );
+  // Quantity stores a stepped-down size for render; map back up so picker chips match the tap.
   const storedActiveSize =
     selectedTag && selectedTag.type === stylePickerType
       ? selectedTag.sizePresetId
       : sizePresetOverrideByType[stylePickerType];
   const activeSizePresetId = toPickerSizePreset(
-    storedActiveSize != null && isInfoTagType(stylePickerType)
+    storedActiveSize != null && usesInfoSizeStepDown(stylePickerType)
       ? getLargerSizePreset(storedActiveSize)
-      : (storedActiveSize ?? currentSizePresetId),
+      : (storedActiveSize ??
+          (stylePickerType === 'condition'
+            ? DEFAULT_CONDITION_SIZE_PRESET_ID
+            : stylePickerType === 'language'
+              ? DEFAULT_LANGUAGE_SIZE_PRESET_ID
+              : currentSizePresetId)),
   );
   const soldLabel = t('tag.sold');
   const stylePreviewText = (() => {
@@ -1073,7 +1138,7 @@ export function useTagEditorState({
       case 'condition':
         return currentConditionValue;
       case 'quantity':
-        return 'x4';
+        return `x${DEFAULT_QUANTITY}`;
       case 'language':
         return currentLanguageCode;
       case 'price':
@@ -1083,7 +1148,13 @@ export function useTagEditorState({
   const stylePreviewSizeId =
     (selectedTag && selectedTag.type === stylePickerType ? selectedTag.sizePresetId : undefined) ??
     sizePresetOverrideByType[stylePickerType] ??
-    (isInfoTagType(stylePickerType) ? getSmallerSizePreset(currentSizePresetId) : currentSizePresetId);
+    (stylePickerType === 'condition'
+      ? DEFAULT_CONDITION_SIZE_PRESET_ID
+      : stylePickerType === 'language'
+        ? DEFAULT_LANGUAGE_SIZE_PRESET_ID
+        : usesInfoSizeStepDown(stylePickerType)
+          ? getSmallerSizePreset(currentSizePresetId)
+          : currentSizePresetId);
   const soldStylePresetId =
     currentSoldTextFormat === 'icon_plain'
       ? 'sold-icon-plain'
@@ -1108,6 +1179,7 @@ export function useTagEditorState({
   };
 
   return {
+    activeStylePresetId,
     activeSizePresetId,
     addTagAtPoint,
     alignFeedbackMessage,
@@ -1142,6 +1214,11 @@ export function useTagEditorState({
     handleDraftChange,
     handleSaveTag,
     handleSelectSizePreset,
+    handleSelectToolConditionValue,
+    handleSelectToolLanguageCode,
+    handleSelectToolPriceFormat,
+    handleSelectToolSoldTextFormat,
+    handleSelectToolStylePreset,
     handleSelectToolType,
     handleTagDragCancel,
     handleTagDragEnd,

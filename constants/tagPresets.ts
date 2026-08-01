@@ -13,6 +13,12 @@ export type TagTextShadow = {
   radius: number;
 };
 
+/** Glyph outline (seller overlay text). Rendered as a soft textShadow halo via TagOutlinedText — not a View border. */
+export type TagTextOutline = {
+  color: string;
+  width: number;
+};
+
 /** View chrome shadow (iOS shadow* + Android elevation). `null` = flat. */
 export type TagViewShadow = {
   shadowColor: string;
@@ -37,6 +43,7 @@ export type ResolvedTagPreset = {
   fontWeight: TagFontWeight;
   fontStyle: NonNullable<TextStyle['fontStyle']>;
   textShadow: TagTextShadow | null;
+  textOutline: TagTextOutline | null;
   borderRadius: number;
   borderWidth: number;
   /** View chrome shadow; `null` means flat (no elevation/shadow). */
@@ -59,6 +66,8 @@ type TagStylePresetDefinition = {
   color: string;
   fontWeight?: TagFontWeight;
   textShadow?: TagTextShadow | null;
+  /** Hard black/color stroke around glyphs — overlay text look, not a badge border. */
+  textOutline?: TagTextOutline | null;
   borderRadius?: number;
   borderWidth?: number;
   /** Explicit view shadow; omit for default (flat when transparent bg, else tag shadow). */
@@ -77,6 +86,14 @@ const STRONG_BLACK_SHADOW: TagTextShadow = {
   color: 'rgba(0, 0, 0, 0.85)',
   offset: { width: 0, height: 1 },
   radius: 4,
+};
+
+/** Safety yellow fill used by marketplace overlay text (yellow + black stroke). */
+const YELLOW_OUTLINE_FILL = '#FFE600';
+const YELLOW_BLACK_OUTLINE: TagTextOutline = {
+  color: '#000000',
+  /** Feeds textShadowRadius = Math.max(3, width + 1) for the halo effect (see TagOutlinedText). */
+  width: 3,
 };
 
 const DEFAULT_TAG_FONT_WEIGHT: TagFontWeight = theme.typography.tag.fontWeight;
@@ -146,7 +163,20 @@ export const DEFAULT_TAG_STYLE_BY_TYPE: Record<TagType, TagStylePresetId> = {
   language: 'language-default',
 };
 
+/** Fallback when a tag has no sizePresetId (legacy / unresolved). */
 export const DEFAULT_TAG_SIZE_PRESET_ID: TagSizePresetId = 'medium';
+
+/** Default create/picker size for price + text tags (quantity still steps down from the active picker size). */
+export const DEFAULT_PRICE_TEXT_SIZE_PRESET_ID: TagSizePresetId = 'large';
+
+/** Default create/picker size for condition (card grade) tags — independent of the shared main size. */
+export const DEFAULT_CONDITION_SIZE_PRESET_ID: TagSizePresetId = 'small';
+
+/** Default create/picker size for language tags — independent of the shared main size. */
+export const DEFAULT_LANGUAGE_SIZE_PRESET_ID: TagSizePresetId = 'small';
+
+/** Width/height floor so language chips stay capsule (not circle) at every size. */
+const LANGUAGE_CAPSULE_ASPECT = 1.45;
 
 export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinition> = {
   'price-white-black': {
@@ -219,6 +249,28 @@ export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinitio
     borderWidth: 2,
     textShadow: STRONG_BLACK_SHADOW,
     viewShadow: null,
+  },
+  'price-yellow-outline': {
+    label: 'เหลืองขอบดำ',
+    type: 'price',
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    color: YELLOW_OUTLINE_FILL,
+    fontWeight: '800',
+    borderWidth: 0,
+    textOutline: YELLOW_BLACK_OUTLINE,
+    textShadow: null,
+    viewShadow: null,
+  },
+  'price-dark-overlay': {
+    label: 'Dark overlay',
+    type: 'price',
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    borderColor: '#4B5563',
+    color: '#FFFFFF',
+    fontWeight: '700',
+    borderRadius: 8,
+    borderWidth: 1,
   },
   'price-neon-green': {
     label: 'Neon',
@@ -346,6 +398,22 @@ export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinitio
     color: theme.tags.text.color,
     fontWeight: '800',
   },
+  'text-black-white': {
+    label: 'Black / White',
+    type: 'text',
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+    color: theme.colors.white,
+    fontWeight: '800',
+  },
+  'text-red-white': {
+    label: 'Red / White',
+    type: 'text',
+    backgroundColor: theme.tags.priceRed.backgroundColor,
+    borderColor: theme.tags.priceRed.borderColor,
+    color: theme.tags.priceRed.color,
+    fontWeight: '800',
+  },
   'text-white-border': {
     label: 'White border',
     type: 'text',
@@ -414,6 +482,18 @@ export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinitio
     textShadow: STRONG_BLACK_SHADOW,
     viewShadow: null,
   },
+  'text-yellow-outline': {
+    label: 'เหลืองขอบดำ',
+    type: 'text',
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    color: YELLOW_OUTLINE_FILL,
+    fontWeight: '800',
+    borderWidth: 0,
+    textOutline: YELLOW_BLACK_OUTLINE,
+    textShadow: null,
+    viewShadow: null,
+  },
   'text-soft-note': {
     label: 'Soft note',
     type: 'text',
@@ -446,6 +526,7 @@ export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinitio
     backgroundColor: theme.colors.quantityBlue,
     borderColor: theme.colors.quantityBlue,
     color: theme.colors.white,
+    fontWeight: '800',
   },
   'quantity-teal': {
     label: 'Teal',
@@ -453,6 +534,7 @@ export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinitio
     backgroundColor: theme.colors.quantityTeal,
     borderColor: theme.colors.quantityTeal,
     color: theme.colors.white,
+    fontWeight: '800',
   },
   'quantity-slate': {
     label: 'Slate',
@@ -460,6 +542,53 @@ export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinitio
     backgroundColor: theme.colors.quantitySlate,
     borderColor: theme.colors.quantitySlate,
     color: theme.colors.white,
+    fontWeight: '800',
+  },
+  'quantity-white-black': {
+    label: 'White',
+    type: 'quantity',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#111827',
+    color: '#111827',
+    fontWeight: '800',
+    borderWidth: 1,
+  },
+  'quantity-black-white': {
+    label: 'Black',
+    type: 'quantity',
+    backgroundColor: '#111827',
+    borderColor: '#111827',
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  'quantity-yellow-black': {
+    label: 'Yellow',
+    type: 'quantity',
+    backgroundColor: '#F5AF02',
+    borderColor: '#111111',
+    color: '#111111',
+    fontWeight: '800',
+    borderWidth: 1,
+  },
+  'quantity-outline-blue': {
+    label: 'Outline blue',
+    type: 'quantity',
+    backgroundColor: 'transparent',
+    borderColor: theme.colors.quantityBlue,
+    color: theme.colors.quantityBlue,
+    fontWeight: '800',
+    borderWidth: 2,
+    viewShadow: null,
+  },
+  'quantity-soft-gray': {
+    label: 'Soft gray',
+    type: 'quantity',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderColor: '#98A2B3',
+    color: '#344054',
+    fontWeight: '800',
+    borderWidth: 1,
+    viewShadow: null,
   },
   'condition-default': {
     label: 'Default',
@@ -474,57 +603,68 @@ export const TAG_STYLE_PRESETS: Record<TagStylePresetId, TagStylePresetDefinitio
     backgroundColor: theme.tags.language.backgroundColor,
     borderColor: theme.tags.language.borderColor,
     color: theme.tags.language.color,
+    fontWeight: '700',
+    borderRadius: PILL_BORDER_RADIUS,
+    borderWidth: 1,
+    viewShadow: null,
   },
 };
 
+/**
+ * Seller size scale (picker shows S/M/L/XL; `xs` is info-tag step-down from S).
+ * Keep `small` near the historical S anchor. Step M/L/XL up clearly with matching
+ * lineHeight / minHeight / padding so bold Thai glyphs, commas, and outline halo fit.
+ * Rule of thumb: minHeight >= lineHeight + paddingVertical * 2.
+ */
 export const TAG_SIZE_PRESETS: Record<
   TagSizePresetId,
   { label: string; minHeight: number; maxWidth: number; paddingHorizontal: number; paddingVertical: number; fontSize: number; lineHeight: number }
 > = {
   xs: {
     label: 'XS',
-    minHeight: 22,
+    minHeight: 24,
     maxWidth: 120,
     paddingHorizontal: theme.spacing.xs + 2,
-    paddingVertical: 2,
+    paddingVertical: 3,
     fontSize: 10,
-    lineHeight: 12,
+    lineHeight: 14,
   },
   small: {
     label: 'Small',
-    minHeight: 28,
-    maxWidth: 148,
+    // Anchor size — keep near prior S; tiny pad/lineHeight bump only for glyph room.
+    minHeight: 30,
+    maxWidth: 152,
     paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    paddingVertical: 5,
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 18,
   },
   medium: {
     label: 'Medium',
-    minHeight: 32,
-    maxWidth: 180,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    fontSize: theme.typography.tag.fontSize,
-    lineHeight: theme.typography.tag.lineHeight,
+    minHeight: 40,
+    maxWidth: 200,
+    paddingHorizontal: theme.spacing.sm + 2,
+    paddingVertical: 6,
+    fontSize: 16,
+    lineHeight: 22,
   },
   large: {
     label: 'Large',
-    minHeight: 40,
-    maxWidth: 220,
-    paddingHorizontal: theme.spacing.md,
+    minHeight: 50,
+    maxWidth: 248,
+    paddingHorizontal: theme.spacing.md + 2,
     paddingVertical: theme.spacing.sm,
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 20,
+    lineHeight: 28,
   },
   xl: {
     label: 'XL',
-    minHeight: 48,
-    maxWidth: 260,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    fontSize: 22,
-    lineHeight: 26,
+    minHeight: 62,
+    maxWidth: 300,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: 10,
+    fontSize: 26,
+    lineHeight: 34,
   },
 };
 
@@ -543,10 +683,10 @@ export function getStylePresetForType(type: TagType, stylePresetId?: TagStylePre
 /** Seller-priority order for sold style picker (plain cross first). */
 export const SOLD_STYLE_PRESET_ORDER: readonly TagStylePresetId[] = [
   'sold-icon-plain',
-  'sold-stamp-red',
   'sold-red',
-  'sold-outline-white',
+  'sold-stamp-red',
   'sold-black',
+  'sold-outline-white',
   'sold-gray',
   'sold-marketplace-white',
   'sold-facebook-blue',
@@ -554,9 +694,124 @@ export const SOLD_STYLE_PRESET_ORDER: readonly TagStylePresetId[] = [
   'sold-neon-pink',
 ];
 
+/**
+ * Shared visual identity across price/text tags — lets a seller pick a look once and
+ * have it carry over when they switch tag type. Sold/quantity/condition/language are
+ * not part of this system.
+ */
+export type TagStyleFamilyId =
+  | 'yellow-outline'
+  | 'white-black'
+  | 'black-white'
+  | 'yellow-black'
+  | 'red-white'
+  | 'marketplace-white'
+  | 'facebook-blue'
+  | 'ebay-yellow'
+  | 'outline-white'
+  | 'dark-overlay';
+
+/** Seller-priority order for price/text pickers — safe/common looks first. */
+export const MAIN_TEXT_STYLE_FAMILY_ORDER: readonly TagStyleFamilyId[] = [
+  'white-black',
+  'black-white',
+  'yellow-outline',
+  'yellow-black',
+  'red-white',
+  'marketplace-white',
+  'facebook-blue',
+  'ebay-yellow',
+  'outline-white',
+  'dark-overlay',
+];
+
+/** Seller-priority order for quantity style picker — default/neutral first. */
+export const QUANTITY_STYLE_PRESET_ORDER: readonly TagStylePresetId[] = [
+  'quantity-blue',
+  'quantity-white-black',
+  'quantity-black-white',
+  'quantity-teal',
+  'quantity-slate',
+  'quantity-yellow-black',
+  'quantity-outline-blue',
+  'quantity-soft-gray',
+];
+
+const PRICE_STYLE_PRESET_BY_FAMILY: Record<TagStyleFamilyId, TagStylePresetId> = {
+  'yellow-outline': 'price-yellow-outline',
+  'white-black': 'price-white-black',
+  'black-white': 'price-black-white',
+  'yellow-black': 'price-yellow-black',
+  'red-white': 'price-red-white',
+  'marketplace-white': 'price-marketplace-white',
+  'facebook-blue': 'price-facebook-blue',
+  'ebay-yellow': 'price-ebay-yellow',
+  'outline-white': 'price-outline-white',
+  'dark-overlay': 'price-dark-overlay',
+};
+
+const TEXT_STYLE_PRESET_BY_FAMILY: Record<TagStyleFamilyId, TagStylePresetId> = {
+  'yellow-outline': 'text-yellow-outline',
+  'white-black': 'text-default',
+  'black-white': 'text-black-white',
+  'yellow-black': 'text-accent',
+  'red-white': 'text-red-white',
+  'marketplace-white': 'text-marketplace-white',
+  'facebook-blue': 'text-facebook-blue',
+  'ebay-yellow': 'text-ebay-yellow',
+  'outline-white': 'text-outline-white',
+  'dark-overlay': 'text-dark-caption',
+};
+
+/** Explicit picker order for price — same family order/count as text. */
+export const PRICE_STYLE_PRESET_ORDER: readonly TagStylePresetId[] = MAIN_TEXT_STYLE_FAMILY_ORDER.map(
+  (familyId) => PRICE_STYLE_PRESET_BY_FAMILY[familyId],
+);
+
+/** Explicit picker order for text — same family order/count as price. */
+export const TEXT_STYLE_PRESET_ORDER: readonly TagStylePresetId[] = MAIN_TEXT_STYLE_FAMILY_ORDER.map(
+  (familyId) => TEXT_STYLE_PRESET_BY_FAMILY[familyId],
+);
+
+const STYLE_FAMILY_BY_PRESET_ID: Partial<Record<TagStylePresetId, TagStyleFamilyId>> = (() => {
+  const map: Partial<Record<TagStylePresetId, TagStyleFamilyId>> = {};
+  for (const familyId of MAIN_TEXT_STYLE_FAMILY_ORDER) {
+    map[PRICE_STYLE_PRESET_BY_FAMILY[familyId]] = familyId;
+    map[TEXT_STYLE_PRESET_BY_FAMILY[familyId]] = familyId;
+  }
+  return map;
+})();
+
+/** Returns the shared family for a price/text preset, or `null` for orphans and other tag types. */
+export function getStyleFamilyId(stylePresetId: TagStylePresetId): TagStyleFamilyId | null {
+  return STYLE_FAMILY_BY_PRESET_ID[stylePresetId] ?? null;
+}
+
+/** Resolves a shared family back to the price/text preset id for the given type. */
+export function getStylePresetForFamily(
+  type: Extract<TagType, 'price' | 'text'>,
+  familyId: TagStyleFamilyId,
+): TagStylePresetId {
+  return type === 'price' ? PRICE_STYLE_PRESET_BY_FAMILY[familyId] : TEXT_STYLE_PRESET_BY_FAMILY[familyId];
+}
+
 export function getStylePresetIdsForType(type: TagType): TagStylePresetId[] {
   if (type === 'sold') {
     return SOLD_STYLE_PRESET_ORDER.filter((presetId) => TAG_STYLE_PRESETS[presetId]?.type === 'sold');
+  }
+
+  if (type === 'price') {
+    return [...PRICE_STYLE_PRESET_ORDER];
+  }
+
+  if (type === 'text') {
+    return [...TEXT_STYLE_PRESET_ORDER];
+  }
+
+  if (type === 'quantity') {
+    return QUANTITY_STYLE_PRESET_ORDER.filter(
+      (presetId) => TAG_STYLE_PRESETS[presetId]?.type === 'quantity',
+    );
   }
 
   return (Object.keys(TAG_STYLE_PRESETS) as TagStylePresetId[]).filter((presetId) => {
@@ -571,7 +826,14 @@ export function getResolvedTagPreset(tag: PriceTag, typeOverride?: TagType): Res
       ? 'sold-icon-plain'
       : getStylePresetForType(type, tag.stylePresetId);
   const stylePreset = TAG_STYLE_PRESETS[stylePresetId];
-  const sizePreset = TAG_SIZE_PRESETS[tag.sizePresetId ?? DEFAULT_TAG_SIZE_PRESET_ID];
+  const sizePreset = TAG_SIZE_PRESETS[
+    tag.sizePresetId ??
+      (type === 'condition'
+        ? DEFAULT_CONDITION_SIZE_PRESET_ID
+        : type === 'language'
+          ? DEFAULT_LANGUAGE_SIZE_PRESET_ID
+          : DEFAULT_TAG_SIZE_PRESET_ID)
+  ];
   const isPlainSoldIcon = type === 'sold' && tag.soldTextFormat === 'icon_plain';
   const isBadgeSoldIcon = type === 'sold' && tag.soldTextFormat === 'icon';
   const soldIconSize = Math.max(28, Math.round(sizePreset.fontSize * 2.2));
@@ -611,7 +873,13 @@ export function getResolvedTagPreset(tag: PriceTag, typeOverride?: TagType): Res
         ? resolvedSoldIconSize + theme.spacing.sm
         : sizePreset.minHeight,
     maxWidth: isCondition ? conditionDiameter : sizePreset.maxWidth,
-    paddingHorizontal: isCondition ? 0 : isPlainSoldIcon ? theme.spacing.xs : sizePreset.paddingHorizontal,
+    paddingHorizontal: isCondition
+      ? 0
+      : isPlainSoldIcon
+        ? theme.spacing.xs
+        : type === 'language'
+          ? Math.max(theme.spacing.xs + 2, Math.round(sizePreset.paddingHorizontal * 0.7))
+          : sizePreset.paddingHorizontal,
     paddingVertical: isCondition ? 0 : isPlainSoldIcon ? theme.spacing.xs : sizePreset.paddingVertical,
     fontSize: isPlainSoldIcon || isBadgeSoldIcon ? resolvedSoldIconSize : sizePreset.fontSize,
     lineHeight: isCondition
@@ -622,6 +890,7 @@ export function getResolvedTagPreset(tag: PriceTag, typeOverride?: TagType): Res
     fontWeight: stylePreset.fontWeight ?? DEFAULT_TAG_FONT_WEIGHT,
     fontStyle: isCondition ? 'italic' : 'normal',
     textShadow: stylePreset.textShadow ?? null,
+    textOutline: stylePreset.textOutline ?? null,
     borderRadius,
     borderWidth: isPlainSoldIcon ? 0 : borderWidth,
     viewShadow: isPlainSoldIcon ? null : viewShadow,
@@ -676,6 +945,21 @@ export function resolveQuantityDigitsFieldWidth(digitCountOrText: number | strin
 }
 
 /**
+ * Language chip width for short codes ("TH"/"EN").
+ * Floors width above height so pill radius stays capsule at every size (not a circle).
+ */
+export function resolveLanguageTagWidth(
+  fontSize: number,
+  paddingHorizontal: number,
+  minHeight: number,
+  maxWidth: number,
+): number {
+  const contentWidth = Math.ceil(fontSize * 1.85 + paddingHorizontal * 2);
+  const capsuleMinWidth = Math.round(minHeight * LANGUAGE_CAPSULE_ASPECT);
+  return Math.min(maxWidth, Math.max(contentWidth, capsuleMinWidth));
+}
+
+/**
  * Text tags may grow up to the full image width (caller also caps by room-to-right).
  * Quantity grows with digit count (1 line) up to size-preset maxWidth.
  * Other types keep size-preset maxWidth.
@@ -699,8 +983,12 @@ export function resolveTagMaxWidth(tag: PriceTag, imageWidth: number, typeOverri
   }
 
   if (type === 'language') {
-    const contentWidth = Math.ceil(preset.fontSize * 2.5 + preset.paddingHorizontal * 2);
-    return Math.min(preset.maxWidth, Math.max(contentWidth, preset.minHeight));
+    return resolveLanguageTagWidth(
+      preset.fontSize,
+      preset.paddingHorizontal,
+      preset.minHeight,
+      preset.maxWidth,
+    );
   }
 
   return preset.maxWidth;
@@ -715,7 +1003,14 @@ export function estimatePlacementTagSize(
   sizePresetId?: TagSizePresetId,
   imageWidth?: number,
 ): { width: number; height: number } {
-  const preset = TAG_SIZE_PRESETS[sizePresetId ?? DEFAULT_TAG_SIZE_PRESET_ID];
+  const preset = TAG_SIZE_PRESETS[
+    sizePresetId ??
+      (type === 'condition'
+        ? DEFAULT_CONDITION_SIZE_PRESET_ID
+        : type === 'language'
+          ? DEFAULT_LANGUAGE_SIZE_PRESET_ID
+          : DEFAULT_TAG_SIZE_PRESET_ID)
+  ];
   const height = preset.minHeight + preset.paddingVertical * 2;
 
   if (type === 'quantity') {
@@ -725,9 +1020,13 @@ export function estimatePlacementTagSize(
   }
 
   if (type === 'language') {
-    // Match compact language chip ("TH"/"EN") so right-edge create works like quantity.
-    const width = Math.ceil(preset.fontSize * 2.5 + preset.paddingHorizontal * 2);
-    return { width: Math.max(width, preset.minHeight), height };
+    const width = resolveLanguageTagWidth(
+      preset.fontSize,
+      preset.paddingHorizontal,
+      preset.minHeight,
+      preset.maxWidth,
+    );
+    return { width, height };
   }
 
   if (type === 'condition') {

@@ -35,6 +35,7 @@ export const TEXT_STYLE_PRESET_CYCLE: TagStylePresetId[] = [
   'text-facebook-blue',
   'text-ebay-yellow',
   'text-outline-white',
+  'text-yellow-outline',
   'text-soft-note',
   'text-dark-caption',
 ];
@@ -82,4 +83,12 @@ export function toPickerSizePreset(sizePresetId: TagSizePresetId): TagPickerSize
 
 export function isInfoTagType(type: TagType) {
   return INFO_TAG_TYPES.includes(type);
+}
+
+/**
+ * Quantity shares the main size picker and renders one step smaller.
+ * Condition/language have their own size control (default S) and store the picker value literally.
+ */
+export function usesInfoSizeStepDown(type: TagType) {
+  return type === 'quantity';
 }

@@ -82,7 +82,7 @@ export function CropHeader({
         onPress={onNext}
         style={[styles.nextButton, isBaking && styles.nextButtonDisabled]}>
         {isBaking ? (
-          <ActivityIndicator color={theme.colors.accentText} size="small" />
+          <ActivityIndicator color={theme.buttons.primary.color} size="small" />
         ) : (
           <Text style={styles.nextButtonText}>{t('crop.next')}</Text>
         )}
@@ -147,7 +147,9 @@ const styles = StyleSheet.create({
     minWidth: 88,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.accent,
+    borderWidth: 1,
+    borderColor: theme.buttons.primary.borderColor,
+    backgroundColor: theme.buttons.primary.backgroundColor,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -156,6 +158,6 @@ const styles = StyleSheet.create({
   },
   nextButtonText: {
     ...theme.typography.button,
-    color: theme.colors.accentText,
+    color: theme.buttons.primary.color,
   },
 });

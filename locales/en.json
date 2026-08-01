@@ -39,7 +39,7 @@
       "howToTitle": "How to use PinPrice",
       "howTo": {
         "tapAdd": "Tap the photo to add a price tag",
-        "tapEdit": "Tap a tag to edit the price or change to Price / Sold / Reserved",
+        "tapEdit": "Tap a tag to edit it or change its tag type",
         "longPressMultiSelect": "Long-press a tag to select multiple tags",
         "dragMove": "Drag a tag to move it",
         "undo": "Use Undo if you place, delete, or change something by mistake",
@@ -219,7 +219,7 @@
       "price": "Price tag",
       "sold": "Sold tag",
       "text": "Text tag",
-      "condition": "Condition tag",
+      "condition": "Card condition (TCG)",
       "quantity": "Quantity tag",
       "language": "Language tag"
     },

@@ -162,9 +162,9 @@ export const PinPriceTheme = {
       color: '#000000',
     },
     language: {
-      backgroundColor: '#FFFFFF',
-      borderColor: '#FFFFFF',
-      color: '#000000',
+      backgroundColor: 'rgba(255, 255, 255, 0.82)',
+      borderColor: '#D0D5DD',
+      color: '#111827',
     },
     text: {
       backgroundColor: '#FFFFFF',

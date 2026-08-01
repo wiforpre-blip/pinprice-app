@@ -1,7 +1,7 @@
 import type { ScreenPoint, ScreenRect, Size, TagSize } from '@/types/editor';
 import type { ImageDisplayRect, PriceTag } from '@/types/tag';
 
-export const FALLBACK_TAG_SIZE: TagSize = { width: 80, height: 32 };
+export const FALLBACK_TAG_SIZE: TagSize = { width: 96, height: 40 };
 export const DRAG_POSITION_TOLERANCE = 0.0001;
 export const EDITOR_ZOOM_MIN = 1;
 export const EDITOR_ZOOM_MAX = 3;

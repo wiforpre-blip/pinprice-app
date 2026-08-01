@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import { LayoutChangeEvent, Platform, StyleSheet, View } from 'react-native';
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
+import { TagOutlinedText } from '@/components/editor/TagOutlinedText';
 import { getResolvedTagPreset, getTagTextShadowStyle, getTagViewShadowStyle, resolveTagMaxWidth, TAG_BODY_MAX_LINES } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import type { TagSize } from '@/types/editor';
@@ -57,7 +58,6 @@ export function StaticTag({ anchor = 'topLeft', imageRect, tag }: StaticTagProps
         isCircle && {
           width: tagStyle.fixedSize!,
           height: tagStyle.fixedSize!,
-          overflow: 'hidden' as const,
         },
         {
           backgroundColor: tagStyle.backgroundColor,
@@ -66,7 +66,12 @@ export function StaticTag({ anchor = 'topLeft', imageRect, tag }: StaticTagProps
           borderRadius: isCircle && tagStyle.fixedSize != null ? tagStyle.fixedSize / 2 : tagStyle.borderRadius,
           minHeight: tagStyle.minHeight,
           maxWidth: displayMaxWidth,
-          ...(isTextTag ? { maxHeight: roomBelow, overflow: 'hidden' as const } : null),
+          // Language: floor width to the capsule size so short codes stay pill-shaped at every size.
+          ...(tag.type === 'language' ? { minWidth: displayMaxWidth } : null),
+          // Match TagOverlay: non-circle tags keep overflow visible so multiline / Thai / halo
+          // are not clipped after save. Circles stay clipped to the disc.
+          overflow: (isCircle ? 'hidden' : 'visible') as 'hidden' | 'visible',
+          ...(isTextTag ? { maxHeight: roomBelow } : null),
           paddingHorizontal: tagStyle.paddingHorizontal,
           paddingVertical: tagStyle.paddingVertical,
           alignItems: isQuantity ? 'flex-start' : 'center',
@@ -80,23 +85,25 @@ export function StaticTag({ anchor = 'topLeft', imageRect, tag }: StaticTagProps
       {isPlainSoldIcon || isBadgeSoldIcon ? (
         <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
       ) : (
-        <Text
+        <TagOutlinedText
+          color={tagStyle.color}
           numberOfLines={bodyMaxLines}
+          outline={tagStyle.textOutline}
           style={[
             styles.staticTagText,
             isQuantity && styles.staticTagTextStart,
-            getTagTextShadowStyle(tagStyle.textShadow),
+            // Outlined styles must not carry textShadow — it multiplies across stroke copies.
+            tagStyle.textOutline ? null : getTagTextShadowStyle(tagStyle.textShadow),
             {
-              color: tagStyle.color,
               fontSize: tagStyle.fontSize,
               lineHeight: tagStyle.lineHeight,
               fontWeight: tagStyle.fontWeight,
               fontStyle: tagStyle.fontStyle,
-              ...(isTextTag ? { maxHeight: roomBelow - tagStyle.paddingVertical * 2 } : null),
+              ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
             },
           ]}>
           {tag.text}
-        </Text>
+        </TagOutlinedText>
       )}
     </View>
   );

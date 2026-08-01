@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
+import { TagOutlinedText } from '@/components/editor/TagOutlinedText';
 import { QUANTITY_MAX_DIGITS } from '@/constants/tagDefaults';
 import {
   getResolvedTagPreset,
@@ -502,18 +503,42 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
       ? Math.min(displayMaxWidth, Math.max(textDefaultWidth, textContentWidth ?? textDefaultWidth))
       : undefined;
   const contentTextAlign = isQuantity ? ('left' as const) : ('center' as const);
+  // TextInput cannot use multi-layer outline — approximate stroke with a tight black halo while typing.
+  const editOutlineShadow =
+    tagStyle.textOutline != null
+      ? getTagTextShadowStyle({
+          color: tagStyle.textOutline.color,
+          offset: { width: 0, height: 0 },
+          radius: Math.max(3, tagStyle.textOutline.width + 1),
+        })
+      : getTagTextShadowStyle(tagStyle.textShadow);
   const textStyle = [
     styles.tagText,
     isQuantity ? styles.tagTextStart : null,
-    getTagTextShadowStyle(tagStyle.textShadow),
     {
       color: tagStyle.color,
       fontSize: tagStyle.fontSize,
       lineHeight: tagStyle.lineHeight,
       fontWeight: tagStyle.fontWeight,
       fontStyle: tagStyle.fontStyle,
+      ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
     },
   ];
+  const displayTextStyle = [
+    styles.tagText,
+    isQuantity ? styles.tagTextStart : null,
+    // Outlined styles must not carry textShadow — it multiplies across stroke copies.
+    tagStyle.textOutline ? null : getTagTextShadowStyle(tagStyle.textShadow),
+    {
+      fontSize: tagStyle.fontSize,
+      // Keep line box >= preset so bold/Thai/comma glyphs are not clipped after save.
+      lineHeight: tagStyle.lineHeight,
+      fontWeight: tagStyle.fontWeight,
+      fontStyle: tagStyle.fontStyle,
+      ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
+    },
+  ];
+  const editTextStyle = [...textStyle, editOutlineShadow];
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -540,8 +565,6 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
         isCircle && {
           width: tagStyle.fixedSize!,
           height: tagStyle.fixedSize!,
-          // Selection rings sit outside the chip; keep overflow visible when selected.
-          overflow: (isSelected ? 'visible' : 'hidden') as 'visible' | 'hidden',
         },
         {
           backgroundColor: tagStyle.backgroundColor,
@@ -550,9 +573,18 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
           borderRadius: isCircle && tagStyle.fixedSize != null ? tagStyle.fixedSize / 2 : tagStyle.borderRadius,
           minHeight: tagStyle.minHeight,
           maxWidth: tagMaxWidth,
+          // Language: floor width to the capsule size so short codes stay pill-shaped at every size.
+          ...(displayType === 'language' ? { minWidth: tagMaxWidth } : null),
           ...(textEditWidth != null ? { width: textEditWidth } : null),
           ...(quantityEditWidth != null ? { width: quantityEditWidth } : null),
-          ...(isTextTag ? { maxHeight: roomBelow, overflow: 'hidden' as const } : null),
+          // Android defaults to overflow:hidden and clips descenders / Thai marks / outline halo.
+          // Circles stay clipped to the disc (rings need visible when selected).
+          // Text tags must stay visible too — while selected/editing, overflow:visible already let
+          // multiline paint past maxHeight; after save, switching to hidden clipped Enter lines.
+          overflow: (isCircle && !isSelected ? 'hidden' : 'visible') as 'visible' | 'hidden',
+          // Soft cap so the chip layout does not claim space past the photo bottom.
+          // Overflow stays visible so glyphs/lines inside that budget are not cut unexpectedly.
+          ...(isTextTag ? { maxHeight: roomBelow } : null),
           // Zero outer padding while editing so TextInput host fills the full tag hit area.
           paddingHorizontal: isInlineEditing ? 0 : tagStyle.paddingHorizontal,
           paddingVertical: isInlineEditing ? 0 : tagStyle.paddingVertical,
@@ -599,7 +631,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
             },
           ]}>
           {inlineEdit.prefix ? (
-            <Text pointerEvents="none" style={[textStyle, styles.inlinePrefix]}>
+            <Text pointerEvents="none" style={[editTextStyle, styles.inlinePrefix]}>
               {inlineEdit.prefix}
             </Text>
           ) : null}
@@ -662,7 +694,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
             underlineColorAndroid="transparent"
             style={[
               styles.inlineInput,
-              textStyle,
+              editTextStyle,
               inlineEdit.multiline && styles.inlineInputMultiline,
               // Avoid flex:1 on multiline — it locks height to the host and blocks Android auto-grow.
               isCompactInline
@@ -703,9 +735,13 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
       ) : isPlainSoldIcon || isBadgeSoldIcon ? (
         <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
       ) : (
-        <Text numberOfLines={bodyMaxLines} style={[textStyle, isTextTag ? { maxHeight: roomBelow - tagStyle.paddingVertical * 2 } : null]}>
+        <TagOutlinedText
+          color={tagStyle.color}
+          numberOfLines={bodyMaxLines}
+          outline={tagStyle.textOutline}
+          style={displayTextStyle}>
           {displayText}
-        </Text>
+        </TagOutlinedText>
       )}
     </View>
   );

@@ -15,17 +15,16 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { SoldCrossIcon } from '@/components/editor/SoldCrossIcon';
+import { TagStylePresetRow } from '@/components/editor/TagStylePresetRow';
 import type { TagInlineEdit } from '@/components/editor/TagOverlay';
 import { DEFAULT_CONDITION_VALUE, DEFAULT_QUANTITY, DEFAULT_SOLD_TEXT_FORMAT, QUANTITY_MAX_DIGITS, SOLD_ICON_TEXT, TAG_CONDITION_VALUE_CYCLE, TAG_SIZE_ORDER, toPickerSizePreset, type TagPickerSizePresetId } from '@/constants/tagDefaults';
 import {
+  DEFAULT_CONDITION_SIZE_PRESET_ID,
+  DEFAULT_LANGUAGE_SIZE_PRESET_ID,
+  DEFAULT_PRICE_TEXT_SIZE_PRESET_ID,
   DEFAULT_TAG_SIZE_PRESET_ID,
   DEFAULT_TAG_STYLE_BY_TYPE,
-  TAG_STYLE_PRESETS,
   getStylePresetForType,
-  getStylePresetIdsForType,
-  getTagTextShadowStyle,
-  isTransparentTagBackground,
   resolveConditionValueFromTag,
 } from '@/constants/tagPresets';
 import { PinPriceTheme as theme } from '@/constants/theme';
@@ -85,7 +84,7 @@ const SIZE_CHIP_LABELS: Record<TagPickerSizePresetId, string> = {
   xl: 'XL',
 };
 const PREVIEW_AMOUNT = '1000';
-const TYPES_WITH_SIZE_PICKER: TagType[] = ['price', 'sold', 'text', 'quantity', 'language'];
+const TYPES_WITH_SIZE_PICKER: TagType[] = ['price', 'sold', 'text', 'quantity', 'condition', 'language'];
 export const TYPES_WITH_INLINE_INPUT: TagType[] = ['price', 'text', 'quantity'];
 /** Used when IME height is not measured yet — parks the dock above an estimated keyboard. */
 const PROVISIONAL_KEYBOARD_OVERLAP = Platform.OS === 'ios' ? 320 : 280;
@@ -243,7 +242,8 @@ function buildDisplayText({
     case 'sold':
       return soldTextFormat === 'text' ? soldLabel : SOLD_ICON_TEXT;
     case 'text':
-      return freeText.trim();
+      // Preserve internal newlines from Enter; only edge whitespace is stripped by callers when needed.
+      return freeText;
     case 'quantity': {
       const digits = extractPriceDigits(quantity) || String(DEFAULT_QUANTITY);
       return `x${Number(digits)}`;
@@ -290,193 +290,6 @@ function DockMenuButton({ label, onPress }: { label: string; onPress: () => void
         {label}
       </Text>
     </Pressable>
-  );
-}
-
-function ColorPresetRow({
-  type,
-  activeStylePresetId,
-  onSelect,
-  soldSampleLabel = 'SOLD',
-}: {
-  type: PriceTag['type'];
-  activeStylePresetId: TagStylePresetId;
-  onSelect: (stylePresetId: TagStylePresetId) => void;
-  soldSampleLabel?: string;
-}) {
-  const isPriceStyleRow = type === 'price';
-  const isSoldStyleRow = type === 'sold';
-  const priceSampleLabel = '฿';
-
-  return (
-    <ScrollView
-      horizontal
-      keyboardShouldPersistTaps="always"
-      showsHorizontalScrollIndicator={false}
-      style={styles.subMenuScroll}
-      contentContainerStyle={styles.colorRow}>
-      {getStylePresetIdsForType(type).map((stylePresetId) => {
-        const preset = TAG_STYLE_PRESETS[stylePresetId];
-        const isActive = stylePresetId === activeStylePresetId;
-        const isFlat = isTransparentTagBackground(preset.backgroundColor);
-        const borderRadius = preset.borderRadius ?? theme.radius.sm - 2;
-        const borderWidth =
-          preset.borderWidth ?? (isFlat && preset.borderColor === 'transparent' ? 0 : 1);
-        const isPlainCross = stylePresetId === 'sold-icon-plain';
-
-        if (isPriceStyleRow || isSoldStyleRow) {
-          return (
-            <Pressable
-              accessibilityLabel={preset.label}
-              accessibilityRole="button"
-              accessibilityState={isActive ? { selected: true } : undefined}
-              key={stylePresetId}
-              onPress={() => onSelect(stylePresetId)}
-              style={[styles.textStyleChipOuter, isActive && styles.colorSwatchOuterActive]}>
-              <View
-                style={[
-                  styles.priceStylePreview,
-                  isPlainCross && styles.soldPlainStylePreview,
-                  {
-                    backgroundColor: isPlainCross || isFlat ? 'transparent' : preset.backgroundColor,
-                    borderColor:
-                      isPlainCross || preset.borderColor === 'transparent'
-                        ? 'transparent'
-                        : preset.borderColor,
-                    borderWidth: isPlainCross ? 0 : borderWidth,
-                    borderRadius: isPlainCross ? 0 : Math.min(borderRadius, 16),
-                    ...(preset.rotateDeg
-                      ? { transform: [{ rotate: `${preset.rotateDeg}deg` as const }] }
-                      : null),
-                    ...(!isPlainCross && preset.viewShadow
-                      ? {
-                          shadowColor: preset.viewShadow.shadowColor,
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.18,
-                          shadowRadius: 2,
-                          elevation: 1,
-                        }
-                      : null),
-                  },
-                ]}>
-                {isPlainCross ? (
-                  <SoldCrossIcon color={preset.color} size={18} thicknessScale={2} />
-                ) : isSoldStyleRow ? (
-                  <Text
-                    style={[
-                      styles.priceStylePreviewText,
-                      getTagTextShadowStyle(preset.textShadow ?? null),
-                      { color: preset.color, fontWeight: preset.fontWeight ?? '800' },
-                    ]}
-                    numberOfLines={1}>
-                    {soldSampleLabel}
-                  </Text>
-                ) : (
-                  <Text
-                    style={[
-                      styles.priceStylePreviewText,
-                      getTagTextShadowStyle(preset.textShadow ?? null),
-                      { color: preset.color, fontWeight: preset.fontWeight ?? '800' },
-                    ]}
-                    numberOfLines={1}>
-                    {priceSampleLabel}
-                  </Text>
-                )}
-              </View>
-            </Pressable>
-          );
-        }
-
-        return (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={isActive ? { selected: true } : undefined}
-            key={stylePresetId}
-            onPress={() => onSelect(stylePresetId)}
-            style={[styles.colorSwatchOuter, isActive && styles.colorSwatchOuterActive]}>
-            <View
-              style={[
-                styles.colorSwatchInner,
-                {
-                  backgroundColor: preset.backgroundColor,
-                  borderColor: preset.borderColor === 'transparent' ? theme.colors.border : preset.borderColor,
-                },
-              ]}
-            />
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
-}
-
-function TextStylePresetRow({
-  activeStylePresetId,
-  sampleLabel,
-  onSelect,
-}: {
-  activeStylePresetId: TagStylePresetId;
-  sampleLabel: string;
-  onSelect: (stylePresetId: TagStylePresetId) => void;
-}) {
-  return (
-    <ScrollView
-      horizontal
-      keyboardShouldPersistTaps="always"
-      showsHorizontalScrollIndicator={false}
-      style={styles.textStyleScroll}
-      contentContainerStyle={styles.colorRow}>
-      {getStylePresetIdsForType('text').map((stylePresetId) => {
-        const preset = TAG_STYLE_PRESETS[stylePresetId];
-        const isActive = stylePresetId === activeStylePresetId;
-        const isFlat = isTransparentTagBackground(preset.backgroundColor);
-        const borderRadius = preset.borderRadius ?? theme.radius.sm - 2;
-        const borderWidth =
-          preset.borderWidth ?? (isFlat && preset.borderColor === 'transparent' ? 0 : 1);
-
-        return (
-          <Pressable
-            accessibilityLabel={preset.label}
-            accessibilityRole="button"
-            accessibilityState={isActive ? { selected: true } : undefined}
-            key={stylePresetId}
-            onPress={() => onSelect(stylePresetId)}
-            style={[styles.textStyleChipOuter, isActive && styles.colorSwatchOuterActive]}>
-            <View
-              style={[
-                styles.textStylePreview,
-                isFlat && preset.borderColor === 'transparent' && styles.textStylePreviewPlain,
-                {
-                  backgroundColor: isFlat ? 'transparent' : preset.backgroundColor,
-                  borderColor:
-                    preset.borderColor === 'transparent' ? 'transparent' : preset.borderColor,
-                  borderWidth,
-                  borderRadius: Math.min(borderRadius, 14),
-                  ...(preset.viewShadow
-                    ? {
-                        shadowColor: preset.viewShadow.shadowColor,
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: 0.18,
-                        shadowRadius: 2,
-                        elevation: 1,
-                      }
-                    : null),
-                },
-              ]}>
-              <Text
-                style={[
-                  styles.textStylePreviewText,
-                  getTagTextShadowStyle(preset.textShadow ?? null),
-                  { color: preset.color, fontWeight: preset.fontWeight ?? '700' },
-                ]}
-                numberOfLines={1}>
-                {sampleLabel}
-              </Text>
-            </View>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
   );
 }
 
@@ -541,7 +354,7 @@ export function TagEditor({
   const [conditionValue, setConditionValue] = useState<TagConditionValue>(DEFAULT_CONDITION_VALUE);
   const [freeText, setFreeText] = useState('');
   const [stylePresetId, setStylePresetId] = useState<TagStylePresetId>(DEFAULT_TAG_STYLE_BY_TYPE.price);
-  const [sizePresetId, setSizePresetId] = useState<TagSizePresetId>(DEFAULT_TAG_SIZE_PRESET_ID);
+  const [sizePresetId, setSizePresetId] = useState<TagSizePresetId>(DEFAULT_PRICE_TEXT_SIZE_PRESET_ID);
   const [keyboardOverlap, setKeyboardOverlap] = useState(0);
   const [activeDockMenu, setActiveDockMenu] = useState<DockMenu>('main');
   /** Hide dock until keyboard is up (inline types) so it does not pop at bottom then jump. */
@@ -549,15 +362,14 @@ export function TagEditor({
   const soldLabel = t('tag.sold');
   const priceFormats = getPriceTextFormatsForCurrency(currency);
   // Refs so inline onChangeText can update without re-publishing config every keystroke.
+  // Do NOT sync these from state on every render — keyboard/overlap re-renders would wipe
+  // newer IME values written in onChangeText before setState commits.
   const freeTextRef = useRef(freeText);
   const priceAmountRef = useRef(priceAmount);
   const quantityRef = useRef(quantity);
   const priceTextFormatRef = useRef(priceTextFormat);
   const currencyRef = useRef(currency);
   const languageRef = useRef(language);
-  freeTextRef.current = freeText;
-  priceAmountRef.current = priceAmount;
-  quantityRef.current = quantity;
   priceTextFormatRef.current = priceTextFormat;
   currencyRef.current = currency;
   languageRef.current = language;
@@ -576,7 +388,16 @@ export function TagEditor({
 
     setActiveDockMenu('main');
     setStylePresetId(getStylePresetForType(tag.type, tag.stylePresetId));
-    setSizePresetId(tag.sizePresetId ?? DEFAULT_TAG_SIZE_PRESET_ID);
+    setSizePresetId(
+      tag.sizePresetId ??
+        (tag.type === 'price' || tag.type === 'text'
+          ? DEFAULT_PRICE_TEXT_SIZE_PRESET_ID
+          : tag.type === 'condition'
+            ? DEFAULT_CONDITION_SIZE_PRESET_ID
+            : tag.type === 'language'
+              ? DEFAULT_LANGUAGE_SIZE_PRESET_ID
+              : DEFAULT_TAG_SIZE_PRESET_ID),
+    );
 
     switch (tag.type) {
       case 'price': {
@@ -858,6 +679,16 @@ export function TagEditor({
 
           priceAmountRef.current = nextDigits;
           setPriceAmount(nextDigits);
+          // Keep parent liveDraftTextRef current before React re-renders displayText.
+          onDraftChangeRef.current(
+            {
+              text: formatted,
+              stylePresetId,
+              sizePresetId: TYPES_WITH_SIZE_PICKER.includes(tag.type) ? sizePresetId : tag.sizePresetId,
+              priceTextFormat: priceTextFormatRef.current,
+            },
+            { syncOnly: true },
+          );
           return formatted;
         },
         onFocus: () => scheduleKeyboardSyncRef.current(),
@@ -874,6 +705,14 @@ export function TagEditor({
         onChangeText: (nextText) => {
           freeTextRef.current = nextText;
           setFreeText(nextText);
+          onDraftChangeRef.current(
+            {
+              text: nextText,
+              stylePresetId,
+              sizePresetId: TYPES_WITH_SIZE_PICKER.includes(tag.type) ? sizePresetId : tag.sizePresetId,
+            },
+            { syncOnly: true },
+          );
           return nextText;
         },
         onFocus: () => scheduleKeyboardSyncRef.current(),
@@ -898,13 +737,22 @@ export function TagEditor({
 
           quantityRef.current = nextDigits;
           setQuantity(nextDigits);
+          const quantityText = `x${Number(nextDigits || DEFAULT_QUANTITY)}`;
+          onDraftChangeRef.current(
+            {
+              text: quantityText,
+              stylePresetId,
+              sizePresetId: TYPES_WITH_SIZE_PICKER.includes(tag.type) ? sizePresetId : tag.sizePresetId,
+            },
+            { syncOnly: true },
+          );
           return nextDigits;
         },
         onFocus: () => scheduleKeyboardSyncRef.current(),
       });
     }
     // Intentionally omit freeText / priceAmount / quantity — keystrokes must not re-publish.
-  }, [currency, inputRef, language, priceTextFormat, tag, visible]);
+  }, [currency, inputRef, language, priceTextFormat, sizePresetId, stylePresetId, tag, visible]);
 
   // Clear inline edit only when the editor session ends.
   useEffect(() => {
@@ -934,11 +782,21 @@ export function TagEditor({
 
   const saveTag = () => {
     const sizeUpdate = TYPES_WITH_SIZE_PICKER.includes(tag.type) ? { sizePresetId } : {};
+    // Read inline values from refs — displayText/useState can lag behind IME keystrokes.
+    const latestPriceText = formatPriceDisplay(
+      priceAmountRef.current,
+      clampPriceTextFormat(currency, priceTextFormat),
+      currency,
+      language,
+    );
+    const latestFreeText = freeTextRef.current;
+    const latestQuantityDigits = extractPriceDigits(quantityRef.current) || String(DEFAULT_QUANTITY);
+    const latestQuantityText = `x${Number(latestQuantityDigits)}`;
 
     switch (tag.type) {
       case 'price':
         onSave(tag.id, {
-          text: displayText,
+          text: latestPriceText,
           stylePresetId,
           priceTextFormat: clampPriceTextFormat(currency, priceTextFormat),
           ...sizeUpdate,
@@ -953,15 +811,22 @@ export function TagEditor({
         });
         break;
       case 'text':
-        onSave(tag.id, { text: displayText || (language === 'th' ? 'ข้อความ' : 'Text'), stylePresetId, ...sizeUpdate });
+        onSave(tag.id, {
+          text: latestFreeText.trim() || (language === 'th' ? 'ข้อความ' : 'Text'),
+          stylePresetId,
+          ...sizeUpdate,
+        });
         break;
-      case 'quantity': {
-        const digits = extractPriceDigits(quantity) || String(DEFAULT_QUANTITY);
-        onSave(tag.id, { text: displayText, stylePresetId, quantity: Number(digits), ...sizeUpdate });
+      case 'quantity':
+        onSave(tag.id, {
+          text: latestQuantityText,
+          stylePresetId,
+          quantity: Number(latestQuantityDigits),
+          ...sizeUpdate,
+        });
         break;
-      }
       case 'condition':
-        onSave(tag.id, { text: displayText, stylePresetId, condition: conditionValue });
+        onSave(tag.id, { text: displayText, stylePresetId, condition: conditionValue, ...sizeUpdate });
         break;
       case 'language':
         onSave(tag.id, { text: displayText, stylePresetId, languageCode, ...sizeUpdate });
@@ -1027,10 +892,7 @@ export function TagEditor({
       {showGradeMenu ? <DockMenuButton label={t('tag.dock.grade')} onPress={() => openDockMenu('grade')} /> : null}
       {showLanguageMenu ? <DockMenuButton label={t('tag.dock.language')} onPress={() => openDockMenu('language')} /> : null}
       {showColorMenu ? (
-        <DockMenuButton
-          label={tag.type === 'sold' ? t('tag.dock.style') : t('tag.dock.color')}
-          onPress={() => openDockMenu('color')}
-        />
+        <DockMenuButton label={t('tag.dock.style')} onPress={() => openDockMenu('color')} />
       ) : null}
       {showPriceFormatMenu ? <DockMenuButton label={t('tag.dock.format')} onPress={() => openDockMenu('format')} /> : null}
       {showStyleMenu ? <DockMenuButton label={t('tag.dock.style')} onPress={() => openDockMenu('style')} /> : null}
@@ -1060,7 +922,7 @@ export function TagEditor({
       </Pressable>
 
       {activeDockMenu === 'color' && showColorMenu ? (
-        <ColorPresetRow
+        <TagStylePresetRow
           type={tag.type}
           activeStylePresetId={tag.type === 'sold' ? soldActiveStylePresetId : stylePresetId}
           soldSampleLabel={soldLabel}
@@ -1073,10 +935,11 @@ export function TagEditor({
       ) : null}
 
       {activeDockMenu === 'style' && showStyleMenu ? (
-        <TextStylePresetRow
+        <TagStylePresetRow
           activeStylePresetId={stylePresetId}
-          sampleLabel={textStyleSample}
+          textSampleLabel={textStyleSample}
           onSelect={withKeepFocus(setStylePresetId)}
+          type="text"
         />
       ) : null}
 
@@ -1189,10 +1052,14 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
     paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
   },
   dockMenuButtonText: {
-    ...theme.typography.caption,
+    fontSize: theme.typography.caption.fontSize,
+    lineHeight: 18,
+    fontWeight: theme.typography.caption.fontWeight,
     color: theme.colors.textPrimary,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
   backButton: {
     width: 44,
@@ -1217,6 +1084,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
     paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
   },
   activeOptionChip: {
     borderColor: theme.colors.accent,
@@ -1227,89 +1095,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   optionChipText: {
-    ...theme.typography.caption,
+    fontSize: theme.typography.caption.fontSize,
+    lineHeight: 18,
+    fontWeight: theme.typography.caption.fontWeight,
     color: theme.colors.textSecondary,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
   activeOptionChipText: {
     color: theme.colors.textPrimary,
-  },
-  textStyleScroll: {
-    flex: 1,
-    minWidth: 0,
-  },
-  subMenuScroll: {
-    flex: 1,
-    minWidth: 0,
-  },
-  colorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingRight: theme.spacing.xs,
-  },
-  colorSwatchOuter: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.radius.sm,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 2,
-  },
-  colorSwatchOuterActive: {
-    borderColor: theme.colors.accent,
-  },
-  colorSwatchInner: {
-    width: '100%',
-    height: '100%',
-    borderRadius: theme.radius.sm - 2,
-    borderWidth: 1,
-  },
-  textStyleChipOuter: {
-    minWidth: 48,
-    minHeight: 40,
-    borderRadius: theme.radius.sm,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 2,
-  },
-  priceStylePreview: {
-    minHeight: 22,
-    minWidth: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  soldPlainStylePreview: {
-    minWidth: 28,
-    paddingHorizontal: 2,
-  },
-  priceStylePreviewText: {
-    fontSize: 12,
-    lineHeight: 14,
-  },
-  textStylePreview: {
-    minHeight: 22,
-    minWidth: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.sm - 4,
-    borderWidth: 1,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  textStylePreviewPlain: {
-    borderWidth: 0,
-    paddingHorizontal: 2,
-    backgroundColor: 'transparent',
-  },
-  textStylePreviewText: {
-    ...theme.typography.caption,
-    fontWeight: '700',
   },
   sizeChipRow: {
     flex: 1,
@@ -1333,10 +1126,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
   },
   cancelButtonText: {
-    ...theme.typography.caption,
+    fontSize: theme.typography.caption.fontSize,
+    lineHeight: 18,
+    fontWeight: theme.typography.caption.fontWeight,
     color: theme.buttons.secondary.color,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
   saveButton: {
     minHeight: 44,
@@ -1348,9 +1145,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
   },
   saveButtonText: {
-    ...theme.typography.caption,
+    fontSize: theme.typography.caption.fontSize,
+    lineHeight: 18,
+    fontWeight: theme.typography.caption.fontWeight,
     color: theme.buttons.primary.color,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
 });

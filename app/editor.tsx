@@ -146,6 +146,7 @@ export default function EditorScreen() {
     pushHistory,
   } = useEditorChrome();
   const {
+    activeStylePresetId,
     activeSizePresetId,
     addTagAtPoint,
     alignFeedbackMessage,
@@ -161,7 +162,6 @@ export default function EditorScreen() {
     currentLanguageCode,
     currentConditionValue,
     currentPriceTextFormat,
-    currentSoldTextFormat,
     deselectTagForMarkerSelect,
     draftTagId,
     draftText,
@@ -179,6 +179,10 @@ export default function EditorScreen() {
     handleDraftChange,
     handleSaveTag,
     handleSelectSizePreset,
+    handleSelectToolConditionValue,
+    handleSelectToolLanguageCode,
+    handleSelectToolPriceFormat,
+    handleSelectToolStylePreset,
     handleSelectToolType,
     handleTagDragCancel,
     handleTagDragEnd,
@@ -584,16 +588,20 @@ export default function EditorScreen() {
 
   const stylePickerPanel = (
     <StylePickerPanel
+      activeStylePresetId={activeStylePresetId}
       activeSizePresetId={activeSizePresetId}
       conditionValue={currentConditionValue}
       languageCode={currentLanguageCode}
       onClose={finishStylePicker}
       onCoachSectionsLayout={bumpCoachMeasure}
+      onSelectConditionValue={handleSelectToolConditionValue}
+      onSelectLanguageCode={handleSelectToolLanguageCode}
+      onSelectPriceTextFormat={handleSelectToolPriceFormat}
       onSelectSizePreset={handleSelectSizePreset}
+      onSelectToolStylePreset={handleSelectToolStylePreset}
       onSelectToolType={handleSelectToolType}
       priceTextFormat={currentPriceTextFormat}
       sizeSectionRef={sizeSectionRef}
-      soldTextFormat={currentSoldTextFormat}
       stylePickerType={stylePickerType}
       tagTypesSectionRef={tagTypesSectionRef}
       textStylePresetId={textStylePresetId}
