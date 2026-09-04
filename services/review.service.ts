@@ -10,20 +10,21 @@ import {
   type ReviewPromptState,
 } from '@/utils/reviewPrompt';
 
-type StoreReviewModule = typeof import('expo-store-review');
+type ExpoStoreReviewNative = {
+  isAvailableAsync?: () => Promise<boolean>;
+  requestReview?: () => Promise<void>;
+};
 
 /**
- * Load StoreReview only when the native module is linked.
- * A top-level import crashes app start on Android dev clients built before
- * expo-store-review was added. Rebuild the native binary to enable Rate Us.
+ * Talk to ExpoStoreReview only through requireOptionalNativeModule.
+ * Do not import or require('expo-store-review'): that JS calls requireNativeModule
+ * at load time, and Metro will evaluate a static require when this service loads
+ * (Home → SettingsSheet → review.service), crashing Android dev clients that were
+ * not rebuilt after the native module was added.
  */
-function loadStoreReview(): StoreReviewModule | null {
+function getStoreReviewNative(): ExpoStoreReviewNative | null {
   try {
-    if (requireOptionalNativeModule('ExpoStoreReview') == null) {
-      return null;
-    }
-
-    return require('expo-store-review') as StoreReviewModule;
+    return requireOptionalNativeModule<ExpoStoreReviewNative>('ExpoStoreReview');
   } catch {
     return null;
   }
@@ -121,20 +122,22 @@ export async function maybeRequestAutomaticReview(): Promise<boolean> {
     return false;
   }
 
-  const StoreReview = loadStoreReview();
+  const storeReview = getStoreReviewNative();
 
-  if (!StoreReview) {
+  if (!storeReview?.requestReview) {
     return false;
   }
 
   try {
-    const hasAction = await StoreReview.hasAction();
+    const isAvailable = storeReview.isAvailableAsync
+      ? await storeReview.isAvailableAsync()
+      : false;
 
-    if (!hasAction) {
+    if (!isAvailable) {
       return false;
     }
 
-    await StoreReview.requestReview();
+    await storeReview.requestReview();
   } catch {
     // Native review failures must not affect export UX.
     return false;
