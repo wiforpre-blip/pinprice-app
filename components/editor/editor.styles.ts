@@ -20,6 +20,7 @@ export const styles = StyleSheet.create({
     zIndex: 40,
   },
   // Floats over the canvas under the header without shifting imageRect layout.
+  // Padding keeps the chip clear of the header/canvas boundary so it does not cover the card edge.
   placementChipOverlay: {
     position: 'absolute',
     top: 0,
@@ -27,6 +28,7 @@ export const styles = StyleSheet.create({
     right: 0,
     zIndex: 15,
     alignItems: 'center',
+    paddingTop: theme.spacing.md,
   },
   // Style sheet floats over canvas — must not sit in flex flow or imageRect/tags desync.
   stylePickerOverlay: {

@@ -767,7 +767,7 @@ export default function EditorScreen() {
             {isMultiSelectMode ? (
               <MultiSelectHintChip />
             ) : (
-              <PendingPlacementChip onCancel={cancelPendingPlacement} previewTag={stylePreviewTag} />
+              <PendingPlacementChip previewTag={stylePreviewTag} />
             )}
           </View>
         ) : null}
