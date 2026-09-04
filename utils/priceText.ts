@@ -58,6 +58,38 @@ export function formatAmountNumber(digits: string) {
   return Number(digits).toLocaleString('en-US');
 }
 
+export type PriceInlineParts = {
+  /** Non-editable currency symbol shown before the amount (e.g. ฿). */
+  prefix: string;
+  /** Grouped numeric amount only — never includes currency affix. */
+  amount: string;
+  /** Non-editable currency word shown after the amount (e.g. " บาท"). */
+  suffix: string;
+};
+
+/**
+ * Split a price into editable amount vs non-editable currency affix.
+ * Empty amounts still return prefix/suffix so the unit stays visible while typing.
+ */
+export function getPriceInlineParts(
+  rawAmount: string,
+  format: PriceTextFormat,
+  currency: CurrencyCode,
+  language: Language,
+): PriceInlineParts {
+  const amount = formatAmountNumber(extractPriceDigits(rawAmount));
+  const resolvedFormat = clampPriceTextFormat(currency, format);
+
+  switch (resolvedFormat) {
+    case 'symbol':
+      return { prefix: getCurrencySymbol(currency), amount, suffix: '' };
+    case 'currency_word':
+      return { prefix: '', amount, suffix: ` ${getCurrencyWord(currency, language)}` };
+    case 'number':
+      return { prefix: '', amount, suffix: '' };
+  }
+}
+
 /** Build price display text from digits + format + settings. */
 export function formatPriceDisplay(
   rawAmount: string,
@@ -65,22 +97,13 @@ export function formatPriceDisplay(
   currency: CurrencyCode,
   language: Language,
 ) {
-  const digits = extractPriceDigits(rawAmount);
-  const amount = formatAmountNumber(digits);
-  const resolvedFormat = clampPriceTextFormat(currency, format);
+  const { prefix, amount, suffix } = getPriceInlineParts(rawAmount, format, currency, language);
 
   if (!amount) {
     return '';
   }
 
-  switch (resolvedFormat) {
-    case 'symbol':
-      return `${getCurrencySymbol(currency)}${amount}`;
-    case 'currency_word':
-      return `${amount} ${getCurrencyWord(currency, language)}`;
-    case 'number':
-      return amount;
-  }
+  return `${prefix}${amount}${suffix}`;
 }
 
 /** Legacy input helper — keeps digits-only entry compatible with older callers. */

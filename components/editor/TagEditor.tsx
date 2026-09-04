@@ -43,7 +43,14 @@ import type {
   TagStylePresetId,
   TagType,
 } from '@/types/tag';
-import { extractPriceDigits, formatPriceDisplay, getPriceTextFormatsForCurrency, clampPriceTextFormat } from '@/utils/priceText';
+import {
+  extractPriceDigits,
+  formatAmountNumber,
+  formatPriceDisplay,
+  getPriceInlineParts,
+  getPriceTextFormatsForCurrency,
+  clampPriceTextFormat,
+} from '@/utils/priceText';
 
 type CanvasSize = {
   width: number;
@@ -676,26 +683,28 @@ export function TagEditor({
 
     if (tag.type === 'price') {
       const digits = priceAmountRef.current;
-      const formattedAmount = formatPriceDisplay(digits, priceTextFormat, currency, language);
-      const formattedPlaceholder = formatPriceDisplay(PREVIEW_AMOUNT, priceTextFormat, currency, language);
+      const parts = getPriceInlineParts(digits, priceTextFormat, currency, language);
       const atDigitCap = digits.length >= PRICE_AMOUNT_MAX_DIGITS;
       publish?.({
-        value: formattedAmount,
+        // Amount only — currency prefix/suffix are sibling Text so the caret stays on digits.
+        value: parts.amount,
         keyboardType: 'number-pad',
-        maxLength: atDigitCap ? Math.max(formattedAmount.length, 1) : undefined,
-        placeholder: formattedPlaceholder,
+        maxLength: atDigitCap ? Math.max(parts.amount.length, 1) : undefined,
+        placeholder: formatAmountNumber(PREVIEW_AMOUNT),
+        prefix: parts.prefix || undefined,
+        suffix: parts.suffix || undefined,
         autoFocus: true,
         onChangeText: (nextText) => {
           const currentDigits = priceAmountRef.current;
           const nextDigits = acceptPriceDigits(nextText, currentDigits);
-          const formatted = formatPriceDisplay(
+          const nextParts = getPriceInlineParts(
             nextDigits,
             priceTextFormatRef.current,
             currencyRef.current,
             languageRef.current,
           );
           if (nextDigits === currentDigits) {
-            return formatted;
+            return nextParts.amount;
           }
 
           priceAmountRef.current = nextDigits;
@@ -703,14 +712,19 @@ export function TagEditor({
           // Keep parent liveDraftTextRef current before React re-renders displayText.
           onDraftChangeRef.current(
             {
-              text: formatted,
+              text: formatPriceDisplay(
+                nextDigits,
+                priceTextFormatRef.current,
+                currencyRef.current,
+                languageRef.current,
+              ),
               stylePresetId,
               sizePresetId: TYPES_WITH_SIZE_PICKER.includes(tag.type) ? sizePresetId : tag.sizePresetId,
               priceTextFormat: priceTextFormatRef.current,
             },
             { syncOnly: true },
           );
-          return formatted;
+          return nextParts.amount;
         },
         onFocus: () => scheduleKeyboardSyncRef.current(),
       });
