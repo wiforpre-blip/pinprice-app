@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as StoreReview from 'expo-store-review';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import { Linking, Platform } from 'react-native';
 
 import {
@@ -9,6 +9,25 @@ import {
   shouldRequestAutomaticReview,
   type ReviewPromptState,
 } from '@/utils/reviewPrompt';
+
+type StoreReviewModule = typeof import('expo-store-review');
+
+/**
+ * Load StoreReview only when the native module is linked.
+ * A top-level import crashes app start on Android dev clients built before
+ * expo-store-review was added. Rebuild the native binary to enable Rate Us.
+ */
+function loadStoreReview(): StoreReviewModule | null {
+  try {
+    if (requireOptionalNativeModule('ExpoStoreReview') == null) {
+      return null;
+    }
+
+    return require('expo-store-review') as StoreReviewModule;
+  } catch {
+    return null;
+  }
+}
 
 const REVIEW_STATE_KEY = 'pinprice.review.promptState';
 
@@ -99,6 +118,12 @@ export async function maybeRequestAutomaticReview(): Promise<boolean> {
   const current = await loadReviewPromptState();
 
   if (!shouldRequestAutomaticReview(current)) {
+    return false;
+  }
+
+  const StoreReview = loadStoreReview();
+
+  if (!StoreReview) {
     return false;
   }
 
