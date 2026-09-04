@@ -7,6 +7,7 @@ import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
 import {
   devMockUnlock,
+  getLifetimeUnlockPriceString,
   getUnlockStatus,
   purchaseLifetimeUnlock,
   restorePurchases,
@@ -33,6 +34,8 @@ function messageForResult(
       return { text: t('unlock.success'), isError: false };
     case 'already_unlocked':
       return { text: t('unlock.alreadyUnlocked'), isError: false };
+    case 'not_purchased':
+      return { text: t('unlock.notPurchased'), isError: true };
     case 'not_implemented':
       return {
         text: kind === 'restore' ? t('unlock.restoreNotImplemented') : t('unlock.notImplemented'),
@@ -41,7 +44,7 @@ function messageForResult(
     case 'unavailable':
       return { text: t('unlock.unavailable'), isError: true };
     case 'cancelled':
-      return { text: '', isError: false };
+      return { text: t('unlock.cancelled'), isError: false };
     case 'error':
     default:
       return { text: result.message ?? t('unlock.error'), isError: true };
@@ -55,6 +58,8 @@ export function UnlockPaywallSheet({ visible, onClose, onUnlockChange }: UnlockP
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
   const [isStatusLoading, setIsStatusLoading] = useState(true);
+  const [priceString, setPriceString] = useState<string | null>(null);
+  const [isPriceLoading, setIsPriceLoading] = useState(false);
 
   useEffect(() => {
     if (!visible) {
@@ -67,15 +72,24 @@ export function UnlockPaywallSheet({ visible, onClose, onUnlockChange }: UnlockP
     setStatusMessage(null);
     setIsError(false);
     setIsStatusLoading(true);
+    setPriceString(null);
+    setIsPriceLoading(true);
 
-    void getUnlockStatus().then((status) => {
+    void (async () => {
+      const [status, storePrice] = await Promise.all([
+        getUnlockStatus(),
+        getLifetimeUnlockPriceString(),
+      ]);
+
       if (!isMounted) {
         return;
       }
 
       setIsUnlocked(status.isUnlocked);
+      setPriceString(status.isUnlocked ? null : storePrice);
+      setIsPriceLoading(false);
       setIsStatusLoading(false);
-    });
+    })();
 
     return () => {
       isMounted = false;
@@ -236,7 +250,16 @@ export function UnlockPaywallSheet({ visible, onClose, onUnlockChange }: UnlockP
             ) : null}
           </>
         ) : (
-          <Text style={styles.unlockBenefit}>{t('unlock.benefit')}</Text>
+          <>
+            <Text style={styles.unlockBenefit}>{t('unlock.benefit')}</Text>
+            {isPriceLoading ? (
+              <ActivityIndicator color={theme.colors.textSecondary} />
+            ) : priceString ? (
+              <Text style={styles.unlockPrice}>{priceString}</Text>
+            ) : (
+              <Text style={styles.unlockPriceNote}>{t('unlock.priceUnavailable')}</Text>
+            )}
+          </>
         )}
       </View>
     </BottomSheetOverlay>

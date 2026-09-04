@@ -11,6 +11,7 @@ export type PurchaseResultStatus =
   | 'purchased'
   | 'restored'
   | 'already_unlocked'
+  | 'not_purchased'
   | 'not_implemented'
   | 'unavailable'
   | 'error'

@@ -856,7 +856,12 @@ export default function EditorScreen() {
         <Text style={styles.moreMenuPlaceholder}>{t('editor.moreMenuPlaceholder')}</Text>
       </BottomSheetOverlay>
 
-      <SettingsSheet onClose={closeSettings} onEditorTipsReset={handleEditorTipsReset} visible={isSettingsOpen} />
+      <SettingsSheet
+        onClose={closeSettings}
+        onEditorTipsReset={handleEditorTipsReset}
+        onUnlockChange={applyUnlock}
+        visible={isSettingsOpen}
+      />
 
       {activeStepId ? (
         <EditorCoachMark

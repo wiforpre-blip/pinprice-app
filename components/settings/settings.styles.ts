@@ -167,6 +167,15 @@ export const settingsStyles = StyleSheet.create({
     ...theme.typography.body,
     color: theme.colors.textSecondary,
   },
+  unlockPrice: {
+    ...theme.typography.body,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  unlockPriceNote: {
+    ...theme.typography.caption,
+    color: theme.colors.textMuted,
+  },
   unlockBadge: {
     alignSelf: 'flex-start',
     minHeight: 32,

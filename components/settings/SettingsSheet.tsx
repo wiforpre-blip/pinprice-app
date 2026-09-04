@@ -1,10 +1,11 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, Switch, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 
 import { CurrencySelectorSheet } from '@/components/settings/CurrencySelectorSheet';
 import { FeedbackSheet } from '@/components/settings/FeedbackSheet';
 import { HelpSheet } from '@/components/settings/HelpSheet';
+import { UnlockPaywallSheet } from '@/components/settings/UnlockPaywallSheet';
 import { settingsStyles as styles } from '@/components/settings/settings.styles';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { ConfirmOverlay } from '@/components/ui/ConfirmOverlay';
@@ -13,41 +14,44 @@ import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation, type Language } from '@/contexts/LanguageContext';
 import { openStoreListingForRating } from '@/services/review.service';
-import { loadIsUnlocked, saveIsUnlocked } from '@/services/tier.service';
+import { loadIsUnlocked } from '@/services/tier.service';
 import { resetEditorTips } from '@/services/tips.service';
-import { shouldRenderWatermark } from '@/utils/watermark';
 
 type SettingsSheetProps = {
   visible: boolean;
   onClose: () => void;
   /** Called after tips/coach storage is cleared so an open editor can restart the tutorial. */
   onEditorTipsReset?: () => void;
+  /** Called when lifetime unlock changes so an open preview can refresh watermark gating. */
+  onUnlockChange?: (isUnlocked: boolean) => void;
 };
 
 const LANGUAGE_OPTIONS: Language[] = ['th', 'en'];
 const APP_VERSION_LABEL = getAppVersionLabel();
 
-export function SettingsSheet({ visible, onClose, onEditorTipsReset }: SettingsSheetProps) {
+export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockChange }: SettingsSheetProps) {
   const { currency } = useCurrency();
   const { language, setLanguage, t } = useTranslation();
   const [isCurrencySelectorOpen, setIsCurrencySelectorOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isResetTipsModalVisible, setIsResetTipsModalVisible] = useState(false);
-  /** Free-tier default: watermark on. Mirrors export gating via local unlock flag. */
-  const [showWatermark, setShowWatermark] = useState(true);
+  const [isUnlockPaywallOpen, setIsUnlockPaywallOpen] = useState(false);
+  /** Free-tier default. Mirrors the RevenueCat-backed export entitlement. */
+  const [isUnlocked, setIsUnlocked] = useState(false);
 
   useEffect(() => {
     if (!visible) {
       setIsResetTipsModalVisible(false);
+      setIsUnlockPaywallOpen(false);
       return;
     }
 
     let isMounted = true;
 
-    void loadIsUnlocked().then((isUnlocked) => {
+    void loadIsUnlocked().then((unlocked) => {
       if (isMounted) {
-        setShowWatermark(shouldRenderWatermark(isUnlocked));
+        setIsUnlocked(unlocked);
       }
     });
 
@@ -56,10 +60,9 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset }: SettingsS
     };
   }, [visible]);
 
-  const handleWatermarkToggle = (enabled: boolean) => {
-    setShowWatermark(enabled);
-    // Unlocked = no watermark on export (same flag preview/export already check).
-    void saveIsUnlocked(!enabled);
+  const handleUnlockChange = (unlocked: boolean) => {
+    setIsUnlocked(unlocked);
+    onUnlockChange?.(unlocked);
   };
 
   const handleClose = () => {
@@ -67,6 +70,7 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset }: SettingsS
     setIsHelpOpen(false);
     setIsFeedbackOpen(false);
     setIsResetTipsModalVisible(false);
+    setIsUnlockPaywallOpen(false);
     onClose();
   };
 
@@ -77,6 +81,7 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset }: SettingsS
       setIsCurrencySelectorOpen(false);
       setIsHelpOpen(false);
       setIsFeedbackOpen(false);
+      setIsUnlockPaywallOpen(false);
       onClose();
     });
   };
@@ -155,17 +160,22 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset }: SettingsS
             <Text style={styles.rowLabel}>{t('settings.showTipsAgain')}</Text>
           </Pressable>
 
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>{t('settings.exportWatermark')}</Text>
-            <Switch
-              accessibilityLabel={t('settings.exportWatermark')}
-              accessibilityRole="switch"
-              onValueChange={handleWatermarkToggle}
-              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-              thumbColor={theme.colors.white}
-              value={showWatermark}
-            />
-          </View>
+          {isUnlocked ? (
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>{t('settings.removeWatermark')}</Text>
+              <Text style={styles.rowValueUnlocked}>{t('settings.unlocked')}</Text>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setIsUnlockPaywallOpen(true)}
+              style={styles.row}>
+              <Text style={styles.rowLabel}>{t('settings.removeWatermark')}</Text>
+              <View style={styles.rowTrailing}>
+                <MaterialIcons color={theme.colors.textMuted} name="chevron-right" size={22} />
+              </View>
+            </Pressable>
+          )}
 
           <View style={styles.divider} />
 
@@ -184,6 +194,12 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset }: SettingsS
       <HelpSheet onClose={() => setIsHelpOpen(false)} visible={visible && isHelpOpen} />
 
       <FeedbackSheet onClose={() => setIsFeedbackOpen(false)} visible={visible && isFeedbackOpen} />
+
+      <UnlockPaywallSheet
+        onClose={() => setIsUnlockPaywallOpen(false)}
+        onUnlockChange={handleUnlockChange}
+        visible={visible && isUnlockPaywallOpen}
+      />
 
       <ConfirmOverlay
         body={t('settings.resetTipsBody')}

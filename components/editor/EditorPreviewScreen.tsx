@@ -22,8 +22,6 @@ import type { PanelMarker } from '@/types/pricePanel';
 import type { PriceTag } from '@/types/tag';
 
 const UNTITLED_FILENAME = 'Untitled';
-/** Preview CTA to open lifetime unlock — hidden until paywall is ready to ship. */
-const SHOW_REMOVE_WATERMARK_BANNER = false;
 
 type EditorPreviewScreenProps = {
   draftFilename: string;
@@ -226,7 +224,7 @@ export function EditorPreviewScreen({
         ) : null}
       </View>
 
-      {SHOW_REMOVE_WATERMARK_BANNER && showWatermark ? (
+      {showWatermark ? (
         <Pressable
           accessibilityRole="button"
           accessibilityState={isExporting ? { disabled: true } : undefined}

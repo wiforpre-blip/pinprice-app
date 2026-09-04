@@ -114,6 +114,7 @@ The following libraries are pre-approved. Do not add anything outside this list 
 - `expo-media-library`
 - `react-native-gesture-handler`
 - `react-native-reanimated`
+- `@shopify/react-native-skia`
 - `react-native-view-shot`
 - `@react-native-async-storage/async-storage`
 - `expo-sharing`
@@ -137,6 +138,7 @@ If a task seems to require a new library, stop and ask first.
 * Avoid broad refactors
 * Do not touch unrelated files
 * Reuse existing components, hooks, helpers, and patterns first
+* Use `@shopify/react-native-skia` only for editor/export rendering that needs canvas-level text or shape effects such as text outline, richer shadows, opacity handling, or closer preview/export parity. Do not replace simple React Native `Text` / `View` tags with Skia unless the visual requirement cannot be met cleanly with the existing tag renderer.
 
 Domain concepts:
 

@@ -11,6 +11,7 @@ import { LogBox, StyleSheet } from 'react-native';
 import { AppSplash } from '@/components/ui/AppSplash';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
+import { initializePurchases } from '@/services/purchase.service';
 
 /**
  * Expo SDK 54 DEV wraps the app with withDevTools → useKeepAwake, which does not
@@ -43,6 +44,10 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 
 export default function RootLayout() {
   const [showAppSplash, setShowAppSplash] = useState(true);
+
+  useEffect(() => {
+    void initializePurchases();
+  }, []);
 
   const handleNativeSplashReady = useCallback(() => {
     void SplashScreen.hideAsync().catch(() => {
