@@ -39,6 +39,7 @@ export type TagInlineEdit = {
   maxLength?: number;
   placeholder?: string;
   prefix?: string;
+  suffix?: string;
   selection?: TextInputSelection;
   onFocus?: () => void;
   /** Return false to ignore the key (best-effort; platform support varies). */
@@ -505,7 +506,11 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
     isTextTag && isInlineEditing
       ? Math.min(displayMaxWidth, Math.max(textDefaultWidth, textContentWidth ?? textDefaultWidth))
       : undefined;
-  const contentTextAlign = isQuantity ? ('left' as const) : ('center' as const);
+  const contentTextAlign = isCompactInline ? ('left' as const) : ('center' as const);
+  const priceAmountFieldWidth =
+    displayType === 'price' && isInlineEditing
+      ? Math.ceil(tagStyle.fontSize * Math.max(3.2, Math.max(localInputValue.length, 1) * 0.65) + 4)
+      : undefined;
   // TextInput cannot use multi-layer outline — approximate stroke with a tight black halo while typing.
   const editOutlineShadow =
     tagStyle.textOutline != null
@@ -634,7 +639,7 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
             },
           ]}>
           {inlineEdit.prefix ? (
-            <Text pointerEvents="none" style={[editTextStyle, styles.inlinePrefix]}>
+            <Text pointerEvents="none" style={[editTextStyle, styles.inlineAffix]}>
               {inlineEdit.prefix}
             </Text>
           ) : null}
@@ -712,15 +717,15 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
                       maxHeight: multilineInputMaxHeight,
                     }
                   : null),
-                minWidth:
-                  isQuantity
-                    ? quantityDigitsWidth
-                    : displayType === 'price'
-                      ? Math.ceil(tagStyle.fontSize * 3.2)
-                      : undefined,
+                minWidth: isQuantity ? quantityDigitsWidth : priceAmountFieldWidth,
                 ...(isQuantity
                   ? {
                       width: quantityDigitsWidth,
+                    }
+                  : null),
+                ...(priceAmountFieldWidth != null
+                  ? {
+                      width: priceAmountFieldWidth,
                     }
                   : null),
               },
@@ -734,6 +739,11 @@ export const TagOverlay = forwardRef<TextInput, TagOverlayProps>(function TagOve
             }
             value={localInputValue}
           />
+          {inlineEdit.suffix ? (
+            <Text pointerEvents="none" style={[editTextStyle, styles.inlineAffix]}>
+              {inlineEdit.suffix}
+            </Text>
+          ) : null}
         </View>
       ) : isPlainSoldIcon || isBadgeSoldIcon ? (
         <SoldCrossIcon color={tagStyle.color} size={tagStyle.fontSize} thicknessScale={2} />
@@ -815,7 +825,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     width: '100%',
   },
-  inlinePrefix: {
+  inlineAffix: {
     flexGrow: 0,
     flexShrink: 0,
   },
