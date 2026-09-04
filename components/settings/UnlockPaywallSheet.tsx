@@ -6,7 +6,6 @@ import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
 import {
-  devMockUnlock,
   getLifetimeUnlockPriceString,
   getUnlockStatus,
   purchaseLifetimeUnlock,
@@ -21,7 +20,7 @@ type UnlockPaywallSheetProps = {
   onUnlockChange?: (isUnlocked: boolean) => void;
 };
 
-type BusyAction = 'purchase' | 'restore' | 'dev' | null;
+type BusyAction = 'purchase' | 'restore' | null;
 
 function messageForResult(
   result: PurchaseResult,
@@ -153,26 +152,6 @@ export function UnlockPaywallSheet({ visible, onClose, onUnlockChange }: UnlockP
     }
   };
 
-  const handleDevMockUnlock = async () => {
-    if (!__DEV__ || busyAction !== null || isUnlocked) {
-      return;
-    }
-
-    setBusyAction('dev');
-    setStatusMessage(null);
-    setIsError(false);
-
-    try {
-      const result = await devMockUnlock();
-      applyUnlockResult(result, 'purchase');
-    } catch {
-      setStatusMessage(t('unlock.error'));
-      setIsError(true);
-    } finally {
-      setBusyAction(null);
-    }
-  };
-
   const isBusy = busyAction !== null;
 
   return (
@@ -210,23 +189,6 @@ export function UnlockPaywallSheet({ visible, onClose, onUnlockChange }: UnlockP
               )}
             </Pressable>
 
-            {__DEV__ ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ disabled: isBusy }}
-                disabled={isBusy}
-                onPress={() => {
-                  void handleDevMockUnlock();
-                }}
-                style={[styles.unlockDevButton, isBusy && styles.unlockButtonDisabled]}>
-                {busyAction === 'dev' ? (
-                  <ActivityIndicator color={theme.colors.textSecondary} />
-                ) : (
-                  <Text style={styles.unlockDevButtonText}>{t('unlock.devMock')}</Text>
-                )}
-              </Pressable>
-            ) : null}
-
             {statusMessage ? (
               <Text style={[styles.unlockStatus, isError && styles.unlockStatusError]}>{statusMessage}</Text>
             ) : null}
@@ -254,10 +216,8 @@ export function UnlockPaywallSheet({ visible, onClose, onUnlockChange }: UnlockP
             <Text style={styles.unlockBenefit}>{t('unlock.benefit')}</Text>
             {isPriceLoading ? (
               <ActivityIndicator color={theme.colors.textSecondary} />
-            ) : priceString ? (
-              <Text style={styles.unlockPrice}>{priceString}</Text>
             ) : (
-              <Text style={styles.unlockPriceNote}>{t('unlock.priceUnavailable')}</Text>
+              priceString ? <Text style={styles.unlockPrice}>{priceString}</Text> : null
             )}
           </>
         )}

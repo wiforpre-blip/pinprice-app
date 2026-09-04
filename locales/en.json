@@ -8,8 +8,6 @@
     "subtitle": "Pick price and Sold tag styles,\nthen save ready to post",
     "takePhoto": "Take Photo",
     "choosePhoto": "Choose Photo",
-    "photoSourceTitle": "Choose photo",
-    "gallery": "Gallery",
     "recent": "Recent Projects",
     "viewAll": "View all",
     "menu": "Menu",
@@ -72,8 +70,7 @@
   },
   "unlock": {
     "title": "Remove watermark forever",
-    "benefit": "One-time unlock. New exports will not include the PinPrice watermark.",
-    "priceUnavailable": "Price shown by the Store",
+    "benefit": "One-time purchase to remove the watermark forever.",
     "cta": "Unlock forever",
     "restore": "Restore purchase",
     "unlockedBody": "Watermark is already removed from your exports.",
@@ -86,8 +83,7 @@
     "notImplemented": "Purchases are not available yet.",
     "restoreNotImplemented": "Restore is not available yet.",
     "unavailable": "Purchase is unavailable right now.",
-    "error": "Purchase failed. Please try again.",
-    "devMock": "Dev: Unlock now"
+    "error": "Purchase failed. Please try again."
   },
   "currency": {
     "thb": "Thai Baht",

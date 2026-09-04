@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import Purchases, {
   LOG_LEVEL,
@@ -12,9 +11,6 @@ import type { PurchaseResult, UnlockStatus } from '@/types/purchase';
 
 /** RevenueCat entitlement attached to the lifetime watermark product. */
 const REMOVE_WATERMARK_ENTITLEMENT = 'remove_watermark';
-
-/** Read only in development; never grants production access. */
-const DEV_UNLOCKED_KEY = 'pinprice.tier.unlocked';
 
 /** Public RevenueCat keys are injected at build time; never put secret keys here. */
 const IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY?.trim() ?? '';
@@ -148,21 +144,7 @@ export async function getLifetimeUnlockPriceString(): Promise<string | null> {
   }
 }
 
-/**
- * RevenueCat entitlement is authoritative in production. The old local flag
- * is accepted only by the dev-only mock flow for existing manual QA.
- */
 export async function getUnlockStatus(): Promise<UnlockStatus> {
-  if (__DEV__) {
-    try {
-      if ((await AsyncStorage.getItem(DEV_UNLOCKED_KEY)) === 'true') {
-        return { isUnlocked: true };
-      }
-    } catch {
-      // Fall through to the real entitlement check.
-    }
-  }
-
   const customerInfo = await getCustomerInfo();
   return { isUnlocked: customerInfo ? hasRemoveWatermarkEntitlement(customerInfo) : false };
 }
@@ -223,23 +205,5 @@ export async function restorePurchases(): Promise<PurchaseResult> {
     }
 
     return { status: 'error', message: getErrorMessage(error) };
-  }
-}
-
-/** Dev/test-only unlock; production builds cannot use this path. */
-export async function devMockUnlock(): Promise<PurchaseResult> {
-  if (!__DEV__) {
-    return { status: 'unavailable' };
-  }
-
-  try {
-    if ((await AsyncStorage.getItem(DEV_UNLOCKED_KEY)) === 'true') {
-      return { status: 'already_unlocked' };
-    }
-
-    await AsyncStorage.setItem(DEV_UNLOCKED_KEY, 'true');
-    return { status: 'purchased' };
-  } catch {
-    return { status: 'error' };
   }
 }

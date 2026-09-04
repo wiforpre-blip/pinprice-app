@@ -8,7 +8,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RecentDraftsSection } from '@/components/home/RecentDraftsSection';
 import { SettingsSheet } from '@/components/settings/SettingsSheet';
-import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { useRecentDrafts } from '@/hooks/useRecentDrafts';
@@ -24,7 +23,6 @@ export default function HomeScreen() {
   const { drafts, refreshDrafts } = useRecentDrafts();
   const [isOpeningPicker, setIsOpeningPicker] = useState(false);
   const [isOpeningDraft, setIsOpeningDraft] = useState(false);
-  const [isPhotoSourceSheetOpen, setIsPhotoSourceSheetOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -89,21 +87,11 @@ export default function HomeScreen() {
     }
   };
 
-  const openPhotoSourceSheet = () => {
-    if (isOpeningPicker || isOpeningDraft) {
-      return;
-    }
-
-    setMessage(null);
-    setIsPhotoSourceSheetOpen(true);
-  };
-
   const choosePhotoFromGallery = async () => {
     if (isOpeningPicker || isOpeningDraft) {
       return;
     }
 
-    setIsPhotoSourceSheetOpen(false);
     setIsOpeningPicker(true);
     setMessage(null);
 
@@ -177,23 +165,6 @@ export default function HomeScreen() {
       </View>
 
       <SettingsSheet onClose={() => setIsSettingsOpen(false)} visible={isSettingsOpen} />
-      <BottomSheetOverlay
-        onClose={() => setIsPhotoSourceSheetOpen(false)}
-        title={t('home.photoSourceTitle')}
-        visible={isPhotoSourceSheetOpen}>
-        <Pressable
-          accessibilityRole="button"
-          disabled={isOpeningPicker || isOpeningDraft}
-          onPress={() => {
-            void choosePhotoFromGallery();
-          }}
-          style={[styles.galleryButton, (isOpeningPicker || isOpeningDraft) && styles.disabledButton]}>
-          <MaterialIcons color={theme.colors.white} name="photo-library" size={22} />
-          <Text style={[styles.buttonText, styles.primaryButtonText, language === 'th' && styles.buttonTextThai]}>
-            {t('home.gallery')}
-          </Text>
-        </Pressable>
-      </BottomSheetOverlay>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
@@ -214,7 +185,9 @@ export default function HomeScreen() {
             <Pressable
               accessibilityRole="button"
               disabled={isOpeningPicker || isOpeningDraft}
-              onPress={openPhotoSourceSheet}
+              onPress={() => {
+                void choosePhotoFromGallery();
+              }}
               style={[
                 styles.button,
                 styles.primaryButton,
@@ -345,19 +318,6 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: theme.spacing.md,
-  },
-  galleryButton: {
-    minHeight: theme.buttons.height,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.buttons.primary.borderColor,
-    backgroundColor: theme.buttons.primary.backgroundColor,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
   },
   button: {
     minHeight: theme.buttons.height,

@@ -172,10 +172,6 @@ export const settingsStyles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.textPrimary,
   },
-  unlockPriceNote: {
-    ...theme.typography.caption,
-    color: theme.colors.textMuted,
-  },
   unlockBadge: {
     alignSelf: 'flex-start',
     minHeight: 32,
@@ -230,16 +226,6 @@ export const settingsStyles = StyleSheet.create({
     lineHeight: 24,
     color: theme.colors.textPrimary,
     includeFontPadding: true,
-  },
-  unlockDevButton: {
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.md,
-  },
-  unlockDevButtonText: {
-    ...theme.typography.caption,
-    color: theme.colors.textMuted,
   },
   unlockButtonDisabled: {
     opacity: 0.6,
