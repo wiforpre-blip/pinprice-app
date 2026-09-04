@@ -7,6 +7,12 @@ import { captureRef } from 'react-native-view-shot';
 import { useTranslation } from '@/contexts/LanguageContext';
 import { upsertEditorDraft } from '@/services/draft.service';
 import { prepareNamedExportUri } from '@/services/export.service';
+import {
+  REVIEW_PROMPT_DELAY_AFTER_SAVE_MS,
+  REVIEW_PROMPT_DELAY_AFTER_SHARE_MS,
+  maybeRequestAutomaticReview,
+  recordSuccessfulExport,
+} from '@/services/review.service';
 import { loadIsUnlocked } from '@/services/tier.service';
 import type { EditorDraftSnapshot } from '@/types/draft';
 import type { ExportAction, Size } from '@/types/editor';
@@ -44,9 +50,12 @@ export function useEditorExport({
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [hasSavedToGallery, setHasSavedToGallery] = useState(false);
   const [isCaptureImageLoaded, setIsCaptureImageLoaded] = useState(false);
-  /** Local Pro unlock flag — free by default until a future monetization path sets it. */
+  /** RevenueCat-backed Pro entitlement; free by default when unavailable. */
   const [isUnlocked, setIsUnlocked] = useState(false);
   const exportMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reviewPromptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Save+Share from the same Preview count as one successful export job. */
+  const previewExportCountedRef = useRef(false);
   const isExporting = exportAction !== null;
   const showWatermark = shouldRenderWatermark(isUnlocked);
 
@@ -56,6 +65,52 @@ export function useEditorExport({
       exportMessageTimerRef.current = null;
     }
   }, []);
+
+  const clearReviewPromptTimer = useCallback(() => {
+    if (reviewPromptTimerRef.current) {
+      clearTimeout(reviewPromptTimerRef.current);
+      reviewPromptTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * After a real Save/Share success: count once per Preview job immediately, then
+   * (Android) maybe show the native review prompt once export UI has settled.
+   */
+  const handleExportSuccessForReview = useCallback(
+    (action: ExportAction) => {
+      const shouldCountJob = !previewExportCountedRef.current;
+
+      if (shouldCountJob) {
+        previewExportCountedRef.current = true;
+      }
+
+      onExportSuccess?.();
+
+      const delayMs =
+        action === 'save' ? REVIEW_PROMPT_DELAY_AFTER_SAVE_MS : REVIEW_PROMPT_DELAY_AFTER_SHARE_MS;
+
+      clearReviewPromptTimer();
+
+      void (async () => {
+        try {
+          if (shouldCountJob) {
+            await recordSuccessfulExport();
+          }
+
+          reviewPromptTimerRef.current = setTimeout(() => {
+            reviewPromptTimerRef.current = null;
+            void maybeRequestAutomaticReview().catch(() => {
+              // Native review failures must not affect export UX.
+            });
+          }, delayMs);
+        } catch {
+          // Review tracking must never surface as an export error.
+        }
+      })();
+    },
+    [clearReviewPromptTimer, onExportSuccess],
+  );
 
   const showExportMessage = useCallback(
     (message: string, options?: { autoDismissMs?: number }) => {
@@ -95,8 +150,9 @@ export function useEditorExport({
   useEffect(() => {
     return () => {
       clearExportMessageTimer();
+      clearReviewPromptTimer();
     };
-  }, [clearExportMessageTimer]);
+  }, [clearExportMessageTimer, clearReviewPromptTimer]);
 
   const persistDraftAfterExport = useCallback(
     async (exportFilename: string) => {
@@ -145,15 +201,19 @@ export function useEditorExport({
     }
 
     clearExportMessageTimer();
+    clearReviewPromptTimer();
     setExportMessage(null);
     // Drop stale host size so the aspect-matched capture view remeasures before save/share.
     setPreviewSize({ width: 0, height: 0 });
     setIsCaptureImageLoaded(false);
+    // New preview session may save once; re-save on the same preview is blocked below.
+    setHasSavedToGallery(false);
+    previewExportCountedRef.current = false;
     setIsPreviewing(true);
 
     // Re-check unlock so export watermark gating stays current when opening preview.
     void loadIsUnlocked().then(setIsUnlocked);
-  }, [clearExportMessageTimer, imageUri]);
+  }, [clearExportMessageTimer, clearReviewPromptTimer, imageUri]);
 
   const closePreview = useCallback(() => {
     if (exportAction !== null) {
@@ -165,6 +225,8 @@ export function useEditorExport({
     setIsPreviewing(false);
     setPreviewSize({ width: 0, height: 0 });
     setIsCaptureImageLoaded(false);
+    setHasSavedToGallery(false);
+    previewExportCountedRef.current = false;
   }, [clearExportMessageTimer, exportAction]);
 
   const handlePreviewLayout = useCallback((event: LayoutChangeEvent) => {
@@ -223,6 +285,12 @@ export function useEditorExport({
         return;
       }
 
+      // Same preview session: do not create another gallery copy on repeat taps.
+      if (hasSavedToGallery) {
+        showExportMessage(t('export.alreadyInGallery'), { autoDismissMs: 2000 });
+        return;
+      }
+
       setExportAction('save');
       clearExportMessageTimer();
       setExportMessage(null);
@@ -241,7 +309,7 @@ export function useEditorExport({
         setHasSavedToGallery(true);
         showExportMessage(t('export.saved'), { autoDismissMs: 2000 });
         await persistDraftHistoryOnce(exportFilename);
-        onExportSuccess?.();
+        handleExportSuccessForReview('save');
       } catch {
         showExportMessage(t('errors.saveFailed'));
       } finally {
@@ -252,7 +320,8 @@ export function useEditorExport({
       captureNamedExport,
       clearExportMessageTimer,
       exportAction,
-      onExportSuccess,
+      handleExportSuccessForReview,
+      hasSavedToGallery,
       persistDraftHistoryOnce,
       showExportMessage,
       t,
@@ -284,14 +353,21 @@ export function useEditorExport({
           dialogTitle: t('export.shareDialogTitle'),
           mimeType: 'image/jpeg',
         });
-        onExportSuccess?.();
+        handleExportSuccessForReview('share');
       } catch {
         showExportMessage(t('errors.shareFailed'));
       } finally {
         setExportAction(null);
       }
     },
-    [captureNamedExport, clearExportMessageTimer, exportAction, onExportSuccess, showExportMessage, t],
+    [
+      captureNamedExport,
+      clearExportMessageTimer,
+      exportAction,
+      handleExportSuccessForReview,
+      showExportMessage,
+      t,
+    ],
   );
   const applyUnlock = useCallback((unlocked: boolean) => {
     setIsUnlocked(unlocked);

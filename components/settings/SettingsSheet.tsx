@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useState } from 'react';
-import { Pressable, Switch, Text, View } from 'react-native';
+import { Platform, Pressable, Switch, Text, View } from 'react-native';
 
 import { CurrencySelectorSheet } from '@/components/settings/CurrencySelectorSheet';
 import { FeedbackSheet } from '@/components/settings/FeedbackSheet';
@@ -12,6 +12,7 @@ import { getAppVersionLabel } from '@/constants/app';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslation, type Language } from '@/contexts/LanguageContext';
+import { openStoreListingForRating } from '@/services/review.service';
 import { loadIsUnlocked, saveIsUnlocked } from '@/services/tier.service';
 import { resetEditorTips } from '@/services/tips.service';
 import { shouldRenderWatermark } from '@/utils/watermark';
@@ -135,6 +136,17 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset }: SettingsS
             style={styles.row}>
             <Text style={styles.rowLabel}>{t('settings.contact')}</Text>
           </Pressable>
+
+          {Platform.OS === 'android' ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                void openStoreListingForRating();
+              }}
+              style={styles.row}>
+              <Text style={styles.rowLabel}>{t('settings.rateUs')}</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             accessibilityRole="button"

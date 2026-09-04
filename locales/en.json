@@ -29,6 +29,7 @@
     "currency": "Currency",
     "version": "App Version",
     "contact": "Contact Developer",
+    "rateUs": "Rate PinPrice",
     "showTipsAgain": "Show tutorial again",
     "resetTipsTitle": "Show tips again?",
     "resetTipsBody": "Editor tips and the first-run tutorial will show again. Language, currency, and other settings stay unchanged.",
@@ -265,6 +266,7 @@
     "share": "Share",
     "shareDialogTitle": "Share tagged photo",
     "saved": "Saved",
+    "alreadyInGallery": "Already in your gallery",
     "watermark": "PinPrice"
   },
   "leave": {
