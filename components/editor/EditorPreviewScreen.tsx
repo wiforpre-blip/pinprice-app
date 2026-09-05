@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { ImageLoadEventData } from 'expo-image';
 import type { ReactNode, RefObject } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
   LayoutChangeEvent,
@@ -14,7 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ExportPreview } from '@/components/editor/ExportPreview';
-import { UnlockPaywallSheet } from '@/components/settings/UnlockPaywallSheet';
+import { UnlockDialog } from '@/components/settings/UnlockDialog';
+import type { UnlockOutcome } from '@/components/settings/UnlockDialog';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
 import type { EditorPricingMode, ExportAction, Size } from '@/types/editor';
@@ -85,8 +86,58 @@ export function EditorPreviewScreen({
   tags,
 }: EditorPreviewScreenProps) {
   const { t } = useTranslation();
-  const [isUnlockPaywallOpen, setIsUnlockPaywallOpen] = useState(false);
+  const [isUnlockDialogOpen, setIsUnlockDialogOpen] = useState(false);
+  /**
+   * Toast shown after successful unlock from Preview.
+   * Cleared immediately when a new exportMessage arrives so they never stack.
+   */
+  const [unlockToast, setUnlockToast] = useState<string | null>(null);
+  const unlockToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isUntitled = filename.trim() === UNTITLED_FILENAME;
+
+  // When a real export message arrives, dismiss the unlock toast so they don't stack.
+  useEffect(() => {
+    if (exportMessage) {
+      setUnlockToast(null);
+      if (unlockToastTimerRef.current !== null) {
+        clearTimeout(unlockToastTimerRef.current);
+        unlockToastTimerRef.current = null;
+      }
+    }
+  }, [exportMessage]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (unlockToastTimerRef.current !== null) {
+        clearTimeout(unlockToastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleUnlockSuccess = (outcome: UnlockOutcome) => {
+    setIsUnlockDialogOpen(false);
+    onUnlockChange(true);
+
+    let message: string | null = null;
+    if (outcome.kind === 'purchased') {
+      message = t('unlock.success');
+    } else if (outcome.kind === 'restored') {
+      message = t('unlock.restoreSuccess');
+    }
+    // already_unlocked: silent state update — no toast
+
+    if (message) {
+      // Only show toast if no export message is currently displayed
+      if (!exportMessage) {
+        setUnlockToast(message);
+        unlockToastTimerRef.current = setTimeout(() => {
+          setUnlockToast(null);
+          unlockToastTimerRef.current = null;
+        }, 4000);
+      }
+    }
+  };
 
   const handleConfirmFilenameEdit = () => {
     Keyboard.dismiss();
@@ -105,18 +156,16 @@ export function EditorPreviewScreen({
     onClosePreview();
   };
 
+  // exportMessage takes priority; unlockToast shows only when no export result is present
+  const activeToast = exportMessage ?? unlockToast;
+
   return (
     <SafeAreaView style={styles.screen}>
       {leaveConfirmModal}
-      <UnlockPaywallSheet
-        onClose={() => setIsUnlockPaywallOpen(false)}
-        onUnlockChange={(unlocked) => {
-          onUnlockChange(unlocked);
-          if (unlocked) {
-            setIsUnlockPaywallOpen(false);
-          }
-        }}
-        visible={isUnlockPaywallOpen}
+      <UnlockDialog
+        onClose={() => setIsUnlockDialogOpen(false)}
+        onSuccess={handleUnlockSuccess}
+        visible={isUnlockDialogOpen}
       />
 
       <View style={styles.previewTopBar}>
@@ -215,10 +264,11 @@ export function EditorPreviewScreen({
           tags={tags}
         />
 
-        {exportMessage ? (
+
+        {activeToast ? (
           <View pointerEvents="none" style={styles.exportToastOverlay}>
             <View style={styles.exportToast}>
-              <Text style={styles.exportToastText}>{exportMessage}</Text>
+              <Text style={styles.exportToastText}>{activeToast}</Text>
             </View>
           </View>
         ) : null}
@@ -229,7 +279,7 @@ export function EditorPreviewScreen({
           accessibilityRole="button"
           accessibilityState={isExporting ? { disabled: true } : undefined}
           disabled={isExporting}
-          onPress={() => setIsUnlockPaywallOpen(true)}
+          onPress={() => setIsUnlockDialogOpen(true)}
           style={[styles.unlockBanner, isExporting && styles.bottomActionDisabled]}>
           <MaterialIcons color={theme.colors.textPrimary} name="layers-clear" size={18} />
           <Text numberOfLines={1} style={styles.unlockBannerText}>

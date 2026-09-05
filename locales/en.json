@@ -72,13 +72,16 @@
     "title": "Remove watermark forever",
     "benefit": "One-time purchase to remove the watermark forever.",
     "cta": "Unlock forever",
-    "restore": "Restore purchase",
+    "restore": "Already unlocked permanent watermark removal? Tap to restore",
     "unlockedBody": "Watermark is already removed from your exports.",
     "purchasing": "Unlocking...",
     "restoring": "Restoring...",
     "success": "Purchase successful. New exports have no watermark.",
+    "restoreSuccess": "Restore successful. New exports have no watermark.",
     "alreadyUnlocked": "Already unlocked.",
     "notPurchased": "No previous purchase was found to restore.",
+    "priceUnavailable": "Price unavailable",
+    "retryPrice": "Retry",
     "cancelled": "Purchase cancelled.",
     "notImplemented": "Purchases are not available yet.",
     "restoreNotImplemented": "Restore is not available yet.",
@@ -171,7 +174,6 @@
       "exportBody": "In Preview, tap the filename to rename it"
     }
   },
-
   "crop": {
     "back": "Back",
     "next": "Next",
@@ -197,7 +199,6 @@
       "recommended": "Recommended"
     }
   },
-
   "pricePanel": {
     "confirmDeleteBody": "This marker and its price row will be removed.",
     "confirmDeleteTitle": "Delete this price item?",

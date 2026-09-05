@@ -1,11 +1,13 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 
 import { CurrencySelectorSheet } from '@/components/settings/CurrencySelectorSheet';
 import { FeedbackSheet } from '@/components/settings/FeedbackSheet';
 import { HelpSheet } from '@/components/settings/HelpSheet';
-import { UnlockPaywallSheet } from '@/components/settings/UnlockPaywallSheet';
+import type { HelpRestoreOutcome } from '@/components/settings/HelpSheet';
+import { UnlockDialog } from '@/components/settings/UnlockDialog';
+import type { UnlockOutcome } from '@/components/settings/UnlockDialog';
 import { settingsStyles as styles } from '@/components/settings/settings.styles';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
 import { ConfirmOverlay } from '@/components/ui/ConfirmOverlay';
@@ -29,6 +31,9 @@ type SettingsSheetProps = {
 const LANGUAGE_OPTIONS: Language[] = ['th', 'en'];
 const APP_VERSION_LABEL = getAppVersionLabel();
 
+/** Duration (ms) the success pill is shown before auto-dismissing */
+const PILL_DURATION_MS = 4000;
+
 export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockChange }: SettingsSheetProps) {
   const { currency } = useCurrency();
   const { language, setLanguage, t } = useTranslation();
@@ -36,14 +41,41 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockCha
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isResetTipsModalVisible, setIsResetTipsModalVisible] = useState(false);
-  const [isUnlockPaywallOpen, setIsUnlockPaywallOpen] = useState(false);
+  const [isUnlockDialogOpen, setIsUnlockDialogOpen] = useState(false);
   /** Free-tier default. Mirrors the RevenueCat-backed export entitlement. */
   const [isUnlocked, setIsUnlocked] = useState(false);
+
+  /**
+   * Dark pill message shown inside Settings after unlock/restore.
+   * Displayed only once, auto-dismissed after PILL_DURATION_MS.
+   */
+  const [pillMessage, setPillMessage] = useState<string | null>(null);
+  const pillTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Dismiss pill and clear its timer
+  const clearPill = () => {
+    if (pillTimerRef.current !== null) {
+      clearTimeout(pillTimerRef.current);
+      pillTimerRef.current = null;
+    }
+    setPillMessage(null);
+  };
+
+  // Show a pill message for PILL_DURATION_MS then auto-dismiss
+  const showPill = (message: string) => {
+    clearPill();
+    setPillMessage(message);
+    pillTimerRef.current = setTimeout(() => {
+      setPillMessage(null);
+      pillTimerRef.current = null;
+    }, PILL_DURATION_MS);
+  };
 
   useEffect(() => {
     if (!visible) {
       setIsResetTipsModalVisible(false);
-      setIsUnlockPaywallOpen(false);
+      setIsUnlockDialogOpen(false);
+      clearPill();
       return;
     }
 
@@ -60,9 +92,45 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockCha
     };
   }, [visible]);
 
-  const handleUnlockChange = (unlocked: boolean) => {
-    setIsUnlocked(unlocked);
-    onUnlockChange?.(unlocked);
+  // Cleanup pill timer on unmount
+  useEffect(() => {
+    return () => {
+      if (pillTimerRef.current !== null) {
+        clearTimeout(pillTimerRef.current);
+      }
+    };
+  }, []);
+
+  /**
+   * Called by UnlockDialog when purchase / restore / already_unlocked succeeds.
+   * Dialog has already closed itself via the caller closing it; we update state
+   * and show the pill after the dialog dismisses.
+   */
+  const handleUnlockSuccess = (outcome: UnlockOutcome) => {
+    setIsUnlockDialogOpen(false);
+    setIsUnlocked(true);
+    onUnlockChange?.(true);
+
+    if (outcome.kind === 'purchased') {
+      showPill(t('unlock.success'));
+    } else if (outcome.kind === 'restored') {
+      showPill(t('unlock.restoreSuccess'));
+    }
+    // already_unlocked: update state silently, no pill
+  };
+
+  /**
+   * Called by HelpSheet when restore succeeds.
+   * HelpSheet closes itself; we update state and show pill in Settings.
+   */
+  const handleHelpRestoreSuccess = (outcome: HelpRestoreOutcome) => {
+    setIsUnlocked(true);
+    onUnlockChange?.(true);
+
+    if (outcome.kind === 'restored') {
+      showPill(t('unlock.restoreSuccess'));
+    }
+    // already_unlocked via Help: silent state update
   };
 
   const handleClose = () => {
@@ -70,7 +138,8 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockCha
     setIsHelpOpen(false);
     setIsFeedbackOpen(false);
     setIsResetTipsModalVisible(false);
-    setIsUnlockPaywallOpen(false);
+    setIsUnlockDialogOpen(false);
+    clearPill();
     onClose();
   };
 
@@ -81,7 +150,8 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockCha
       setIsCurrencySelectorOpen(false);
       setIsHelpOpen(false);
       setIsFeedbackOpen(false);
-      setIsUnlockPaywallOpen(false);
+      setIsUnlockDialogOpen(false);
+      clearPill();
       onClose();
     });
   };
@@ -161,6 +231,7 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockCha
           </Pressable>
 
           {isUnlocked ? (
+            /* Unlocked row: status only, not tappable */
             <View style={styles.row}>
               <Text style={styles.rowLabel}>{t('settings.removeWatermark')}</Text>
               <Text style={styles.rowValueUnlocked}>{t('settings.unlocked')}</Text>
@@ -168,7 +239,7 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockCha
           ) : (
             <Pressable
               accessibilityRole="button"
-              onPress={() => setIsUnlockPaywallOpen(true)}
+              onPress={() => setIsUnlockDialogOpen(true)}
               style={styles.row}>
               <Text style={styles.rowLabel}>{t('settings.removeWatermark')}</Text>
               <View style={styles.rowTrailing}>
@@ -178,6 +249,15 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockCha
           )}
 
           <View style={styles.divider} />
+
+          {/* Dark pill snackbar — shown inside Settings after unlock/restore */}
+          {pillMessage ? (
+            <View
+              accessibilityLiveRegion="polite"
+              style={styles.settingsPill}>
+              <Text style={styles.settingsPillText}>{pillMessage}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.row}>
             <Text style={[styles.rowLabel, styles.rowLabelDisabled]}>{t('settings.version')}</Text>
@@ -191,14 +271,19 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockCha
         visible={visible && isCurrencySelectorOpen}
       />
 
-      <HelpSheet onClose={() => setIsHelpOpen(false)} visible={visible && isHelpOpen} />
+      <HelpSheet
+        onClose={() => setIsHelpOpen(false)}
+        onRestoreSuccess={handleHelpRestoreSuccess}
+        visible={visible && isHelpOpen}
+      />
 
       <FeedbackSheet onClose={() => setIsFeedbackOpen(false)} visible={visible && isFeedbackOpen} />
 
-      <UnlockPaywallSheet
-        onClose={() => setIsUnlockPaywallOpen(false)}
-        onUnlockChange={handleUnlockChange}
-        visible={visible && isUnlockPaywallOpen}
+      {/* UnlockDialog: shown one at a time, no backdrop stack */}
+      <UnlockDialog
+        onClose={() => setIsUnlockDialogOpen(false)}
+        onSuccess={handleUnlockSuccess}
+        visible={visible && isUnlockDialogOpen}
       />
 
       <ConfirmOverlay

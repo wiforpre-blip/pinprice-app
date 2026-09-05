@@ -289,4 +289,74 @@ export const settingsStyles = StyleSheet.create({
     lineHeight: 22,
     color: theme.colors.textSecondary,
   },
+  // --- UnlockDialog shared styles ---
+  dialogHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    minHeight: 44,
+  },
+  dialogTitle: {
+    flex: 1,
+    ...theme.typography.button,
+    lineHeight: 24,
+    color: theme.colors.textPrimary,
+  },
+  dialogCloseButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  dialogScrollContent: {
+    gap: theme.spacing.md,
+  },
+  dialogActions: {
+    gap: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
+  },
+  unlockRestoreLink: {
+    minHeight: 44,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingVertical: theme.spacing.xs,
+  },
+  unlockRestoreLinkText: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    textDecorationLine: 'underline' as const,
+  },
+  unlockRestoreLinkDisabled: {
+    opacity: 0.5,
+  },
+  unlockPriceUnavailable: {
+    ...theme.typography.caption,
+    color: theme.colors.textMuted,
+    textAlign: 'center' as const,
+  },
+  // --- Settings dark pill snackbar ---
+  settingsPill: {
+    alignSelf: 'center' as const,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    borderRadius: 99,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    marginVertical: theme.spacing.sm,
+  },
+  settingsPillText: {
+    ...theme.typography.caption,
+    color: '#FFFFFF',
+    textAlign: 'center' as const,
+  },
+  // --- HelpSheet restore status ---
+  helpRestoreStatus: {
+    ...theme.typography.caption,
+    color: theme.colors.textMuted,
+    paddingLeft: theme.spacing.sm,
+    paddingBottom: theme.spacing.xs,
+  },
+  helpRestoreStatusError: {
+    color: theme.colors.sold,
+  },
 });
+
