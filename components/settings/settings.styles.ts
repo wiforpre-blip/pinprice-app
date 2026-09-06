@@ -209,24 +209,6 @@ export const settingsStyles = StyleSheet.create({
     color: theme.buttons.primary.color,
     includeFontPadding: true,
   },
-  unlockSecondaryButton: {
-    minHeight: theme.buttons.height,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    overflow: 'visible',
-  },
-  unlockSecondaryButtonText: {
-    ...theme.typography.button,
-    lineHeight: 24,
-    color: theme.colors.textPrimary,
-    includeFontPadding: true,
-  },
   unlockButtonDisabled: {
     opacity: 0.6,
   },
@@ -314,20 +296,6 @@ export const settingsStyles = StyleSheet.create({
   dialogActions: {
     gap: theme.spacing.sm,
     paddingTop: theme.spacing.sm,
-  },
-  unlockRestoreLink: {
-    minHeight: 44,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    paddingVertical: theme.spacing.xs,
-  },
-  unlockRestoreLinkText: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-    textDecorationLine: 'underline' as const,
-  },
-  unlockRestoreLinkDisabled: {
-    opacity: 0.5,
   },
   unlockPriceUnavailable: {
     ...theme.typography.caption,

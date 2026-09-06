@@ -4,10 +4,11 @@ import { ActivityIndicator, Animated, Linking, Pressable, Text, View } from 'rea
 
 import { settingsStyles as styles } from '@/components/settings/settings.styles';
 import { BottomSheetOverlay } from '@/components/ui/BottomSheetOverlay';
+import { ConfirmOverlay } from '@/components/ui/ConfirmOverlay';
 import { PRIVACY_POLICY_URL } from '@/constants/app';
 import { PinPriceTheme as theme } from '@/constants/theme';
 import { useTranslation } from '@/contexts/LanguageContext';
-import { restorePurchases } from '@/services/purchase.service';
+import { getUnlockStatus, restorePurchases } from '@/services/purchase.service';
 import type { PurchaseResultStatus } from '@/types/purchase';
 
 export type HelpRestoreOutcome = {
@@ -17,8 +18,9 @@ export type HelpRestoreOutcome = {
 type HelpSheetProps = {
   visible: boolean;
   onClose: () => void;
+  isUnlocked?: boolean;
   /**
-   * Called only on a successful restore (restored / already_unlocked).
+   * Called only on a successful restore (restored).
    * Help sheet will close itself; Settings caller shows a snackbar.
    */
   onRestoreSuccess?: (outcome: HelpRestoreOutcome) => void;
@@ -84,7 +86,7 @@ function HowToBullet({ index, text, visible }: HowToBulletProps) {
   );
 }
 
-export function HelpSheet({ visible, onClose, onRestoreSuccess }: HelpSheetProps) {
+export function HelpSheet({ visible, onClose, isUnlocked = false, onRestoreSuccess }: HelpSheetProps) {
   const { t } = useTranslation();
   const [isHowToOpen, setIsHowToOpen] = useState(false);
   const hasPrivacyPolicyUrl = PRIVACY_POLICY_URL.trim().length > 0;
@@ -93,6 +95,7 @@ export function HelpSheet({ visible, onClose, onRestoreSuccess }: HelpSheetProps
   const [isRestoring, setIsRestoring] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
   const [isRestoreError, setIsRestoreError] = useState(false);
+  const [isAlreadyUnlockedModalVisible, setIsAlreadyUnlockedModalVisible] = useState(false);
 
   // Round-trip guard
   const generationRef = useRef(0);
@@ -103,6 +106,7 @@ export function HelpSheet({ visible, onClose, onRestoreSuccess }: HelpSheetProps
       setIsRestoring(false);
       setRestoreStatus(null);
       setIsRestoreError(false);
+      setIsAlreadyUnlockedModalVisible(false);
     }
   }, [visible]);
 
@@ -119,12 +123,28 @@ export function HelpSheet({ visible, onClose, onRestoreSuccess }: HelpSheetProps
       return;
     }
 
+    // Fast-path: if already unlocked, notify immediately without touching the store
+    if (isUnlocked) {
+      setIsAlreadyUnlockedModalVisible(true);
+      return;
+    }
+
     const gen = ++generationRef.current;
     setIsRestoring(true);
     setRestoreStatus(null);
     setIsRestoreError(false);
 
     try {
+      // Check current entitlement status before triggering restore flow
+      const currentStatus = await getUnlockStatus();
+      if (generationRef.current !== gen) {
+        return;
+      }
+      if (currentStatus.isUnlocked) {
+        setIsAlreadyUnlockedModalVisible(true);
+        return;
+      }
+
       const result = await restorePurchases();
 
       if (generationRef.current !== gen) {
@@ -132,8 +152,11 @@ export function HelpSheet({ visible, onClose, onRestoreSuccess }: HelpSheetProps
       }
 
       switch (result.status) {
-        case 'restored':
         case 'already_unlocked':
+          setIsAlreadyUnlockedModalVisible(true);
+          return;
+
+        case 'restored':
           // Success: close Help and let Settings show the snackbar
           onRestoreSuccess?.({ kind: result.status });
           onClose();
@@ -181,75 +204,85 @@ export function HelpSheet({ visible, onClose, onRestoreSuccess }: HelpSheetProps
   };
 
   return (
-    <BottomSheetOverlay onClose={onClose} title={t('settings.help.title')} visible={visible}>
-      <View style={styles.helpBody}>
-        <View style={styles.helpMenuList}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: isHowToOpen }}
-            onPress={() => setIsHowToOpen((current) => !current)}
-            style={styles.helpMenuRow}>
-            <Text style={styles.helpMenuLabel}>{t('settings.help.howToTitle')}</Text>
-            <MaterialIcons
-              color={theme.colors.textMuted}
-              name={isHowToOpen ? 'expand-less' : 'expand-more'}
-              size={22}
-            />
-          </Pressable>
+    <>
+      <BottomSheetOverlay onClose={onClose} title={t('settings.help.title')} visible={visible}>
+        <View style={styles.helpBody}>
+          <View style={styles.helpMenuList}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: isHowToOpen }}
+              onPress={() => setIsHowToOpen((current) => !current)}
+              style={styles.helpMenuRow}>
+              <Text style={styles.helpMenuLabel}>{t('settings.help.howToTitle')}</Text>
+              <MaterialIcons
+                color={theme.colors.textMuted}
+                name={isHowToOpen ? 'expand-less' : 'expand-more'}
+                size={22}
+              />
+            </Pressable>
 
-          {isHowToOpen ? (
-            <View style={styles.helpHowToPanel}>
-              {HOW_TO_KEYS.map((key, index) => (
-                <HowToBullet index={index} key={key} text={t(key)} visible={isHowToOpen} />
-              ))}
-            </View>
-          ) : null}
+            {isHowToOpen ? (
+              <View style={styles.helpHowToPanel}>
+                {HOW_TO_KEYS.map((key, index) => (
+                  <HowToBullet index={index} key={key} text={t(key)} visible={isHowToOpen} />
+                ))}
+              </View>
+            ) : null}
 
-          <View style={styles.helpMenuDivider} />
+            <View style={styles.helpMenuDivider} />
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !hasPrivacyPolicyUrl }}
-            disabled={!hasPrivacyPolicyUrl}
-            onPress={handleOpenPrivacyPolicy}
-            style={styles.helpMenuRow}>
-            <Text style={[styles.helpMenuLabel, !hasPrivacyPolicyUrl && styles.helpMenuLabelDisabled]}>
-              {t('settings.help.privacyPolicy')}
-            </Text>
-            {hasPrivacyPolicyUrl ? (
-              <MaterialIcons color={theme.colors.textMuted} name="open-in-new" size={18} />
-            ) : (
-              <Text style={styles.rowValueMuted}>{t('settings.help.privacyPolicyComingSoon')}</Text>
-            )}
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !hasPrivacyPolicyUrl }}
+              disabled={!hasPrivacyPolicyUrl}
+              onPress={handleOpenPrivacyPolicy}
+              style={styles.helpMenuRow}>
+              <Text style={[styles.helpMenuLabel, !hasPrivacyPolicyUrl && styles.helpMenuLabelDisabled]}>
+                {t('settings.help.privacyPolicy')}
+              </Text>
+              {hasPrivacyPolicyUrl ? (
+                <MaterialIcons color={theme.colors.textMuted} name="open-in-new" size={18} />
+              ) : (
+                <Text style={styles.rowValueMuted}>{t('settings.help.privacyPolicyComingSoon')}</Text>
+              )}
+            </Pressable>
 
-          <View style={styles.helpMenuDivider} />
+            <View style={styles.helpMenuDivider} />
 
-          {/* Restore purchase row */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isRestoring }}
-            disabled={isRestoring}
-            onPress={() => {
-              void handleRestore();
-            }}
-            style={styles.helpMenuRow}>
-            <Text style={styles.helpMenuLabel}>{t('unlock.restore')}</Text>
-            {isRestoring ? (
-              <ActivityIndicator color={theme.colors.textMuted} size="small" />
-            ) : (
-              <MaterialIcons color={theme.colors.textMuted} name="refresh" size={20} />
-            )}
-          </Pressable>
+            {/* Restore purchase row */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isRestoring }}
+              disabled={isRestoring}
+              onPress={() => {
+                void handleRestore();
+              }}
+              style={styles.helpMenuRow}>
+              <Text style={styles.helpMenuLabel}>{t('unlock.restore')}</Text>
+              {isRestoring ? (
+                <ActivityIndicator color={theme.colors.textMuted} size="small" />
+              ) : (
+                <MaterialIcons color={theme.colors.textMuted} name="refresh" size={20} />
+              )}
+            </Pressable>
 
-          {/* Restore status: neutral or error, stays in Help */}
-          {restoreStatus ? (
-            <Text style={[styles.helpRestoreStatus, isRestoreError && styles.helpRestoreStatusError]}>
-              {restoreStatus}
-            </Text>
-          ) : null}
+            {/* Restore status: neutral or error, stays in Help */}
+            {restoreStatus ? (
+              <Text style={[styles.helpRestoreStatus, isRestoreError && styles.helpRestoreStatusError]}>
+                {restoreStatus}
+              </Text>
+            ) : null}
+          </View>
         </View>
-      </View>
-    </BottomSheetOverlay>
+      </BottomSheetOverlay>
+
+      <ConfirmOverlay
+        body={t('unlock.alreadyUnlockedNotice')}
+        confirmLabel={t('common.ok')}
+        onConfirm={() => setIsAlreadyUnlockedModalVisible(false)}
+        title={t('unlock.alreadyUnlocked')}
+        visible={visible && isAlreadyUnlockedModalVisible}
+      />
+    </>
   );
 }

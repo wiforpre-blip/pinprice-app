@@ -6,10 +6,10 @@ type ConfirmOverlayVariant = 'primary' | 'destructive';
 
 type ConfirmOverlayProps = {
   body?: string;
-  cancelLabel: string;
+  cancelLabel?: string;
   confirmLabel: string;
   confirmVariant?: ConfirmOverlayVariant;
-  onCancel: () => void;
+  onCancel?: () => void;
   onConfirm: () => void;
   title: string;
   visible: boolean;
@@ -26,18 +26,21 @@ export function ConfirmOverlay({
   visible,
 }: ConfirmOverlayProps) {
   const isDestructive = confirmVariant === 'destructive';
+  const handleRequestClose = onCancel ?? onConfirm;
 
   return (
-    <Modal animationType="fade" onRequestClose={onCancel} transparent visible={visible}>
+    <Modal animationType="fade" onRequestClose={handleRequestClose} transparent visible={visible}>
       <View style={styles.backdrop}>
         <Pressable accessibilityRole="summary" onPress={(event) => event.stopPropagation()} style={styles.dialog}>
           <Text style={styles.title}>{title}</Text>
           {body ? <Text style={styles.body}>{body}</Text> : null}
 
           <View style={styles.actions}>
-            <Pressable accessibilityRole="button" onPress={onCancel} style={[styles.button, styles.cancelButton]}>
-              <Text style={styles.cancelText}>{cancelLabel}</Text>
-            </Pressable>
+            {cancelLabel ? (
+              <Pressable accessibilityRole="button" onPress={onCancel} style={[styles.button, styles.cancelButton]}>
+                <Text style={styles.cancelText}>{cancelLabel}</Text>
+              </Pressable>
+            ) : null}
 
             <Pressable
               accessibilityRole="button"

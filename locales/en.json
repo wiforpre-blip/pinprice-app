@@ -79,6 +79,7 @@
     "success": "Purchase successful. New exports have no watermark.",
     "restoreSuccess": "Restore successful. New exports have no watermark.",
     "alreadyUnlocked": "Already unlocked.",
+    "alreadyUnlockedNotice": "Permanent watermark removal is already unlocked. New exports will not have a watermark.",
     "notPurchased": "No previous purchase was found to restore.",
     "priceUnavailable": "Price unavailable",
     "retryPrice": "Retry",

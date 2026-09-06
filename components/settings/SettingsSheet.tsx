@@ -231,7 +231,6 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockCha
           </Pressable>
 
           {isUnlocked ? (
-            /* Unlocked row: status only, not tappable */
             <View style={styles.row}>
               <Text style={styles.rowLabel}>{t('settings.removeWatermark')}</Text>
               <Text style={styles.rowValueUnlocked}>{t('settings.unlocked')}</Text>
@@ -272,6 +271,7 @@ export function SettingsSheet({ visible, onClose, onEditorTipsReset, onUnlockCha
       />
 
       <HelpSheet
+        isUnlocked={isUnlocked}
         onClose={() => setIsHelpOpen(false)}
         onRestoreSuccess={handleHelpRestoreSuccess}
         visible={visible && isHelpOpen}
