@@ -6,7 +6,7 @@ import { captureRef } from 'react-native-view-shot';
 
 import { useTranslation } from '@/contexts/LanguageContext';
 import { upsertEditorDraft } from '@/services/draft.service';
-import { prepareNamedExportUri } from '@/services/export.service';
+import { deleteExportTempFile, prepareNamedExportUri } from '@/services/export.service';
 import {
   REVIEW_PROMPT_DELAY_AFTER_SAVE_MS,
   REVIEW_PROMPT_DELAY_AFTER_SHARE_MS,
@@ -294,6 +294,7 @@ export function useEditorExport({
       setExportAction('save');
       clearExportMessageTimer();
       setExportMessage(null);
+      let namedExportUri: string | null = null;
 
       try {
         const permission = await MediaLibrary.requestPermissionsAsync(true);
@@ -304,7 +305,7 @@ export function useEditorExport({
         }
 
         const copyIndex = takeNextGalleryCopyIndex(exportFilename);
-        const namedExportUri = await captureNamedExport(exportFilename, copyIndex);
+        namedExportUri = await captureNamedExport(exportFilename, copyIndex);
         await MediaLibrary.saveToLibraryAsync(namedExportUri);
         setHasSavedToGallery(true);
         showExportMessage(t('export.saved'), { autoDismissMs: 2000 });
@@ -313,6 +314,9 @@ export function useEditorExport({
       } catch {
         showExportMessage(t('errors.saveFailed'));
       } finally {
+        if (namedExportUri) {
+          await deleteExportTempFile(namedExportUri);
+        }
         setExportAction(null);
       }
     },
@@ -338,6 +342,7 @@ export function useEditorExport({
       setExportAction('share');
       clearExportMessageTimer();
       setExportMessage(null);
+      let namedExportUri: string | null = null;
 
       try {
         const canShare = await Sharing.isAvailableAsync();
@@ -348,7 +353,7 @@ export function useEditorExport({
         }
 
         // Share keeps a stable display name (no (n) suffix); gallery duplicates use save path.
-        const namedExportUri = await captureNamedExport(exportFilename, 0);
+        namedExportUri = await captureNamedExport(exportFilename, 0);
         await Sharing.shareAsync(namedExportUri, {
           dialogTitle: t('export.shareDialogTitle'),
           mimeType: 'image/jpeg',
@@ -357,6 +362,9 @@ export function useEditorExport({
       } catch {
         showExportMessage(t('errors.shareFailed'));
       } finally {
+        if (namedExportUri) {
+          await deleteExportTempFile(namedExportUri);
+        }
         setExportAction(null);
       }
     },

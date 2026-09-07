@@ -1,9 +1,12 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { Image as NativeImage } from 'react-native';
 
 import { CROP_CACHE_DIR_NAME, CROP_CACHE_FILE_PREFIX } from '@/constants/cropCache';
+import { WORKING_IMAGE_MAX_LONG_EDGE_PX } from '@/constants/imagePolicy';
 import type { CropPixelRect, CropRect, CropRotationDeg, Size } from '@/types/crop';
 import { isFullCropRect, normalizedCropToPixelRect } from '@/utils/cropGeometry';
+import { getMaxLongEdgeResize, getMaxLongEdgeTargetSize } from '@/utils/imageResize';
 
 type BakeCroppedImageInput = {
   sourceUri: string;
@@ -101,16 +104,113 @@ async function copyToCropCache(tempUri: string, prefix: string): Promise<string>
 }
 
 /**
- * Flatten EXIF orientation into pixels so preview coords match bake coords.
- * Returns a cache URI + bitmap size reported by the manipulator.
+ * Reads only the image header (no full bitmap decode) for the long-edge
+ * downsample decision.
+ */
+function getImageHeaderSize(uri: string): Promise<Size> {
+  return new Promise((resolve, reject) => {
+    NativeImage.getSize(
+      uri,
+      (width, height) => resolve({ width, height }),
+      () => reject(new Error('Unable to read image header size')),
+    );
+  });
+}
+
+async function deleteUriBestEffort(uri: string | null | undefined) {
+  if (!uri) {
+    return;
+  }
+
+  try {
+    await FileSystem.deleteAsync(uri, { idempotent: true });
+  } catch {
+    // Best-effort cleanup.
+  }
+}
+
+/**
+ * Flatten EXIF orientation into pixels and keep the long edge at or under the
+ * product resolution cap (see WORKING_IMAGE_MAX_LONG_EDGE_PX). Sources already
+ * at or under the cap are never upscaled.
+ *
+ * The header is read first so the downsample can fold into the single
+ * decode/encode pass that already flattens EXIF — this keeps a full-resolution
+ * decode to exactly once per source image.
  */
 export async function prepareCropSourceImage(sourceUri: string): Promise<PreparedCropSource> {
-  const result = await ImageManipulator.manipulateAsync(sourceUri, [], {
-    compress: 1,
-    format: ImageManipulator.SaveFormat.JPEG,
-  });
+  let headerSize: Size | null = null;
 
-  const uri = await copyToCropCache(result.uri, `${CROP_CACHE_FILE_PREFIX}src_`);
+  try {
+    headerSize = await getImageHeaderSize(sourceUri);
+  } catch {
+    headerSize = null;
+  }
+
+  let outputUri: string;
+  let outputWidth = 0;
+  let outputHeight = 0;
+
+  if (headerSize) {
+    const singleAxis = getMaxLongEdgeResize(
+      headerSize.width,
+      headerSize.height,
+      WORKING_IMAGE_MAX_LONG_EDGE_PX,
+    );
+
+    if (singleAxis) {
+      const resized = await ImageManipulator.manipulateAsync(sourceUri, [{ resize: singleAxis }], {
+        compress: 1,
+        format: ImageManipulator.SaveFormat.JPEG,
+      });
+
+      if (Math.max(resized.width, resized.height) <= WORKING_IMAGE_MAX_LONG_EDGE_PX) {
+        outputUri = resized.uri;
+        outputWidth = resized.width;
+        outputHeight = resized.height;
+      } else {
+        // EXIF rotated the axes relative to the header guess. The oversized
+        // intermediate is already small, so the correction pass is cheap.
+        const exact = getMaxLongEdgeTargetSize(
+          resized.width,
+          resized.height,
+          WORKING_IMAGE_MAX_LONG_EDGE_PX,
+        );
+        const corrected = await ImageManipulator.manipulateAsync(
+          resized.uri,
+          [{ resize: exact ?? singleAxis }],
+          {
+            compress: 1,
+            format: ImageManipulator.SaveFormat.JPEG,
+          },
+        );
+        await deleteUriBestEffort(resized.uri);
+        outputUri = corrected.uri;
+        outputWidth = corrected.width;
+        outputHeight = corrected.height;
+      }
+    } else {
+      const flattened = await ImageManipulator.manipulateAsync(sourceUri, [], {
+        compress: 1,
+        format: ImageManipulator.SaveFormat.JPEG,
+      });
+      outputUri = flattened.uri;
+      outputWidth = flattened.width;
+      outputHeight = flattened.height;
+    }
+  } else {
+    // Could not read a header (unusual URI). Keep the previous single flatten
+    // pass so behaviour is unchanged for those sources.
+    const flattened = await ImageManipulator.manipulateAsync(sourceUri, [], {
+      compress: 1,
+      format: ImageManipulator.SaveFormat.JPEG,
+    });
+    outputUri = flattened.uri;
+    outputWidth = flattened.width;
+    outputHeight = flattened.height;
+  }
+
+  const uri = await copyToCropCache(outputUri, `${CROP_CACHE_FILE_PREFIX}src_`);
 
   if (preparedSourceUri && preparedSourceUri !== uri) {
     await deleteManagedUri(preparedSourceUri);
@@ -121,8 +221,8 @@ export async function prepareCropSourceImage(sourceUri: string): Promise<Prepare
 
   return {
     uri,
-    width: result.width,
-    height: result.height,
+    width: outputWidth,
+    height: outputHeight,
   };
 }
 
