@@ -380,18 +380,10 @@ export function useTagEditorState({
     setIsStylePickerVisible(false);
   };
 
-  /** User closed the style sheet after picking — enter sticky pending-placement mode. */
+  /** User closed the style sheet after picking — keep selection open for direct drag or editing. */
   const finishStylePicker = () => {
     setIsStylePickerVisible(false);
-
-    if (editorMode !== 'tag' || !selectedImageUri) {
-      return;
-    }
-
-    setSelectedTagId(null);
-    setDraftTagId(null);
-    setDraftPreview(null);
-    setIsPendingPlacement(true);
+    setIsPendingPlacement(false);
   };
 
   const cancelPendingPlacement = () => {
@@ -770,32 +762,107 @@ export function useTagEditorState({
     clearTagEditorState();
   };
 
+  const createTagAtCenter = (type: TagType) => {
+    const soldLabel = t('tag.sold');
+    const sizePresetId =
+      sizePresetOverrideByType[type] ??
+      (type === 'condition'
+        ? DEFAULT_CONDITION_SIZE_PRESET_ID
+        : type === 'language'
+          ? DEFAULT_LANGUAGE_SIZE_PRESET_ID
+          : usesInfoSizeStepDown(type)
+            ? getSmallerSizePreset(currentSizePresetId)
+            : currentSizePresetId);
+
+    const placementWidth = imageRect ? imageRect.width : 300;
+    const placementSize = estimatePlacementTagSize(type, sizePresetId, placementWidth);
+
+    const { x, y } = imageRect
+      ? getNormalizedPointFromCanvasPoint(
+          imageRect.x + imageRect.width / 2 - placementSize.width / 2,
+          imageRect.y + imageRect.height / 2 - placementSize.height / 2,
+          imageRect,
+          placementSize,
+        )
+      : { x: 0.5, y: 0.5 };
+
+    const resolvedStylePresetId = getStylePresetForType(type, currentStylePresetByType[type]);
+    const clampedPriceFormat = clampPriceTextFormat(currency, currentPriceTextFormat);
+
+    const initialText = (() => {
+      switch (type) {
+        case 'price':
+          return formatPriceDisplay('1000', clampedPriceFormat, currency, language) || '฿1,000';
+        case 'sold':
+          return currentSoldTextFormat === 'text' ? soldLabel : SOLD_ICON_TEXT;
+        case 'text':
+          return language === 'th' ? 'ข้อความ' : 'Text';
+        case 'condition':
+          return currentConditionValue;
+        case 'quantity':
+          return `x${DEFAULT_QUANTITY}`;
+        case 'language':
+          return currentLanguageCode;
+      }
+    })();
+
+    const id = `tag-${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const soldStylePresetId =
+      type === 'sold' && currentSoldTextFormat === 'icon_plain'
+        ? 'sold-icon-plain'
+        : resolvedStylePresetId;
+
+    const newTag: PriceTag = {
+      id,
+      type,
+      text: initialText,
+      x,
+      y,
+      stylePresetId: type === 'sold' ? soldStylePresetId : resolvedStylePresetId,
+      sizePresetId,
+      ...(type === 'price' ? { priceTextFormat: clampedPriceFormat } : null),
+      ...(type === 'sold' ? { soldTextFormat: currentSoldTextFormat } : null),
+      ...(type === 'quantity' ? { quantity: DEFAULT_QUANTITY } : null),
+      ...(type === 'condition' ? { condition: currentConditionValue } : null),
+      ...(type === 'language' ? { languageCode: currentLanguageCode } : null),
+    };
+
+    setTags((currentTags) => {
+      pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
+      return [...currentTags, newTag];
+    });
+
+    setSelectedTagId(newTag.id);
+    setDraftTagId(newTag.id);
+    setDraftText(newTag.text);
+    setDraftType(newTag.type);
+    setDraftPreview(null);
+    liveDraftTextRef.current = newTag.text;
+    setIsPendingPlacement(false);
+  };
+
   const handleSelectToolType = (type: TagType) => {
     const previousType = currentToolType;
     setCurrentToolType(type);
 
-    if (type !== 'price' && type !== 'text') {
-      return;
+    if (type === 'price' || type === 'text') {
+      let familyId = lastMainTextStyleFamilyId;
+      if (!familyId && (previousType === 'price' || previousType === 'text')) {
+        familyId = getStyleFamilyId(
+          getStylePresetForType(previousType, currentStylePresetByType[previousType]),
+        );
+      }
+
+      if (familyId) {
+        setLastMainTextStyleFamilyId(familyId);
+        setCurrentStylePresetByType((currentPresets) => ({
+          ...currentPresets,
+          [type]: getStylePresetForFamily(type, familyId),
+        }));
+      }
     }
 
-    // Prefer the last family the seller explicitly picked; if empty, fall back to the
-    // active preset on the type we are leaving so price ↔ text still stay in sync.
-    let familyId = lastMainTextStyleFamilyId;
-    if (!familyId && (previousType === 'price' || previousType === 'text')) {
-      familyId = getStyleFamilyId(
-        getStylePresetForType(previousType, currentStylePresetByType[previousType]),
-      );
-    }
-
-    if (!familyId) {
-      return;
-    }
-
-    setLastMainTextStyleFamilyId(familyId);
-    setCurrentStylePresetByType((currentPresets) => ({
-      ...currentPresets,
-      [type]: getStylePresetForFamily(type, familyId),
-    }));
+    createTagAtCenter(type);
   };
 
   const handleSelectToolStylePreset = (type: TagType, stylePresetId: TagStylePresetId) => {
@@ -813,49 +880,154 @@ export function useTagEditorState({
       }
     }
 
-    if (type === 'sold') {
-      setCurrentSoldTextFormat((currentFormat) => {
-        if (resolvedStylePresetId === 'sold-icon-plain') {
-          return 'icon_plain';
-        }
+    const nextSoldFormat =
+      type === 'sold'
+        ? resolvedStylePresetId === 'sold-icon-plain'
+          ? 'icon_plain'
+          : currentSoldTextFormat === 'icon_plain'
+            ? 'text'
+            : currentSoldTextFormat
+        : currentSoldTextFormat;
 
-        return currentFormat === 'icon_plain' ? 'text' : currentFormat;
-      });
+    if (type === 'sold') {
+      setCurrentSoldTextFormat(nextSoldFormat);
+    }
+
+    if (selectedTag && selectedTag.type === type) {
+      const soldLabel = t('tag.sold');
+      const nextStylePresetId =
+        type === 'sold' && resolvedStylePresetId === 'sold-icon-plain'
+          ? 'sold-icon-plain'
+          : resolvedStylePresetId;
+      const nextText =
+        type === 'sold'
+          ? nextSoldFormat === 'text'
+            ? soldLabel
+            : SOLD_ICON_TEXT
+          : selectedTag.text;
+
+      setTags((currentTags) =>
+        currentTags.map((tag) =>
+          tag.id === selectedTag.id
+            ? {
+                ...tag,
+                stylePresetId: nextStylePresetId,
+                soldTextFormat: type === 'sold' ? nextSoldFormat : tag.soldTextFormat,
+                text: nextText,
+              }
+            : tag,
+        ),
+      );
     }
   };
 
   const handleSelectToolPriceFormat = (format: PriceTextFormat) => {
-    setCurrentPriceTextFormat(clampPriceTextFormat(currency, format));
+    const clampedFormat = clampPriceTextFormat(currency, format);
+    setCurrentPriceTextFormat(clampedFormat);
+
+    if (selectedTag && selectedTag.type === 'price') {
+      const digits = extractPriceDigits(liveDraftTextRef.current || selectedTag.text) || '1000';
+      const formattedPrice = formatPriceDisplay(digits, clampedFormat, currency, language) || '฿1,000';
+      liveDraftTextRef.current = formattedPrice;
+      setDraftText(formattedPrice);
+
+      setTags((currentTags) =>
+        currentTags.map((tag) =>
+          tag.id === selectedTag.id
+            ? {
+                ...tag,
+                priceTextFormat: clampedFormat,
+                text: formattedPrice,
+              }
+            : tag,
+        ),
+      );
+    }
   };
 
   const handleSelectToolSoldTextFormat = (format: SoldTextFormat) => {
     setCurrentSoldTextFormat(format);
 
-    if (format === 'icon_plain') {
-      return;
+    let nextSoldStyle = currentStylePresetByType.sold;
+    if (format !== 'icon_plain') {
+      if (currentStylePresetByType.sold === 'sold-icon-plain') {
+        const fallbackPresetId =
+          SOLD_STYLE_PRESET_ORDER.find((presetId) => presetId !== 'sold-icon-plain') ?? 'sold-red';
+        nextSoldStyle = fallbackPresetId;
+        setCurrentStylePresetByType((currentPresets) => ({
+          ...currentPresets,
+          sold: fallbackPresetId,
+        }));
+      }
     }
 
-    setCurrentStylePresetByType((currentPresets) => {
-      if (currentPresets.sold !== 'sold-icon-plain') {
-        return currentPresets;
-      }
+    if (selectedTag && selectedTag.type === 'sold') {
+      const soldLabel = t('tag.sold');
+      const resolvedSoldStyle =
+        format === 'icon_plain'
+          ? 'sold-icon-plain'
+          : nextSoldStyle === 'sold-icon-plain'
+            ? 'sold-red'
+            : nextSoldStyle;
+      const nextText = format === 'text' ? soldLabel : SOLD_ICON_TEXT;
+      liveDraftTextRef.current = nextText;
+      setDraftText(nextText);
 
-      const fallbackPresetId =
-        SOLD_STYLE_PRESET_ORDER.find((presetId) => presetId !== 'sold-icon-plain') ?? 'sold-red';
-
-      return {
-        ...currentPresets,
-        sold: fallbackPresetId,
-      };
-    });
+      setTags((currentTags) =>
+        currentTags.map((tag) =>
+          tag.id === selectedTag.id
+            ? {
+                ...tag,
+                soldTextFormat: format,
+                stylePresetId: resolvedSoldStyle,
+                text: nextText,
+              }
+            : tag,
+        ),
+      );
+    }
   };
 
   const handleSelectToolConditionValue = (value: TagConditionValue) => {
     setCurrentConditionValue(value);
+
+    if (selectedTag && selectedTag.type === 'condition') {
+      liveDraftTextRef.current = value;
+      setDraftText(value);
+
+      setTags((currentTags) =>
+        currentTags.map((tag) =>
+          tag.id === selectedTag.id
+            ? {
+                ...tag,
+                condition: value,
+                text: value,
+              }
+            : tag,
+        ),
+      );
+    }
   };
 
   const handleSelectToolLanguageCode = (code: TagLanguageCode) => {
     setCurrentLanguageCode(code);
+
+    if (selectedTag && selectedTag.type === 'language') {
+      liveDraftTextRef.current = code;
+      setDraftText(code);
+
+      setTags((currentTags) =>
+        currentTags.map((tag) =>
+          tag.id === selectedTag.id
+            ? {
+                ...tag,
+                languageCode: code,
+                text: code,
+              }
+            : tag,
+        ),
+      );
+    }
   };
 
   const handleSelectSizePreset = (sizePresetId: TagSizePresetId) => {

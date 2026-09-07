@@ -766,9 +766,9 @@ export default function EditorScreen() {
           <View pointerEvents="box-none" style={styles.placementChipOverlay}>
             {isMultiSelectMode ? (
               <MultiSelectHintChip />
-            ) : (
+            ) : isPendingPlacement ? (
               <PendingPlacementChip previewTag={stylePreviewTag} />
-            )}
+            ) : null}
           </View>
         ) : null}
 

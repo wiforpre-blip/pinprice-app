@@ -9,7 +9,6 @@ import { EditorZoomViewport } from '@/components/editor/EditorZoomViewport';
 import { PanelMarker } from '@/components/editor/PanelMarker';
 import { PriceListComposition } from '@/components/editor/PriceListComposition';
 import { PricePanel } from '@/components/editor/PricePanel';
-import { StaticTag } from '@/components/editor/StaticTag';
 import { TagEditor, TYPES_WITH_INLINE_INPUT } from '@/components/editor/TagEditor';
 import { TagOverlay, type TagInlineEdit } from '@/components/editor/TagOverlay';
 import { PinPriceTheme as theme } from '@/constants/theme';
@@ -368,9 +367,6 @@ export function EditorCanvas({
                   );
                 })
               : null}
-            {imageRect && isStylePickerVisible ? (
-              <StaticTag anchor="center" imageRect={imageRect} tag={stylePreviewTag} />
-            ) : null}
           </EditorZoomViewport>
         </View>
       </View>
