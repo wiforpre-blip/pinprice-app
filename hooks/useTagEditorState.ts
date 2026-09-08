@@ -125,10 +125,19 @@ function buildSaveUpdatesFromDraft(
   liveText?: string,
 ): TagEditorSaveUpdates {
   const text = liveText || draftPreview?.text || draftText;
+  let isPlaceholder = draftPreview?.isPlaceholder ?? tag.isPlaceholder;
+
+  if (tag.type === 'price') {
+    isPlaceholder = extractPriceDigits(text).length === 0;
+  } else if (tag.type === 'text') {
+    isPlaceholder = text.trim().length === 0;
+  }
+
   const updates: TagEditorSaveUpdates = {
     text,
     stylePresetId: draftPreview?.stylePresetId ?? tag.stylePresetId,
     sizePresetId: draftPreview?.sizePresetId ?? tag.sizePresetId,
+    isPlaceholder,
   };
 
   if (tag.type === 'price') {
@@ -185,6 +194,7 @@ function createPriceTag(
         stylePresetId: resolvedStylePresetId,
         sizePresetId,
         priceTextFormat: options.priceTextFormat,
+        isPlaceholder: true,
       };
     case 'sold': {
       const soldTextFormat = options.soldTextFormat;
@@ -210,6 +220,7 @@ function createPriceTag(
         y,
         stylePresetId: resolvedStylePresetId,
         sizePresetId,
+        isPlaceholder: true,
       };
     case 'quantity':
       return {
@@ -378,12 +389,14 @@ export function useTagEditorState({
 
   const closeStylePicker = () => {
     setIsStylePickerVisible(false);
+    clearTagEditorState();
   };
 
-  /** User closed the style sheet after picking — keep selection open for direct drag or editing. */
+  /** User closed the style sheet — dismiss sheet and clear selection to avoid auto-focusing/keyboard pop. */
   const finishStylePicker = () => {
     setIsStylePickerVisible(false);
     setIsPendingPlacement(false);
+    clearTagEditorState();
   };
 
   const cancelPendingPlacement = () => {
@@ -396,10 +409,20 @@ export function useTagEditorState({
     }
 
     const soldLabel = t('tag.sold');
-    const safeText = getSafeTagText(liveDraftTextRef.current || draftText, selectedTag.type, soldLabel);
+    const rawText = liveDraftTextRef.current || draftText;
+    const safeText = getSafeTagText(rawText, selectedTag.type, soldLabel);
+
+    let isPlaceholder = selectedTag.isPlaceholder;
+    if (selectedTag.type === 'price') {
+      isPlaceholder = extractPriceDigits(rawText).length === 0;
+    } else if (selectedTag.type === 'text') {
+      isPlaceholder = rawText.trim().length === 0;
+    }
 
     setTags((currentTags) =>
-      currentTags.map((tag) => (tag.id === selectedTag.id ? { ...tag, text: safeText } : tag)),
+      currentTags.map((tag) =>
+        tag.id === selectedTag.id ? { ...tag, text: safeText, isPlaceholder } : tag,
+      ),
     );
   };
 
@@ -465,8 +488,12 @@ export function useTagEditorState({
     setDraftType(newTag.type);
     setDraftPreview(null);
     liveDraftTextRef.current = newTag.text;
-    setIsStylePickerVisible(false);
     setIsPendingPlacement(false);
+    if (newTag.type === 'sold') {
+      setIsStylePickerVisible(true);
+    } else {
+      setIsStylePickerVisible(false);
+    }
   };
 
   const handleTagPress = (tag: PriceTag) => {
@@ -487,7 +514,23 @@ export function useTagEditorState({
     setDraftText(tag.text);
     setDraftType(tag.type);
     setDraftPreview(null);
-    setIsStylePickerVisible(false);
+    if (tag.type === 'sold') {
+      setCurrentToolType('sold');
+      const tagSoldFormat = tag.soldTextFormat ?? (tag.stylePresetId === 'sold-icon-plain' ? 'icon_plain' : 'text');
+      setCurrentSoldTextFormat(tagSoldFormat);
+      if (tag.stylePresetId) {
+        setCurrentStylePresetByType((current) => ({
+          ...current,
+          sold: tag.stylePresetId,
+        }));
+      }
+      if (tag.sizePresetId) {
+        setCurrentSizePresetId(tag.sizePresetId);
+      }
+      setIsStylePickerVisible(true);
+    } else {
+      setIsStylePickerVisible(false);
+    }
   };
 
   const handleTagSizeChange = (tagId: string, size: TagSize) => {
@@ -536,6 +579,7 @@ export function useTagEditorState({
         condition: previousTag.type === 'condition' ? (updates.condition ?? previousTag.condition ?? DEFAULT_CONDITION_VALUE) : previousTag.condition,
         languageCode:
           previousTag.type === 'language' ? (updates.languageCode ?? previousTag.languageCode ?? DEFAULT_LANGUAGE_CODE) : previousTag.languageCode,
+        isPlaceholder: updates.isPlaceholder ?? previousTag.isPlaceholder,
       };
 
       const hasChanged =
@@ -546,7 +590,8 @@ export function useTagEditorState({
         previousTag.soldTextFormat !== nextTag.soldTextFormat ||
         previousTag.quantity !== nextTag.quantity ||
         previousTag.condition !== nextTag.condition ||
-        previousTag.languageCode !== nextTag.languageCode;
+        previousTag.languageCode !== nextTag.languageCode ||
+        previousTag.isPlaceholder !== nextTag.isPlaceholder;
 
       if (!hasChanged) {
         return currentTags;
@@ -820,6 +865,7 @@ export function useTagEditorState({
       y,
       stylePresetId: type === 'sold' ? soldStylePresetId : resolvedStylePresetId,
       sizePresetId,
+      ...(type === 'price' || type === 'text' ? { isPlaceholder: true } : null),
       ...(type === 'price' ? { priceTextFormat: clampedPriceFormat } : null),
       ...(type === 'sold' ? { soldTextFormat: currentSoldTextFormat } : null),
       ...(type === 'quantity' ? { quantity: DEFAULT_QUANTITY } : null),
@@ -906,8 +952,17 @@ export function useTagEditorState({
             : SOLD_ICON_TEXT
           : selectedTag.text;
 
-      setTags((currentTags) =>
-        currentTags.map((tag) =>
+      setTags((currentTags) => {
+        const previousTag = currentTags.find((tag) => tag.id === selectedTag.id);
+        if (
+          previousTag &&
+          (previousTag.stylePresetId !== nextStylePresetId ||
+            previousTag.soldTextFormat !== nextSoldFormat ||
+            previousTag.text !== nextText)
+        ) {
+          pushHistory({ mode: 'tag', tags: cloneTags(currentTags) });
+        }
+        return currentTags.map((tag) =>
           tag.id === selectedTag.id
             ? {
                 ...tag,
@@ -916,8 +971,8 @@ export function useTagEditorState({
                 text: nextText,
               }
             : tag,
-        ),
-      );
+        );
+      });
     }
   };
 
@@ -938,6 +993,7 @@ export function useTagEditorState({
                 ...tag,
                 priceTextFormat: clampedFormat,
                 text: formattedPrice,
+                isPlaceholder: tag.isPlaceholder,
               }
             : tag,
         ),
@@ -1131,9 +1187,8 @@ export function useTagEditorState({
 
   /**
    * Outside tap / switch-away: keep intentional work.
-   * - New blank price/text draft → cancel (same as ×)
-   * - New draft with valid content, or edit of existing tag → save then close
-   * Does not create a new tag; caller must return before addTagAtPoint.
+   * - Tags with empty price/text stay on canvas showing hints (isPlaceholder)
+   * - Saves current state and clears editor chrome
    */
   const handleDismissTagEdit = () => {
     if (!selectedTag) {
@@ -1141,17 +1196,25 @@ export function useTagEditorState({
       return;
     }
 
-    const isNewDraft = draftTagId === selectedTag.id;
-
-    if (isNewDraft && isNewDraftEmpty(selectedTag, draftPreview, draftText, liveDraftTextRef.current)) {
-      handleCancelTagEdit();
-      return;
-    }
-
     handleSaveTag(
       selectedTag.id,
       buildSaveUpdatesFromDraft(selectedTag, draftPreview, draftText, liveDraftTextRef.current),
     );
+  };
+
+  const hasPlaceholderTags = () => {
+    return tags.some((tag) => {
+      if (selectedTag && tag.id === selectedTag.id) {
+        const rawText = (liveDraftTextRef.current || draftPreview?.text || draftText).trim();
+        if (tag.type === 'price') {
+          return extractPriceDigits(rawText).length === 0;
+        }
+        if (tag.type === 'text') {
+          return rawText.length === 0;
+        }
+      }
+      return Boolean(tag.isPlaceholder);
+    });
   };
 
   const clearAlignFeedback = () => {
@@ -1283,7 +1346,8 @@ export function useTagEditorState({
   const stylePickerType = currentToolType;
   const activeStylePresetId = getStylePresetForType(
     stylePickerType,
-    currentStylePresetByType[stylePickerType],
+    (selectedTag && selectedTag.type === stylePickerType ? selectedTag.stylePresetId : undefined) ??
+      currentStylePresetByType[stylePickerType],
   );
   // Quantity stores a stepped-down size for render; map back up so picker chips match the tap.
   const storedActiveSize =
@@ -1319,7 +1383,7 @@ export function useTagEditorState({
   })();
   const stylePreviewSizeId =
     (selectedTag && selectedTag.type === stylePickerType ? selectedTag.sizePresetId : undefined) ??
-    sizePresetOverrideByType[stylePickerType] ??
+      sizePresetOverrideByType[stylePickerType] ??
     (stylePickerType === 'condition'
       ? DEFAULT_CONDITION_SIZE_PRESET_ID
       : stylePickerType === 'language'
@@ -1327,10 +1391,18 @@ export function useTagEditorState({
         : usesInfoSizeStepDown(stylePickerType)
           ? getSmallerSizePreset(currentSizePresetId)
           : currentSizePresetId);
+  const effectiveSoldFormat =
+    selectedTag && selectedTag.type === 'sold'
+      ? selectedTag.soldTextFormat ?? (selectedTag.stylePresetId === 'sold-icon-plain' ? 'icon_plain' : 'text')
+      : currentSoldTextFormat;
   const soldStylePresetId =
-    currentSoldTextFormat === 'icon_plain'
+    effectiveSoldFormat === 'icon_plain' || (selectedTag?.type === 'sold' && selectedTag.stylePresetId === 'sold-icon-plain')
       ? 'sold-icon-plain'
-      : getStylePresetForType('sold', currentStylePresetByType.sold);
+      : getStylePresetForType(
+          'sold',
+          (selectedTag && selectedTag.type === 'sold' ? selectedTag.stylePresetId : undefined) ??
+            currentStylePresetByType.sold,
+        );
   const stylePreviewTag: PriceTag = {
     id: 'style-preview',
     type: stylePickerType,
@@ -1400,6 +1472,7 @@ export function useTagEditorState({
     handleTagLongPress,
     handleTagPress,
     handleTagSizeChange,
+    hasPlaceholderTags,
     isDeleteModalVisible,
     isDragOverDelete,
     isDraggingTag,

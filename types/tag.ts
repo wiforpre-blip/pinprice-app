@@ -81,6 +81,8 @@ export type PriceTag = {
   condition?: TagConditionValue;
   /** Language-only: code shown on the tag. */
   languageCode?: TagLanguageCode;
+  /** True when the tag holds hint/placeholder text and has not been typed yet by the user. */
+  isPlaceholder?: boolean;
 };
 
 export type ImageDisplayRect = {
@@ -100,6 +102,7 @@ export type TagEditorSaveUpdates = {
   quantity?: number;
   condition?: TagConditionValue;
   languageCode?: TagLanguageCode;
+  isPlaceholder?: boolean;
 };
 
 /** Live on-image preview while the tag popup is open (style/size/format before save). */
@@ -111,4 +114,5 @@ export type TagEditorDraftPreview = {
   soldTextFormat?: SoldTextFormat;
   condition?: TagConditionValue;
   languageCode?: TagLanguageCode;
+  isPlaceholder?: boolean;
 };

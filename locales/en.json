@@ -138,6 +138,8 @@
     "confirmFilenameEdit": "Confirm filename edit",
     "filenamePlaceholder": "Tap to name file",
     "previewBeforeSaving": "Preview before saving",
+    "placeholderTagWarningTitle": "Enter price or text",
+    "placeholderTagWarningBody": "Some tags do not have a price or text yet. Please enter the details before saving or sharing.",
     "closeTagEditor": "Close tag editor",
     "addPriceTag": "Add price tag",
     "noImageSelected": "No image selected",

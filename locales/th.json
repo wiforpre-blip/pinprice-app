@@ -138,6 +138,8 @@
     "confirmFilenameEdit": "ยืนยันชื่อไฟล์",
     "filenamePlaceholder": "แตะเพื่อตั้งชื่อไฟล์",
     "previewBeforeSaving": "พรีวิวก่อนบันทึก",
+    "placeholderTagWarningTitle": "กรุณาระบุราคาหรือข้อความ",
+    "placeholderTagWarningBody": "มีป้ายที่ยังไม่ได้ระบุราคาหรือข้อความจริง กรุณากรอกข้อมูลให้ครบถ้วนก่อนบันทึกหรือแชร์รูปภาพ",
     "closeTagEditor": "ปิดตัวแก้ป้าย",
     "addPriceTag": "เพิ่มป้ายราคา",
     "noImageSelected": "ยังไม่ได้เลือกรูป",

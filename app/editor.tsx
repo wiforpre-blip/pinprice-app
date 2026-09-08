@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Keyboard, Text, View } from 'react-native';
+import { Alert, Keyboard, Text, View } from 'react-native';
 import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
 import { useLocalSearchParams } from 'expo-router';
@@ -200,6 +200,7 @@ export default function EditorScreen() {
     handleTagLongPress,
     handleTagPress,
     handleTagSizeChange,
+    hasPlaceholderTags,
     isDeleteModalVisible,
     isDragOverDelete,
     isDraggingTag,
@@ -337,6 +338,15 @@ export default function EditorScreen() {
 
   const openPreview = () => {
     if (!selectedImageUri || !canExport) {
+      return;
+    }
+
+    if (hasPlaceholderTags()) {
+      Alert.alert(
+        t('editor.placeholderTagWarningTitle'),
+        t('editor.placeholderTagWarningBody'),
+        [{ text: t('common.ok') }],
+      );
       return;
     }
 
@@ -673,6 +683,7 @@ export default function EditorScreen() {
       activeSizePresetId={activeSizePresetId}
       conditionValue={currentConditionValue}
       languageCode={currentLanguageCode}
+      isDetailOnly={selectedTag?.type === 'sold'}
       onClose={finishStylePicker}
       onCoachSectionsLayout={bumpCoachMeasure}
       onSelectConditionValue={handleSelectToolConditionValue}

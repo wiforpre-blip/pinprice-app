@@ -45,7 +45,6 @@ import type {
 } from '@/types/tag';
 import {
   extractPriceDigits,
-  formatAmountNumber,
   formatPriceDisplay,
   getPriceInlineParts,
   getPriceTextFormatsForCurrency,
@@ -408,7 +407,7 @@ export function TagEditor({
 
     switch (tag.type) {
       case 'price': {
-        const digits = extractPriceDigits(tag.text);
+        const digits = tag.isPlaceholder ? '' : extractPriceDigits(tag.text);
         priceAmountRef.current = digits;
         setPriceAmount(digits);
         setPriceTextFormat(clampPriceTextFormat(currency, tag.priceTextFormat));
@@ -417,10 +416,12 @@ export function TagEditor({
       case 'sold':
         setSoldTextFormat(tag.soldTextFormat ?? (tag.text === SOLD_ICON_TEXT ? 'icon' : 'text'));
         break;
-      case 'text':
-        freeTextRef.current = tag.text;
-        setFreeText(tag.text);
+      case 'text': {
+        const initialText = tag.isPlaceholder ? '' : tag.text;
+        freeTextRef.current = initialText;
+        setFreeText(initialText);
         break;
+      }
       case 'quantity': {
         const qty = String(tag.quantity ?? (extractPriceDigits(tag.text) || DEFAULT_QUANTITY));
         quantityRef.current = qty;
@@ -690,7 +691,7 @@ export function TagEditor({
         value: parts.amount,
         keyboardType: 'number-pad',
         maxLength: atDigitCap ? Math.max(parts.amount.length, 1) : undefined,
-        placeholder: formatAmountNumber(PREVIEW_AMOUNT),
+        placeholder: '',
         prefix: parts.prefix || undefined,
         suffix: parts.suffix || undefined,
         autoFocus: true,
@@ -710,17 +711,22 @@ export function TagEditor({
           priceAmountRef.current = nextDigits;
           setPriceAmount(nextDigits);
           // Keep parent liveDraftTextRef current before React re-renders displayText.
-          onDraftChangeRef.current(
-            {
-              text: formatPriceDisplay(
+          const isNowPlaceholder = nextDigits.length === 0;
+          const displayText = isNowPlaceholder
+            ? formatPriceDisplay(PREVIEW_AMOUNT, priceTextFormatRef.current, currencyRef.current, languageRef.current) || '฿1,000'
+            : formatPriceDisplay(
                 nextDigits,
                 priceTextFormatRef.current,
                 currencyRef.current,
                 languageRef.current,
-              ),
+              );
+          onDraftChangeRef.current(
+            {
+              text: displayText,
               stylePresetId,
               sizePresetId: TYPES_WITH_SIZE_PICKER.includes(tag.type) ? sizePresetId : tag.sizePresetId,
               priceTextFormat: priceTextFormatRef.current,
+              isPlaceholder: isNowPlaceholder,
             },
             { syncOnly: true },
           );
@@ -735,16 +741,21 @@ export function TagEditor({
       publish?.({
         value: freeTextRef.current,
         multiline: true,
-        placeholder: language === 'th' ? 'ข้อความ' : 'Text',
+        placeholder: '',
         autoFocus: true,
         onChangeText: (nextText) => {
           freeTextRef.current = nextText;
           setFreeText(nextText);
+          const isNowPlaceholder = nextText.trim().length === 0;
+          const displayText = isNowPlaceholder
+            ? (languageRef.current === 'th' ? 'ข้อความ' : 'Text')
+            : nextText;
           onDraftChangeRef.current(
             {
-              text: nextText,
+              text: displayText,
               stylePresetId,
               sizePresetId: TYPES_WITH_SIZE_PICKER.includes(tag.type) ? sizePresetId : tag.sizePresetId,
+              isPlaceholder: isNowPlaceholder,
             },
             { syncOnly: true },
           );
@@ -811,20 +822,28 @@ export function TagEditor({
     return () => clearTimeout(fallback);
   }, [inputRef, tag?.id, tag?.type, visible]);
 
-  if (!visible || !tag) {
+  if (!visible || !tag || tag.type === 'sold') {
     return null;
   }
 
   const saveTag = () => {
     const sizeUpdate = TYPES_WITH_SIZE_PICKER.includes(tag.type) ? { sizePresetId } : {};
+    const clampedPriceFormat = clampPriceTextFormat(currency, priceTextFormat);
+    const hasPriceDigits = extractPriceDigits(priceAmountRef.current).length > 0;
     // Read inline values from refs — displayText/useState can lag behind IME keystrokes.
-    const latestPriceText = formatPriceDisplay(
-      priceAmountRef.current,
-      clampPriceTextFormat(currency, priceTextFormat),
-      currency,
-      language,
-    );
-    const latestFreeText = freeTextRef.current;
+    const latestPriceText = hasPriceDigits
+      ? formatPriceDisplay(
+          priceAmountRef.current,
+          clampedPriceFormat,
+          currency,
+          language,
+        )
+      : (formatPriceDisplay(PREVIEW_AMOUNT, clampedPriceFormat, currency, language) || '฿1,000');
+    const trimmedFreeText = freeTextRef.current.trim();
+    const hasFreeText = trimmedFreeText.length > 0;
+    const latestFreeText = hasFreeText
+      ? freeTextRef.current
+      : (language === 'th' ? 'ข้อความ' : 'Text');
     const latestQuantityDigits = extractPriceDigits(quantityRef.current) || String(DEFAULT_QUANTITY);
     const latestQuantityText = `x${Number(latestQuantityDigits)}`;
 
@@ -833,7 +852,8 @@ export function TagEditor({
         onSave(tag.id, {
           text: latestPriceText,
           stylePresetId,
-          priceTextFormat: clampPriceTextFormat(currency, priceTextFormat),
+          priceTextFormat: clampedPriceFormat,
+          isPlaceholder: !hasPriceDigits,
           ...sizeUpdate,
         });
         break;
@@ -847,8 +867,9 @@ export function TagEditor({
         break;
       case 'text':
         onSave(tag.id, {
-          text: latestFreeText.trim() || (language === 'th' ? 'ข้อความ' : 'Text'),
+          text: latestFreeText,
           stylePresetId,
+          isPlaceholder: !hasFreeText,
           ...sizeUpdate,
         });
         break;

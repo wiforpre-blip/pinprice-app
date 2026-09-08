@@ -52,6 +52,7 @@ type StylePickerPanelProps = {
   languageCode: TagLanguageCode;
   textStylePresetId: TagStylePresetId;
   soldStylePresetId: TagStylePresetId;
+  isDetailOnly?: boolean;
   tagTypesSectionRef?: RefObject<View | null>;
   sizeSectionRef?: RefObject<View | null>;
   onCoachSectionsLayout?: () => void;
@@ -122,6 +123,7 @@ export function StylePickerPanel({
   languageCode,
   textStylePresetId,
   soldStylePresetId,
+  isDetailOnly = false,
   tagTypesSectionRef,
   sizeSectionRef,
   onCoachSectionsLayout,
@@ -136,7 +138,7 @@ export function StylePickerPanel({
   const { language, t } = useTranslation();
   const { currency } = useCurrency();
   const [detailType, setDetailType] = useState<TagType | null>(null);
-  const showDetail = detailType === stylePickerType;
+  const showDetail = isDetailOnly || detailType === stylePickerType;
   const priceFormats = getPriceTextFormatsForCurrency(currency);
   const formatSectionTitle: [string] = [t('tag.dock.format')];
   const styleSectionTitle: [string] = [t('tag.dock.style')];
@@ -160,7 +162,7 @@ export function StylePickerPanel({
       </View>
 
       <View style={styles.stylePickerHeader}>
-        {showDetail ? (
+        {showDetail && !isDetailOnly ? (
           <Pressable
             accessibilityLabel={t('editor.back')}
             accessibilityRole="button"
@@ -187,7 +189,7 @@ export function StylePickerPanel({
       </View>
 
       {showDetail ? (
-        <View style={[styles.coachSection, styles.pickerBody]}>
+        <View style={[styles.coachSection, styles.pickerBody, isDetailOnly && styles.pickerBodyDetailOnly]}>
           {stylePickerType === 'price' ? (
             <SectionRow labelLines={formatSectionTitle}>
               <View style={styles.optionRow}>
@@ -375,6 +377,9 @@ const styles = StyleSheet.create({
   pickerBody: {
     height: PICKER_BODY_HEIGHT,
     justifyContent: 'flex-start',
+  },
+  pickerBodyDetailOnly: {
+    height: 'auto',
   },
   sectionRow: {
     flexDirection: 'row',

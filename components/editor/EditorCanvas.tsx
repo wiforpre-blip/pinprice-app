@@ -158,7 +158,11 @@ export function EditorCanvas({
   }, [onDraftPreviewVisualOffsetChange, onKeyboardCanvasLiftChange]);
 
   const isTagEditorVisible =
-    Boolean(selectedTag) && !isMultiSelectMode && draggingTagId !== selectedTagId && !isStylePickerVisible;
+    Boolean(selectedTag) &&
+    selectedTag?.type !== 'sold' &&
+    !isMultiSelectMode &&
+    draggingTagId !== selectedTagId &&
+    !isStylePickerVisible;
   const selectedSupportsInlineEdit =
     isTagEditorVisible && selectedTag != null && TYPES_WITH_INLINE_INPUT.includes(selectedTag.type);
   const activeInlineEdit = selectedSupportsInlineEdit ? inlineEdit : null;
@@ -350,6 +354,7 @@ export function EditorCanvas({
                               soldTextFormat: draftPreview.soldTextFormat ?? tag.soldTextFormat,
                               condition: draftPreview.condition ?? tag.condition,
                               languageCode: draftPreview.languageCode ?? tag.languageCode,
+                              isPlaceholder: draftPreview.isPlaceholder ?? tag.isPlaceholder,
                             }
                           : tag
                       }
